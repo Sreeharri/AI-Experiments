@@ -122,7 +122,8 @@ def summarize(client, title, language, recitals):
             left = [{**row, "text": row["text"][:mid]}]
             right = [{**row, "text": row["text"][mid:]}]
         partials = [build(left), build(right)]
-        return call(MERGE_PROMPT, "partial_briefs", partials, allowed)
+        cited = {ref for brief in partials for point in brief for ref in point["references"]}
+        return call(MERGE_PROMPT, "partial_briefs", partials, cited)
 
     return build(recitals)
 
