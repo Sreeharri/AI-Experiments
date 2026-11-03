@@ -1,0 +1,1175 @@
+# =============================================================================
+# Business-Anker für Legal Radar · Deutsch
+# Version business-anchors-v2 · 28.10.2026
+#
+# Wozu: beschreibt, in welchen Geschäftsbereichen und in welchen rechtlichen
+# Rollen Max Bögl tätig ist. Damit entscheidet das Modell je Rechtsakt:
+# DIRECT, INDIRECT oder IRRELEVANT (Regeln unter "levels").
+#
+# Gleiche Schlüssel und gleicher Aufbau wie business_anchors_en.yaml.
+# Wer hier etwas ändert, ändert die englische Datei im selben Schritt und
+# prüft beide mit:  py check_business_anchors.py
+#
+# Aufbau je Anker:
+#   domain       Rechtsgebiet aus domains.yaml (für die spätere Weiterleitung)
+#   label        kurzer Name
+#   scope        was der Geschäftsbereich umfasst, mit Beispielen
+#   roles        Rollen, die Max Bögl hier hat (Schlüssel aus "roles")
+#   note         nur wo die Grundregel nicht reicht
+#   not_covered  ähnlich klingende Themen, die nicht gemeint sind
+#
+# ANNAHMEN - bitte bestätigen oder korrigieren:
+#   1. Max Bögl betreibt keine Anlage, die selbst dem EU-Emissionshandel
+#      unterliegt (Zement-/Kalkwerke gehören Lieferanten).
+#   2. Max Bögl führt Stahl, Aluminium oder Zement teilweise selbst aus
+#      Nicht-EU-Staaten ein (Rolle importer).
+#   3. Max Bögl setzt Drohnen für Vermessung und Dokumentation ein.
+#   4. Max Bögl fällt als Stromerzeuger und großes Unternehmen unter NIS2.
+#   5. Max Bögl stellt keine Maschinen, Fahrzeuge oder Elektrogeräte her, die
+#      es an andere verkauft.
+# =============================================================================
+version: business-anchors-v2
+language: de
+
+levels:
+  DIRECT: >-
+    Der Rechtsakt verpflichtet oder berechtigt Max Bögl selbst in einer seiner
+    Rollen. Max Bögl muss handeln. Dazu zählen auch Pflichten aus Richtlinien,
+    die Max Bögl nach der Umsetzung in deutsches Recht treffen.
+  INDIRECT: >-
+    Die Pflichten treffen andere (Hersteller, Lieferanten, Auftraggeber,
+    Behörden, Mitgliedstaaten), aber der Rechtsakt verändert einen
+    Geschäftsbereich von Max Bögl auf einem konkreten Weg (siehe
+    indirect_paths). Max Bögl muss nicht selbst handeln, sollte es aber wissen.
+  IRRELEVANT: >-
+    Kein Geschäftsbereich von Max Bögl ist betroffen. Ein ähnliches Thema oder
+    ein einzelnes passendes Wort reicht nicht.
+  rule: >-
+    Entscheidend ist, wen die Pflichten treffen. Trifft eine Pflicht eine Rolle,
+    die Max Bögl im betroffenen Geschäftsbereich hat, ist der Akt DIRECT.
+    Treffen die Pflichten nur andere, ist er INDIRECT, wenn ein konkreter Weg
+    zu Max Bögl besteht, sonst IRRELEVANT. Enthält ein Akt beides, gilt die
+    höhere Stufe. Im Zweifel zwischen zwei Stufen gilt ebenfalls die höhere.
+
+indirect_paths:
+  client_requirements: >-
+    Auftraggeber oder Infrastrukturbetreiber müssen etwas verlangen oder
+    einhalten, das Max Bögl als Auftragnehmer umsetzen muss.
+  suppliers_prices: >-
+    Pflichten für Lieferanten verändern Verfügbarkeit oder Preise von
+    Baustoffen, Stahl, Energie oder Kraftstoffen.
+  purchased_products: >-
+    Pflichten für Hersteller verändern Maschinen, Fahrzeuge, Geräte oder
+    Stoffe, die Max Bögl kauft und einsetzt.
+  market_funding: >-
+    Ausbauziele, Förderprogramme, Ausschreibungen oder Investitionspläne
+    verändern Nachfrage und Projekte in den Märkten von Max Bögl.
+
+roles:
+  client_developer: >-
+    Bauherr und Projektentwickler eigener Bauvorhaben.
+  contractor: >-
+    Bauunternehmen, Auftragnehmer und Generalunternehmer im Hochbau,
+    Ingenieurbau, Verkehrswege-, Bahn-, Brücken- und Tunnelbau sowie bei
+    schlüsselfertigen Projekten.
+  employer: >-
+    Arbeitgeber mit eigenen Beschäftigten auf Baustellen, in Werken und Büros,
+    auch bei Einsätzen im Ausland.
+  plant_operator: >-
+    Betreiber eigener Werke und Anlagen: Betonfertigteil-, Beton- und
+    Asphaltwerke, Steinbrüche und Kiesgruben, Stahlbau-, Werkstatt- und
+    Lageranlagen.
+  construction_product_manufacturer: >-
+    Hersteller, der eigene Bauprodukte in Verkehr bringt: Betonfertigteile,
+    Transportbeton, Asphalt, Gesteinskörnungen, Stahlbauteile, Türme für
+    Windenergieanlagen und Fahrwegsysteme für den Bahnbau.
+  chemicals_user: >-
+    Nachgeschalteter Anwender von Stoffen und Gemischen (Zement, Zusatzmittel,
+    Bauchemie, Beschichtungen, Kraftstoffe) und Lieferant eigener Gemische wie
+    Beton und Mörtel.
+  waste_producer: >-
+    Erzeuger und Besitzer von Bau-, Abbruch-, Aushub- und Produktionsabfällen.
+  fleet_operator: >-
+    Betreiber eines eigenen Fuhrparks mit Lkw, Baumaschinen-, Schwer- und
+    Gefahrguttransporten sowie Gleisbaufahrzeugen im Werkverkehr.
+  energy_producer: >-
+    Erzeuger von Strom aus Wind und Photovoltaik und Betreiber von Speichern,
+    einschließlich Netzanschluss und Vermarktung.
+  building_owner: >-
+    Eigentümer und Betreiber eigener Gebäude (Büros, Werkhallen) mit
+    Gebäudetechnik, Klima- und Kälteanlagen und Ladepunkten.
+  large_undertaking: >-
+    Großes Unternehmen und Unternehmensgruppe mit Berichts-, Prüfungs-,
+    Sorgfalts-, Energieaudit- und Compliance-Pflichten.
+  bidder: >-
+    Bieter und Bewerber in öffentlichen Vergabeverfahren und bei Konzessionen.
+  contract_party: >-
+    Vertragspartner in Bau-, Werk-, Liefer-, Miet- und Dienstleistungsverträgen.
+  importer: >-
+    Einführer von Waren aus Nicht-EU-Staaten, soweit Max Bögl selbst einführt
+    (z. B. Stahl, Aluminium, Zement, Maschinen).
+  data_controller: >-
+    Verantwortlicher für personenbezogene Daten von Beschäftigten, Kunden und
+    Geschäftspartnern.
+  it_operator: >-
+    Betreiber eigener IT, industrieller Steuerungssysteme und Software sowie
+    Betreiber (Anwender) von KI-Systemen.
+  taxpayer: >-
+    Steuer- und Abgabenpflichtiger und Rechnungsleger.
+  drone_operator: >-
+    Betreiber von Drohnen für Vermessung und Baustellendokumentation.
+
+not_roles: >-
+  Max Bögl ist grundsätzlich nicht: Behörde, öffentlicher Auftraggeber oder
+  Mitgliedstaat; Hersteller von Maschinen, Fahrzeugen, Aufzügen, Elektrogeräten
+  oder Konsumprodukten; Hersteller oder Einführer von Chemikalien als solchen;
+  Netzbetreiber oder Energielieferant an Endkunden; Bank, Versicherer oder
+  Finanzdienstleister; Luftfahrt-, Schifffahrts- oder
+  Telekommunikationsunternehmen; Landwirtschafts-, Lebensmittel- oder
+  Pharmabetrieb. Pflichten dieser Akteure sind höchstens INDIRECT.
+
+anchors:
+
+  # --- Bauen und Infrastruktur ------------------------------------------------
+
+  building_construction:
+    domain: construction_building
+    label: Hochbau und Gebäude
+    scope: >-
+      Bau gewerblicher, industrieller, öffentlicher und Wohngebäude:
+      Grundanforderungen an Bauwerke (Standsicherheit, Brandschutz, Hygiene und
+      Gesundheit, Nutzungssicherheit, Schallschutz, Energieeinsparung),
+      Tragwerksplanung und Eurocodes, Fassaden, Dächer, technische
+      Gebäudeausrüstung und Barrierefreiheit von Gebäuden.
+    roles: [client_developer, contractor]
+    not_covered: >-
+      Wohnungsstatistik, Mietrecht und Wohnraumförderung ohne Pflichten für
+      Bauunternehmen.
+
+  building_energy_performance:
+    domain: energy_sustainability
+    label: Gebäudeenergieeffizienz und Sanierung
+    scope: >-
+      Gesamtenergieeffizienz von Gebäuden (z. B. Richtlinie (EU) 2024/1275),
+      Energieausweise, Nullemissionsgebäude, Lebenszyklus-Treibhausgasemissionen
+      von Gebäuden, Sanierungspflichten, Gebäudeautomation, Heizungs-,
+      Lüftungs- und Klimatechnik, Solaranlagen und Ladepunkte an Gebäuden.
+    roles: [building_owner, client_developer, contractor]
+    note: >-
+      Anforderungen an neue und renovierte Gebäude treffen Bauherren und
+      ausführende Unternehmen und sind DIRECT. Nationale Renovierungspläne und
+      Ziele der Mitgliedstaaten sind INDIRECT (Markt).
+    not_covered: >-
+      Energieverbrauchskennzeichnung von Haushaltsgeräten.
+
+  modular_precast_construction:
+    domain: construction_building
+    label: Modul- und Fertigteilbau
+    scope: >-
+      Serielles und modulares Bauen, vorgefertigte Raumzellen und Bauelemente,
+      industrielle Vorfertigung von Gebäudeteilen, Systembau und
+      Typengenehmigungen für serielle Bauweisen.
+    roles: [contractor, construction_product_manufacturer]
+    not_covered: >-
+      Wohnmobile, Wohnwagen und Seecontainer.
+
+  civil_engineering_roads:
+    domain: infrastructure_civil_engineering
+    label: Tiefbau, Straßen und Verkehrswege
+    scope: >-
+      Straßenbau, Erdbau, Gründungen, Entwässerung und Kanalbau, Bau und
+      Erhaltung von Verkehrswegen, transeuropäische Verkehrsnetze (z. B.
+      Verordnung (EU) 2024/1679) und Sicherheitsmanagement für die
+      Straßeninfrastruktur.
+    roles: [contractor, client_developer]
+    note: >-
+      Pflichten von Mitgliedstaaten und Straßenbaulastträgern (Netzplanung,
+      Sicherheitsaudits, Ausbaufristen) sind INDIRECT: Sie bestimmen, was
+      Auftraggeber ausschreiben und verlangen.
+    not_covered: >-
+      Fahrgastrechte, Führerscheinklassen und Verkehrsstatistik.
+
+  bridges_tunnels:
+    domain: infrastructure_civil_engineering
+    label: Brücken-, Tunnel- und Ingenieurbau
+    scope: >-
+      Ingenieurbauwerke wie Brücken, Tunnel, Stützbauwerke, Talsperren und
+      Wasserbauwerke, Untertagebau und Spezialtiefbau, Prüfung, Überwachung und
+      Instandhaltung von Ingenieurbauwerken, Sicherheitsanforderungen an Tunnel
+      (z. B. Richtlinie 2004/54/EG).
+    roles: [contractor, client_developer]
+    note: >-
+      Sicherheitsanforderungen, die Tunnel- und Bauwerksbetreiber erfüllen
+      müssen, sind INDIRECT (Vorgaben der Auftraggeber), soweit sie Max Bögl
+      nicht selbst als Bauherr treffen.
+    not_covered: >-
+      Hafenentgelte und Sicherheit von Fahrgastschiffen.
+
+  railway_infrastructure:
+    domain: infrastructure_civil_engineering
+    label: Bahnbau und Fahrwegtechnik
+    scope: >-
+      Bau und Instandhaltung von Eisenbahnfahrwegen, feste Fahrbahn,
+      Oberleitungsanlagen, bahntechnische Ingenieurbauwerke, Interoperabilität
+      des Eisenbahnsystems (z. B. Richtlinie (EU) 2016/797), technische
+      Spezifikationen für die Teilsysteme Infrastruktur und Energie sowie
+      spurgeführte Verkehrssysteme.
+    roles: [contractor, construction_product_manufacturer]
+    note: >-
+      Anforderungen an Fahrwegkomponenten, die Max Bögl selbst herstellt (z. B.
+      Gleistragplatten der festen Fahrbahn), sind DIRECT. Pflichten von
+      Infrastrukturbetreibern und Eisenbahnunternehmen sind INDIRECT.
+    not_covered: >-
+      Fahrgastrechte im Eisenbahnverkehr, Trassenentgelte und
+      Eisenbahnstatistik.
+
+  broadband_civil_works:
+    domain: infrastructure_civil_engineering
+    label: Breitband- und Leitungsinfrastruktur bei Bauarbeiten
+    scope: >-
+      Koordinierung von Bauarbeiten und Mitnutzung physischer Infrastruktur für
+      Hochgeschwindigkeitsnetze, gebäudeinterne Infrastruktur und
+      Zugangspunkte in neuen und umfassend renovierten Gebäuden (z. B.
+      Verordnung (EU) 2024/1309), Leitungsbau im Straßen- und Tiefbau.
+    roles: [contractor, client_developer, building_owner]
+    not_covered: >-
+      Funkfrequenzen, Roaming sowie Telefon- und Internetdienste für
+      Verbraucher.
+
+  geotechnics_extraction:
+    domain: geotechnical_mining
+    label: Geotechnik und Rohstoffgewinnung
+    scope: >-
+      Baugrunduntersuchung, Bodenmechanik, Baugruben- und Böschungssicherung,
+      Wasserhaltung, Steinbrüche und Kiesgruben, Gewinnung von Sand, Kies und
+      Naturstein, Abfälle der mineralgewinnenden Industrie (z. B. Richtlinie
+      2006/21/EG) und Rekultivierung von Abbaustätten.
+    roles: [plant_operator, contractor]
+    not_covered: >-
+      Tiefseebergbau, Erdöl- und Erdgasförderung und Steinkohlenbergbau.
+
+  building_permits_planning:
+    domain: construction_building
+    label: Baugenehmigung und Planungsrecht
+    scope: >-
+      Baugenehmigungen, Planungs- und Städtebaurecht, Bauleitplanung,
+      Flächennutzung und Verfahren vor Bauaufsichtsbehörden für Bauvorhaben.
+    roles: [client_developer, contractor]
+    not_covered: >-
+      Genehmigung von Beihilferegelungen, Aufenthaltstitel und andere
+      Verwaltungsverfahren ohne Baubezug.
+
+  # --- Baustoffe, Bauprodukte und Chemikalien --------------------------------
+
+  construction_materials_production:
+    domain: construction_building
+    label: Herstellung von Baustoffen und Betonfertigteilen
+    scope: >-
+      Herstellung von Beton, Transportbeton, Betonfertigteilen, Asphalt und
+      Gesteinskörnungen, Verarbeitung von Zement, Kalk, Beton- und Spannstahl,
+      werkseigene Produktionskontrolle, Emissionen und beste verfügbare
+      Techniken in Baustoffwerken.
+    roles: [plant_operator, construction_product_manufacturer, employer]
+    not_covered: >-
+      Lebensmittelverpackungen, Haushaltskeramik und Düngemittel.
+
+  construction_products_ce:
+    domain: construction_building
+    label: Bauprodukte - Leistungserklärung und CE-Kennzeichnung
+    scope: >-
+      Inverkehrbringen von Bauprodukten (Verordnung (EU) Nr. 305/2011 und
+      Verordnung (EU) 2024/3110): Leistungserklärung, CE-Kennzeichnung,
+      Bewertung und Überprüfung der Leistungsbeständigkeit, notifizierte
+      Stellen, Europäische Bewertungsdokumente, Umweltangaben und digitaler
+      Produktpass für Bauprodukte.
+    roles: [construction_product_manufacturer]
+    not_covered: >-
+      Konformitätsbewertung von Medizinprodukten, Spielzeug und
+      Verbraucherprodukten.
+
+  construction_products_standards:
+    domain: construction_building
+    label: Harmonisierte Normen und Klassen für Bauprodukte
+    scope: >-
+      Harmonisierte technische Spezifikationen für Bauprodukte (Beton, Zement,
+      Gesteinskörnungen, Mauersteine, Dämmstoffe, Fenster, Türen, Bauteile aus
+      Stahl oder Holz): Fundstellen harmonisierter Normen, Normungsaufträge,
+      wesentliche Merkmale, Leistungsklassen, Brandverhalten und
+      Feuerwiderstand sowie Systeme zur Bewertung der Leistungsbeständigkeit.
+    roles: [construction_product_manufacturer]
+    note: >-
+      Normen für Bauprodukte, die Max Bögl herstellt, sind DIRECT. Normen für
+      Bauprodukte, die Max Bögl nur kauft und einbaut, sind INDIRECT.
+    not_covered: >-
+      Normen für Medizinprodukte, Zahlungsdienste, Websites, Kraftfahrzeuge,
+      Luftfahrt und andere Warengruppen ohne Baubezug.
+
+  construction_products_market_surveillance:
+    domain: construction_building
+    label: Marktüberwachung und Rücknahme von Bauprodukten
+    scope: >-
+      Marktüberwachung von Bauprodukten, Schutzklauselverfahren, Maßnahmen
+      gegen nicht konforme Bauprodukte, Rücknahme und Rückruf.
+    roles: [construction_product_manufacturer]
+    note: >-
+      Pflichten des Herstellers für eigene Produkte sind DIRECT. Befugnisse und
+      Verfahren der Behörden sind INDIRECT.
+    not_covered: >-
+      Marktüberwachung von Kosmetika, Lebensmitteln, Spielzeug und
+      Kinderartikeln.
+
+  steel_construction:
+    domain: construction_building
+    label: Stahlbau
+    scope: >-
+      Fertigung und Montage von Stahltragwerken für Gebäude, Hallen, Brücken
+      und Türme: Schweißen, Schrauben, Oberflächenbehandlung,
+      Korrosionsschutz, Stahl- und Aluminiumerzeugnisse für das Bauen.
+    roles: [contractor, construction_product_manufacturer]
+    note: >-
+      Antidumping-, Ausgleichs- und Schutzzölle auf Stahl- und
+      Aluminiumerzeugnisse für das Bauen sind INDIRECT (Materialpreise), DIRECT
+      nur, wenn Max Bögl die Ware selbst aus Nicht-EU-Staaten einführt.
+    not_covered: >-
+      Stahl für Haushaltswaren, Aluminiumfolie für Verpackungen und
+      historische EGKS-Regelungen.
+
+  chemicals_reach:
+    domain: dangerous_goods
+    label: Chemikalien in Bauprodukten und Bauchemie (REACH)
+    scope: >-
+      Registrierung, Bewertung, Zulassung und Beschränkung chemischer Stoffe
+      (Verordnung (EG) Nr. 1907/2006), Kandidatenliste besonders
+      besorgniserregender Stoffe und Sicherheitsdatenblätter, soweit es um
+      Stoffe in Zement, Beton, Zusatzmitteln, Bauchemie, Beschichtungen,
+      Klebstoffen, Dämmstoffen oder Kraftstoffen geht.
+    roles: [chemicals_user, construction_product_manufacturer]
+    note: >-
+      Beschränkungen und Zulassungen für Stoffe, die Max Bögl verwendet oder in
+      eigenen Produkten liefert, sind DIRECT. Registrierungspflichten der
+      Stoffhersteller sind INDIRECT.
+    not_covered: >-
+      Pflanzenschutzmittel, Kosmetik- und Lebensmittelchemikalien.
+
+  chemicals_clp:
+    domain: dangerous_goods
+    label: Einstufung, Kennzeichnung und Verpackung (CLP)
+    scope: >-
+      Einstufung, Kennzeichnung und Verpackung von Stoffen und Gemischen
+      (Verordnung (EG) Nr. 1272/2008), harmonisierte Einstufungen,
+      Gefahrenhinweise und Kennzeichnung von Gebinden.
+    roles: [chemicals_user, construction_product_manufacturer]
+    note: >-
+      Die Kennzeichnung eigener Gemische wie Beton und Mörtel ist DIRECT. Neue
+      harmonisierte Einstufungen sind DIRECT bei Stoffen, die Max Bögl
+      verwendet oder liefert (z. B. Zement, Quarz, Zusatzmittel), sonst
+      INDIRECT.
+    not_covered: >-
+      Kennzeichnung von Lebensmitteln und Textilien.
+
+  # --- Maschinen, Anlagen und Technik -----------------------------------------
+
+  machinery_work_equipment:
+    domain: machinery_safety
+    label: Baumaschinen und Arbeitsmittel
+    scope: >-
+      Krane, Turmdrehkrane, Bagger, Hebezeuge, Betonpumpen, Hubarbeitsbühnen
+      und andere Arbeitsmittel auf Baustellen und in Werken: sichere
+      Bereitstellung und Benutzung, wiederkehrende Prüfung und Unterweisung
+      (z. B. Richtlinie 2009/104/EG).
+    roles: [employer, plant_operator]
+    note: >-
+      Konstruktions-, CE- und Konformitätspflichten der Maschinenhersteller
+      (z. B. Verordnung (EU) 2023/1230) sind INDIRECT: Sie ändern, welche
+      Maschinen Max Bögl kaufen kann.
+    not_covered: >-
+      Landwirtschaftliche Zugmaschinen, Erntemaschinen, Lebensmittelmaschinen
+      und Freizeitfahrzeuge.
+
+  machinery_noise_engine_emissions:
+    domain: machinery_safety
+    label: Geräusch- und Abgasemissionen mobiler Maschinen
+    scope: >-
+      Geräuschemissionen von Geräten und Maschinen im Freien (Richtlinie
+      2000/14/EG), Abgasgrenzwerte und Typgenehmigung von Motoren für nicht für
+      den Straßenverkehr bestimmte mobile Maschinen (Verordnung (EU)
+      2016/1628) sowie Betriebsbeschränkungen für solche Maschinen.
+    roles: [plant_operator, fleet_operator]
+    note: >-
+      Grenzwerte und Typgenehmigung treffen die Hersteller und sind INDIRECT.
+      Betriebsbeschränkungen und Nachrüstpflichten für Betreiber sind DIRECT.
+    not_covered: >-
+      Geräusche von Pkw, Flugzeugen, Rasenmähern und Freizeitgeräten.
+
+  electrical_explosion_protection:
+    domain: product_safety
+    label: Elektrische Betriebsmittel und Explosionsschutz
+    scope: >-
+      Niederspannungsrichtlinie, elektromagnetische Verträglichkeit, Geräte
+      und Schutzsysteme für explosionsgefährdete Bereiche, Baustromversorgung,
+      elektrische Anlagen in Werken und auf Baustellen sowie Schutz der
+      Beschäftigten in explosionsgefährdeten Bereichen (Richtlinie 1999/92/EG).
+    roles: [employer, plant_operator]
+    note: >-
+      Pflichten der Gerätehersteller (Richtlinien 2014/35/EU, 2014/30/EU und
+      2014/34/EU) sind INDIRECT. Betreiber- und Arbeitgeberpflichten sind
+      DIRECT.
+    not_covered: >-
+      Haushaltsgeräte, Unterhaltungselektronik, Ladegeräte für Mobiltelefone
+      und Funkfrequenzen.
+
+  pressure_equipment_lifts:
+    domain: product_safety
+    label: Druckgeräte, Aufzüge und überwachungsbedürftige Anlagen
+    scope: >-
+      Druckgeräte, einfache Druckbehälter, Aufzüge und ihre
+      Sicherheitsbauteile, Seilbahnen sowie Betrieb und Prüfung
+      überwachungsbedürftiger Anlagen in Werken, auf Baustellen und in
+      Gebäuden.
+    roles: [plant_operator, building_owner, employer]
+    note: >-
+      Herstellerpflichten (Richtlinien 2014/68/EU, 2014/29/EU und 2014/33/EU)
+      sind INDIRECT. Betrieb, Prüfung und Pflichten beim Einbau von Aufzügen in
+      eigene Bauwerke sind DIRECT.
+    not_covered: >-
+      Druckbehälter auf Seeschiffen und Aerosolpackungen für Kosmetika.
+
+  drones_surveying:
+    domain: machinery_safety
+    label: Drohnen für Vermessung und Baustellendokumentation
+    scope: >-
+      Betrieb unbemannter Luftfahrzeuge im gewerblichen Einsatz:
+      Betriebskategorien, Registrierung der Betreiber, Kompetenznachweise der
+      Fernpiloten, Betriebsgenehmigungen und Geozonen (z. B.
+      Durchführungsverordnung (EU) 2019/947).
+    roles: [drone_operator]
+    note: >-
+      Anforderungen an Konstruktion und CE-Kennzeichnung von Drohnen (z. B.
+      Delegierte Verordnung (EU) 2019/945) sind INDIRECT.
+    not_covered: >-
+      Bemannte Luftfahrt, Luftfahrtunternehmen und Fluggastrechte.
+
+  # --- Arbeitsschutz und Gefahrstoffe ----------------------------------------
+
+  site_safety:
+    domain: occupational_health_safety
+    label: Arbeitssicherheit auf Baustellen
+    scope: >-
+      Sicherheit und Gesundheitsschutz auf zeitlich begrenzten oder
+      ortsveränderlichen Baustellen (Richtlinie 92/57/EWG): Sicherheits- und
+      Gesundheitsschutzplan, Koordinator, Vorankündigung, Absturzsicherung,
+      Gerüste, Arbeiten in Höhen und Gräben, Baustellenverkehr und persönliche
+      Schutzausrüstung.
+    roles: [employer, client_developer, contractor]
+    not_covered: >-
+      Sicherheit an Bord von Fischereifahrzeugen und Bergbau unter Tage
+      außerhalb des Bauwesens.
+
+  occupational_safety_general:
+    domain: occupational_health_safety
+    label: Betrieblicher Arbeits- und Gesundheitsschutz
+    scope: >-
+      Allgemeine Arbeitgeberpflichten (Richtlinie 89/391/EWG):
+      Gefährdungsbeurteilung, Unterweisung, Arbeitsstätten, Benutzung
+      persönlicher Schutzausrüstung, arbeitsmedizinische Vorsorge, Grenzwerte
+      für Lärm, Vibrationen, elektromagnetische Felder und optische Strahlung,
+      Hitze sowie Meldung von Arbeitsunfällen und Berufskrankheiten.
+    roles: [employer]
+    note: >-
+      Anforderungen an die Herstellung persönlicher Schutzausrüstung (z. B.
+      Verordnung (EU) 2016/425) sind INDIRECT.
+    not_covered: >-
+      Patientensicherheit, Verbraucherschutz bei Kosmetika und Tierschutz.
+
+  hazardous_substances_workplace:
+    domain: occupational_health_safety
+    label: Gefahrstoffe am Arbeitsplatz
+    scope: >-
+      Schutz der Beschäftigten vor chemischen Arbeitsstoffen, krebserzeugenden,
+      erbgutverändernden und fortpflanzungsgefährdenden Stoffen (Richtlinien
+      98/24/EG und 2004/37/EG): Arbeitsplatzgrenzwerte, Quarzfeinstaub,
+      Dieselmotoremissionen, Substitution und Expositionsverzeichnisse.
+    roles: [employer]
+    not_covered: >-
+      Rückstandshöchstgehalte in Lebensmitteln, Tierarzneimittel und
+      Inhaltsstoffe von Kosmetika.
+
+  asbestos_demolition:
+    domain: occupational_health_safety
+    label: Asbest, Gebäudeschadstoffe und Rückbau
+    scope: >-
+      Schutz vor Asbest (Richtlinie 2009/148/EG), künstlichen Mineralfasern,
+      PCB und anderen Gebäudeschadstoffen bei Abbruch, Sanierung und Rückbau,
+      Schadstofferkundung vor dem Rückbau, Anzeige- und Sachkundepflichten und
+      Entsorgung asbesthaltiger Abfälle.
+    roles: [employer, contractor, waste_producer]
+    not_covered: >-
+      Entsorgung von Elektroaltgeräten und Altfahrzeugen aus Haushalten.
+
+  radiation_radon:
+    domain: occupational_health_safety
+    label: Strahlenschutz - Radon und Radioaktivität von Baustoffen
+    scope: >-
+      Radon an Arbeitsplätzen und in Gebäuden sowie Referenzwerte für die
+      Gammastrahlung von Baustoffen (Richtlinie 2013/59/Euratom).
+    roles: [employer, construction_product_manufacturer, building_owner]
+    not_covered: >-
+      Kernkraftwerke, Kernbrennstoffe, Beförderung radioaktiver Stoffe und
+      medizinische Strahlenanwendung.
+
+  hazardous_substances_storage:
+    domain: dangerous_goods
+    label: Lagerung gefährlicher Stoffe und Störfallvorsorge
+    scope: >-
+      Lagerung, Abfüllung und Umgang mit gefährlichen Stoffen und Gemischen in
+      Werken und auf Baustellen, Lagerklassen, Auffangvorrichtungen,
+      wassergefährdende Stoffe und Beherrschung der Gefahren schwerer Unfälle
+      (Richtlinie 2012/18/EU).
+    roles: [plant_operator, employer]
+    not_covered: >-
+      Lagerung von Getreide und strategische Ölvorräte der Mitgliedstaaten.
+
+  explosives_blasting:
+    domain: dangerous_goods
+    label: Explosivstoffe und Sprengarbeiten
+    scope: >-
+      Erwerb, Lagerung, Rückverfolgbarkeit und Verwendung von Explosivstoffen
+      für zivile Zwecke (Richtlinie 2014/28/EU) bei Sprengarbeiten in
+      Steinbrüchen, im Tunnelbau und beim Abbruch.
+    roles: [plant_operator, contractor, employer]
+    note: >-
+      Herstellerpflichten sind INDIRECT. Aufzeichnungs- und
+      Rückverfolgbarkeitspflichten der Verwender sind DIRECT.
+    not_covered: >-
+      Pyrotechnische Gegenstände für Verbraucher und militärische Munition.
+
+  # --- Transport und Fuhrpark -------------------------------------------------
+
+  fleet_commercial_vehicles:
+    domain: transport_fleet
+    label: Fuhrpark und Nutzfahrzeuge
+    scope: >-
+      Betrieb von Lkw, Baumaschinen- und Schwertransporten: Lenk- und
+      Ruhezeiten (Verordnung (EG) Nr. 561/2006), Fahrtenschreiber (Verordnung
+      (EU) Nr. 165/2014), Berufskraftfahrerqualifikation, technische
+      Überwachung, Maße und Gewichte (Richtlinie 96/53/EG), Maut,
+      Güterkraftverkehrserlaubnis sowie Gleisbaufahrzeuge und
+      Triebfahrzeugführer im Werkverkehr.
+    roles: [fleet_operator, employer]
+    note: >-
+      Typgenehmigung und CO2-Flottengrenzwerte für Fahrzeughersteller sind
+      INDIRECT.
+    not_covered: >-
+      Pkw-Typgenehmigung, Fahrgastrechte im Busverkehr und Maut nur für Pkw.
+
+  dangerous_goods_transport:
+    domain: dangerous_goods
+    label: Gefahrguttransport
+    scope: >-
+      Beförderung gefährlicher Güter auf Straße und Schiene (Richtlinie
+      2008/68/EG, ADR und RID): Fahrzeugausrüstung, Kennzeichnung,
+      Beförderungspapiere, Gefahrgutbeauftragte, Schulung sowie Beförderung von
+      Kraftstoffen, Gasen und Explosivstoffen zu Baustellen.
+    roles: [fleet_operator]
+    not_covered: >-
+      Gefahrgut im See- und Luftverkehr, Tiertransporte und radioaktive
+      Abfälle.
+
+  e_mobility_charging:
+    domain: transport_fleet
+    label: Elektromobilität und Ladeinfrastruktur
+    scope: >-
+      Ladepunkte und Vorverkabelung an Gebäuden und Parkplätzen,
+      Ladeinfrastruktur für Pkw, Lkw und Baumaschinen sowie Infrastruktur für
+      alternative Kraftstoffe (Verordnung (EU) 2023/1804).
+    roles: [building_owner, fleet_operator, contractor]
+    note: >-
+      Ausbaupflichten der Mitgliedstaaten und Pflichten von
+      Ladepunktbetreibern sind INDIRECT, außer Max Bögl betreibt die
+      Ladepunkte selbst.
+    not_covered: >-
+      Ladegeräte für Mobiltelefone und Laptops.
+
+  # --- Umwelt -----------------------------------------------------------------
+
+  industrial_emissions:
+    domain: environmental_protection
+    label: Anlagengenehmigung und Luftreinhaltung
+    scope: >-
+      Genehmigung und Betrieb von Anlagen: Industrieemissionen (Richtlinie
+      2010/75/EU, geändert durch Richtlinie (EU) 2024/1785),
+      BVT-Schlussfolgerungen für die Herstellung von Zement und Kalk,
+      mittelgroße Feuerungsanlagen in Werken (Richtlinie (EU) 2015/2193),
+      Staub- und Geruchsemissionen aus Asphalt-, Beton- und Brechanlagen und
+      Immissionsschutz.
+    roles: [plant_operator]
+    note: >-
+      BVT-Schlussfolgerungen für Zement- und Kalkwerke der Lieferanten sind
+      INDIRECT, für Branchen ohne Bezug zu Max Bögl IRRELEVANT.
+    not_covered: >-
+      Intensivtierhaltung, Raffinerien sowie Emissionsnormen für Pkw und
+      Schiffe.
+
+  emissions_trading_cbam:
+    domain: energy_sustainability
+    label: Emissionshandel und CO2-Grenzausgleich
+    scope: >-
+      EU-Emissionshandel für Anlagen (Richtlinie 2003/87/EG), Emissionshandel
+      für Brennstoffe in Gebäuden und Straßenverkehr, kostenlose Zuteilung,
+      CO2-Grenzausgleichssystem für Einfuhren von Zement, Eisen und Stahl,
+      Aluminium und Strom (Verordnung (EU) 2023/956).
+    roles: [importer, plant_operator]
+    note: >-
+      DIRECT für eigene Einfuhren im CO2-Grenzausgleich und für Anlagen, die
+      Max Bögl selbst betreibt und die dem Emissionshandel unterliegen.
+      Pflichten der Zement-, Kalk- und Stahlhersteller sowie der
+      Brennstofflieferanten sind INDIRECT (Material- und Kraftstoffpreise).
+    not_covered: >-
+      Emissionshandel im Luft- und Seeverkehr.
+
+  noise_vibration:
+    domain: environmental_protection
+    label: Lärm und Erschütterungen
+    scope: >-
+      Baulärm und Erschütterungen bei Bau- und Sprengarbeiten,
+      Betriebszeitenbeschränkungen, Lärmschutz an Verkehrswegen, Umgebungslärm
+      und Lärmaktionspläne (Richtlinie 2002/49/EG).
+    roles: [contractor, plant_operator]
+    note: >-
+      Lärmkartierung und Aktionspläne der Mitgliedstaaten sind INDIRECT
+      (Lärmschutzbauten als Markt, Auflagen der Auftraggeber).
+    not_covered: >-
+      Fluglärm, Nachtflugbeschränkungen und Lärm von Freizeitgeräten.
+
+  soil_nature_eia:
+    domain: environmental_protection
+    label: Umweltprüfung, Natur- und Bodenschutz
+    scope: >-
+      Umweltverträglichkeitsprüfung von Projekten (Richtlinie 2011/92/EU),
+      Natura-2000-Verträglichkeit und Artenschutz bei Bauvorhaben, Eingriffe und
+      Ausgleich, Bodenschutz und Altlasten, Umwelthaftung der Betreiber
+      (Richtlinie 2004/35/EG) und Umweltstrafrecht für Unternehmen.
+    roles: [client_developer, plant_operator, contractor]
+    note: >-
+      Wiederherstellungs- und Überwachungspflichten der Mitgliedstaaten (z. B.
+      Verordnung (EU) 2024/1991) sind INDIRECT (Auflagen für Projekte).
+    not_covered: >-
+      Fischbestände und Meeresschutzgebiete, ökologischer Landbau und Handel
+      mit wildlebenden Arten.
+
+  waste_management:
+    domain: waste_management
+    label: Abfall und Bau- und Abbruchabfälle
+    scope: >-
+      Abfallhierarchie und Pflichten der Abfallerzeuger (Richtlinie
+      2008/98/EG), Abfallverzeichnis und Einstufung, Bau- und Abbruchabfälle,
+      Bodenaushub, mineralische Ersatzbaustoffe und
+      Recycling-Gesteinskörnungen, Ende der Abfalleigenschaft,
+      Deponie-Annahmekriterien und Verbringung von Abfällen (Verordnung (EU)
+      2024/1157).
+    roles: [waste_producer, plant_operator]
+    not_covered: >-
+      Verpackungsabfälle des Einzelhandels, Bioabfälle und Elektroaltgeräte
+      aus Haushalten.
+
+  water_wastewater:
+    domain: water_protection
+    label: Gewässerschutz und Abwasser
+    scope: >-
+      Wasserentnahme und Grundwasserabsenkung, Einleitung von Bau- und
+      Prozessabwasser, Niederschlagswasser, Grundwasserschutz, Bauen in
+      Überschwemmungs- und Schutzgebieten sowie Umgang mit wassergefährdenden
+      Stoffen.
+    roles: [plant_operator, contractor]
+    note: >-
+      Bewirtschaftungspläne und Qualitätsziele der Mitgliedstaaten (z. B.
+      Richtlinie 2000/60/EG) sind INDIRECT (Auflagen in Erlaubnissen).
+    not_covered: >-
+      Badegewässer, Trinkwasser im Haushalt und Bewässerung in der
+      Landwirtschaft.
+
+  fluorinated_gases:
+    domain: environmental_protection
+    label: F-Gase und ozonschädigende Stoffe
+    scope: >-
+      Betrieb, Dichtheitskontrolle, Wartung und Außerbetriebnahme von Kälte-,
+      Klima- und Wärmepumpenanlagen sowie Fahrzeugklimaanlagen mit fluorierten
+      Treibhausgasen (Verordnung (EU) 2024/573) und ozonschädigenden Stoffen.
+    roles: [building_owner, plant_operator, fleet_operator]
+    note: >-
+      Verbote des Inverkehrbringens für Hersteller sind INDIRECT (Auswahl
+      neuer Anlagen).
+    not_covered: >-
+      Kältemittel in Haushaltskühlgeräten.
+
+  # --- Energie und Nachhaltigkeit ---------------------------------------------
+
+  energy_efficiency_operations:
+    domain: energy_sustainability
+    label: Betriebliche Energieeffizienz
+    scope: >-
+      Energieaudits und Energiemanagementsysteme für Unternehmen (Richtlinie
+      (EU) 2023/1791), Energieverbrauch von Werken und Baustellen, Abwärme und
+      Prozesswärme sowie Energieeinsparziele für Unternehmen.
+    roles: [large_undertaking, plant_operator]
+    note: >-
+      Energieverbrauchskennzeichnung und Ökodesign-Anforderungen an Produkte
+      treffen Hersteller und sind INDIRECT.
+    not_covered: >-
+      Energiekennzeichnung von Haushaltsgeräten und Energieverbrauch privater
+      Haushalte.
+
+  renewable_energy_plants:
+    domain: renewable_energy
+    label: Erneuerbare Energien - Bau und Genehmigung von Anlagen
+    scope: >-
+      Planung, Genehmigung, Bau und Repowering von Windenergieanlagen an Land
+      mit Türmen und Fundamenten, Photovoltaik auf Gebäuden und Freiflächen,
+      Speicher, Beschleunigungsgebiete und Genehmigungsfristen (Richtlinie (EU)
+      2018/2001, geändert durch Richtlinie (EU) 2023/2413).
+    roles: [energy_producer, contractor, construction_product_manufacturer]
+    note: >-
+      Ausbauziele und Planungspflichten der Mitgliedstaaten sind INDIRECT
+      (Markt). Genehmigungsregeln für Anlagen sind DIRECT.
+    not_covered: >-
+      Biokraftstoffe und Biomasse aus der Landwirtschaft sowie
+      Offshore-Windenergie ohne Bau- oder Lieferleistung von Max Bögl.
+
+  power_generation_market:
+    domain: renewable_energy
+    label: Stromerzeugung, Speicherung und Strommarkt
+    scope: >-
+      Pflichten von Stromerzeugern und Speicherbetreibern:
+      Netzanschlussanforderungen an Erzeugungsanlagen (Verordnung (EU)
+      2016/631), Bilanzierung, Redispatch, Marktregeln für Erzeuger (Verordnung
+      (EU) 2019/943 und Richtlinie (EU) 2019/944), Meldepflichten im
+      Energiegroßhandel (Verordnung (EU) Nr. 1227/2011), Herkunftsnachweise,
+      Stromabnahmeverträge, Förderung und Ausschreibungen für erneuerbaren
+      Strom sowie Wasserstoff.
+    roles: [energy_producer]
+    note: >-
+      Pflichten von Netzbetreibern, Regulierungsbehörden und
+      Energielieferanten an Endkunden sind INDIRECT.
+    not_covered: >-
+      Kernenergie, Strompreise für Haushalte und Gasversorgung von Haushalten.
+
+  sustainability_reporting:
+    domain: energy_sustainability
+    label: Nachhaltigkeitsberichterstattung und Taxonomie
+    scope: >-
+      Nachhaltigkeitsberichterstattung von Unternehmen (Richtlinie (EU)
+      2022/2464) und die europäischen Standards dafür, Taxonomie für
+      ökologisch nachhaltige Wirtschaftstätigkeiten (Verordnung (EU) 2020/852)
+      mit den technischen Kriterien für Bau und Immobilien,
+      Treibhausgasbilanz, Ökobilanz und Umweltproduktdeklarationen von
+      Bauwerken und Bauprodukten.
+    roles: [large_undertaking, construction_product_manufacturer]
+    note: >-
+      Taxonomie-Kriterien, die nur Banken und Investoren anwenden, sind
+      INDIRECT (Finanzierung von Projekten und Kunden).
+    not_covered: >-
+      Offenlegungspflichten von Fonds und Finanzmarktteilnehmern sowie
+      Statistiken der Mitgliedstaaten.
+
+  # --- Vergabe, Lieferkette und Handel ----------------------------------------
+
+  public_procurement:
+    domain: public_procurement
+    label: Öffentliche Auftragsvergabe
+    scope: >-
+      Vergabe öffentlicher Bau-, Liefer- und Dienstleistungsaufträge und
+      Konzessionen (Richtlinien 2014/24/EU, 2014/25/EU und 2014/23/EU):
+      Schwellenwerte, Verfahren, Eignung und Ausschlussgründe,
+      Zuschlagskriterien, ungewöhnlich niedrige Angebote,
+      Nachprüfungsverfahren, elektronische Vergabe sowie Meldepflichten für
+      drittstaatliche Subventionen (Verordnung (EU) 2022/2560).
+    roles: [bidder]
+    note: >-
+      Die Richtlinien richten sich an öffentliche Auftraggeber, aber Regeln zu
+      Verfahren, Schwellenwerten, Eignung und Angeboten treffen Max Bögl als
+      Bieter und sind DIRECT. Vorgaben, was Auftraggeber beschaffen müssen
+      (z. B. Umweltkriterien), sind INDIRECT.
+    not_covered: >-
+      Beschaffung der EU-Organe für den Eigenbedarf, Verteidigungsgüter und
+      Finanzhilfen aus EU-Programmen.
+
+  supply_chain_due_diligence:
+    domain: procurement_supply_chain
+    label: Sorgfaltspflichten in der Lieferkette
+    scope: >-
+      Sorgfaltspflichten für Menschenrechte und Umwelt in der eigenen
+      Geschäftstätigkeit und der Lieferkette (Richtlinie (EU) 2024/1760),
+      entwaldungsfreie Lieferketten für Holz und andere Rohstoffe (Verordnung
+      (EU) 2023/1115), Verbot von Produkten aus Zwangsarbeit,
+      Konfliktmineralien, Lieferantenaudits und Verhaltenskodizes.
+    roles: [large_undertaking, importer]
+    note: >-
+      Pflichten, die nur Einführer bestimmter Rohstoffe treffen (z. B.
+      Konfliktmineralien), sind INDIRECT, außer Max Bögl führt diese selbst
+      ein.
+    not_covered: >-
+      Kontrollen bei der Einfuhr von Agrarerzeugnissen und Lebensmitteln
+      sowie Abwicklung im Wertpapierhandel.
+
+  imports_trade_defence:
+    domain: procurement_supply_chain
+    label: Einfuhr, Zoll und Handelsschutz
+    scope: >-
+      Einfuhr von Baustoffen, Stahl, Aluminium, Maschinen und Bauteilen in die
+      EU: Zollverfahren, Antidumping-, Ausgleichs- und Schutzzölle,
+      Einfuhrüberwachung und Einfuhrverbote für Industrieerzeugnisse.
+    roles: [importer]
+    note: >-
+      Handelsschutzzölle auf Waren, die im Bau verwendet werden, sind INDIRECT
+      (Preise und Verfügbarkeit), DIRECT nur, wenn Max Bögl selbst einführt.
+    not_covered: >-
+      Zollkontingente für Agrarerzeugnisse, Textilien, Konsumgüter und die
+      Einreihung einzelner Waren ohne Baubezug in die Kombinierte Nomenklatur.
+
+  funding_investment:
+    domain: public_procurement
+    label: Förderprogramme und Infrastrukturinvestitionen
+    scope: >-
+      EU-Programme und Fonds, die Bau-, Verkehrs-, Energie- und
+      Innovationsprojekte finanzieren (z. B. Fazilität "Connecting Europe" und
+      Innovationsfonds), Förderbedingungen für Unternehmen und
+      Investitionspläne für Infrastruktur.
+    roles: []
+    note: >-
+      In der Regel INDIRECT (Markt und Projekte). DIRECT nur, wenn der Akt
+      Pflichten für Unternehmen als Fördermittelempfänger festlegt, die Max
+      Bögl erfüllen muss.
+    not_covered: >-
+      Agrarfonds, Hilfen für Drittstaaten und Haushaltsverfahren der EU.
+
+  # --- Personal ---------------------------------------------------------------
+
+  employment_law:
+    domain: employment_law
+    label: Arbeitsrecht und Beschäftigung
+    scope: >-
+      Arbeitszeit (Richtlinie 2003/88/EG), Urlaub, Entgelttransparenz
+      (Richtlinie (EU) 2023/970), transparente Arbeitsbedingungen, befristete
+      Beschäftigung, Leiharbeit, Entsendung von Arbeitnehmern (Richtlinien
+      96/71/EG und 2014/67/EU), Mindestlohn, soziale Sicherheit bei Einsätzen
+      im Ausland (Verordnung (EG) Nr. 883/2004, A1-Bescheinigung) und
+      Beschäftigung von Arbeitnehmern aus Nicht-EU-Staaten.
+    roles: [employer]
+    not_covered: >-
+      Beschäftigungsbedingungen der EU-Bediensteten und Arbeitsbedingungen von
+      Seeleuten.
+
+  works_council:
+    domain: works_council
+    label: Mitbestimmung und Arbeitnehmervertretung
+    scope: >-
+      Unterrichtung und Anhörung der Arbeitnehmer, Europäische Betriebsräte
+      (Richtlinie 2009/38/EG), Mitbestimmung, Arbeitnehmerbeteiligung in der
+      Europäischen Gesellschaft, Massenentlassungen, Betriebsübergänge und
+      Tarifverträge im Baugewerbe.
+    roles: [employer]
+    not_covered: >-
+      Ernennung von Mitgliedern in EU-Ausschüssen und Vertretung von
+      Mitgliedstaaten in Gremien.
+
+  # --- IT, Daten und Governance -----------------------------------------------
+
+  data_protection:
+    domain: data_protection
+    label: Datenschutz
+    scope: >-
+      Verarbeitung personenbezogener Daten (Verordnung (EU) 2016/679), Rechte
+      betroffener Personen, Auftragsverarbeitung,
+      Datenschutz-Folgenabschätzung, Beschäftigtendaten und Videoüberwachung,
+      Datenübermittlung in Drittländer (Angemessenheitsbeschlüsse,
+      Standardvertragsklauseln) und Meldung von Datenschutzverletzungen.
+    roles: [data_controller]
+    not_covered: >-
+      Datenverarbeitung durch EU-Organe, Polizei und Justiz sowie
+      Fluggastdatensätze.
+
+  cybersecurity:
+    domain: cybersecurity
+    label: Cybersicherheit und Informationssicherheit
+    scope: >-
+      Risikomanagement und Meldepflichten bei Sicherheitsvorfällen für
+      wichtige und besonders wichtige Einrichtungen einschließlich
+      Stromerzeugern (Richtlinie (EU) 2022/2555), Sicherheit industrieller
+      Steuerungssysteme, Resilienz kritischer Einrichtungen und
+      Sicherheitsanforderungen an Produkte mit digitalen Elementen
+      (Verordnung (EU) 2024/2847).
+    roles: [it_operator, energy_producer, large_undertaking]
+    note: >-
+      Pflichten nach der Richtlinie (EU) 2022/2555 sind DIRECT.
+      Herstellerpflichten für Produkte mit digitalen Elementen sind INDIRECT,
+      außer Max Bögl bringt solche Produkte selbst in Verkehr.
+    not_covered: >-
+      Cybersicherheit im Bankensektor und Netze der EU-Organe.
+
+  ai_data_digital:
+    domain: cybersecurity
+    label: Künstliche Intelligenz und Datenrecht
+    scope: >-
+      Pflichten beim Einsatz von KI-Systemen (Verordnung (EU) 2024/1689),
+      KI-Kompetenz der Beschäftigten, Hochrisiko-KI im Personalwesen und in
+      sicherheitsrelevanten Anwendungen, Zugang zu und Nutzung von Daten
+      vernetzter Maschinen und Fahrzeuge (Verordnung (EU) 2023/2854) und
+      Wechsel von Cloud-Diensten.
+    roles: [it_operator, data_controller]
+    note: >-
+      Pflichten von KI-Anbietern und Herstellern vernetzter Produkte sind
+      INDIRECT, außer Max Bögl entwickelt oder vertreibt diese selbst.
+    not_covered: >-
+      Pflichten von Online-Plattformen und Suchmaschinen gegenüber
+      Verbrauchern.
+
+  software_copyright:
+    domain: communication_media
+    label: Software-Urheberrecht und Lizenzen
+    scope: >-
+      Rechtsschutz von Computerprogrammen (Richtlinie 2009/24/EG), Rechte an
+      von Beschäftigten entwickelter Software, Lizenzbedingungen, zulässige
+      Nutzung, Sicherungskopien, Interoperabilität und Open-Source-Komponenten.
+    roles: [it_operator]
+    not_covered: >-
+      Urheberrecht an Musik, Filmen und Rundfunk.
+
+  compliance_governance:
+    domain: corporate_compliance
+    label: Compliance und Unternehmensführung
+    scope: >-
+      Korruptionsprävention, Kartellrecht und Gruppenfreistellungen,
+      Hinweisgeberschutz (Richtlinie (EU) 2019/1937), Geldwäscheprävention,
+      allgemeine Verbote aus Wirtschaftssanktionen für EU-Unternehmen,
+      Exportkontrolle für Güter mit doppeltem Verwendungszweck (Verordnung (EU)
+      2021/821) und interne Kontrollsysteme.
+    roles: [large_undertaking]
+    note: >-
+      Allgemeine Sanktionsverbote (z. B. Einfuhr-, Ausfuhr- und
+      Dienstleistungsverbote) sind DIRECT. Reine Änderungen von Namenslisten
+      fallen unter den Negativ-Anker sanctions_listings.
+    not_covered: >-
+      Interne EU-Verfahrensregeln und Einzelfallentscheidungen über namentlich
+      genannte fremde Unternehmen.
+
+  internal_audit_risk:
+    domain: internal_audit
+    label: Abschlussprüfung, interne Revision und Risikomanagement
+    scope: >-
+      Prüfung von Jahres- und Konzernabschlüssen (Richtlinie 2006/43/EG),
+      Prüfung der Nachhaltigkeitsberichterstattung, internes Kontrollsystem,
+      Risikomanagement und Betrugsprävention im Unternehmen.
+    roles: [large_undertaking]
+    note: >-
+      Sonderpflichten für Unternehmen von öffentlichem Interesse (Verordnung
+      (EU) Nr. 537/2014) sind INDIRECT.
+    not_covered: >-
+      Aufsicht über Banken und Versicherer und Haushaltskontrolle der EU.
+
+  communication_ip:
+    domain: communication_media
+    label: Kommunikation, Werbung und geistiges Eigentum
+    scope: >-
+      Unternehmenswerbung und unlautere Geschäftspraktiken, Umweltaussagen und
+      Nachhaltigkeitswerbung (Richtlinie (EU) 2024/825), Marken (Verordnung
+      (EU) 2017/1001), Designs, Urheberrecht an Plänen, Bildern und
+      Publikationen sowie Impressumspflichten.
+    roles: [construction_product_manufacturer, large_undertaking]
+    not_covered: >-
+      Audiovisuelle Mediendienste, Rundfunk und Filmförderung.
+
+  # --- Kaufmännisch -----------------------------------------------------------
+
+  contract_law:
+    domain: contract_commercial
+    label: Bau- und Vertragsrecht
+    scope: >-
+      Bauverträge und Werkverträge, Nachunternehmer, Nachträge, Abnahme,
+      Gewährleistung und Mängelhaftung, Zahlungsverzug im Geschäftsverkehr
+      (Richtlinie 2011/7/EU), Vertragsstrafen, Bürgschaften und
+      Sicherheitsleistungen, Gesellschaftsrecht und Unternehmenstransaktionen.
+    roles: [contract_party, contractor]
+    not_covered: >-
+      Verbraucherverträge im Fernabsatz, Pauschalreisen und
+      Versicherungsverträge für Privatkunden.
+
+  insurance_liability:
+    domain: insurance_liability
+    label: Versicherung und Haftung
+    scope: >-
+      Haftung für fehlerhafte Produkte (Richtlinie (EU) 2024/2853) und
+      Bauleistungen, Umwelthaftung, Betriebs- und Berufshaftpflicht,
+      Kfz-Haftpflichtversicherung für den eigenen Fuhrpark (Richtlinie
+      2009/103/EG), Versicherungspflichten bei Bauvorhaben und gesetzliche
+      Unfallversicherung.
+    roles: [construction_product_manufacturer, contractor, fleet_operator]
+    not_covered: >-
+      Aufsicht über Versicherungsunternehmen, Einlagensicherung und Haftung
+      von Luftfahrtunternehmen.
+
+  finance_tax:
+    domain: finance_tax
+    label: Rechnungslegung, Finanzen und Steuern
+    scope: >-
+      Jahres- und Konzernabschluss (Richtlinie 2013/34/EU), Mehrwertsteuer
+      (Richtlinie 2006/112/EG) mit Reverse-Charge bei Bauleistungen,
+      elektronische Rechnungsstellung, globale Mindeststeuer für große
+      Unternehmensgruppen (Richtlinie (EU) 2022/2523), Verrechnungspreise,
+      steuerliche Melde- und Aufzeichnungspflichten, Lohnsteuer und
+      Sozialversicherungsbeiträge.
+    roles: [taxpayer, large_undertaking, employer]
+    note: >-
+      Energie- und Verbrauchsteuern auf Kraftstoffe und Strom sind INDIRECT
+      (Kosten), soweit sie Max Bögl keine eigenen Erklärungspflichten
+      auferlegen.
+    not_covered: >-
+      Verbrauchsteuern auf Alkohol und Tabak, Eigenmittel und Haushalt der EU
+      und Besteuerung von Finanzdienstleistungen.
+
+# =============================================================================
+# Negativ-Anker: Bereiche, die für Max Bögl IRRELEVANT sind.
+# "except" nennt Fälle, die trotz Ähnlichkeit NICHT darunter fallen.
+# =============================================================================
+negative_anchors:
+
+  agriculture_fisheries:
+    label: Landwirtschaft, Fischerei und Aquakultur
+    text: >-
+      Gemeinsame Agrarpolitik, Direktzahlungen, Vermarktungsnormen für
+      Agrarerzeugnisse und Wein, Saatgut und Sortenzulassung, Fangquoten,
+      Fischereifahrzeuge, Aquakultur sowie Pflanzen- und Tiergesundheit.
+
+  food_feed:
+    label: Lebensmittel und Futtermittel
+    text: >-
+      Lebensmittelsicherheit und -hygiene, Kennzeichnung von Lebensmitteln,
+      Zusatzstoffe, Aromen, neuartige Lebensmittel,
+      Lebensmittelkontaktmaterialien, Rückstandshöchstgehalte und
+      Futtermittel.
+
+  medicine_health:
+    label: Arzneimittel, Medizinprodukte und Gesundheitswesen
+    text: >-
+      Human- und Tierarzneimittel und ihre Zulassung, Medizinprodukte,
+      In-vitro-Diagnostika, klinische Prüfungen und Gesundheitsversorgung.
+
+  financial_supervision:
+    label: Banken- und Finanzmarktaufsicht
+    text: >-
+      Aufsicht über Kreditinstitute, Versicherer und Wertpapierfirmen,
+      Eigenmittelanforderungen, Wertpapiermärkte, Fonds, Zahlungsdienste,
+      zentrale Gegenparteien und Kryptowerte.
+    except: >-
+      Pflichten, die alle Unternehmen treffen (Rechnungslegung,
+      Nachhaltigkeitsberichterstattung, Taxonomie, Zahlungsverzug).
+
+  eu_administration_budget:
+    label: Interne Verwaltung und Haushalt der EU
+    text: >-
+      Ernennung und Ersetzung von Mitgliedern in Ausschüssen, Gremien und
+      Agenturen der EU, Statut der EU-Beamten, Haushaltsplan, Entlastung und
+      Rechnungsabschluss der EU sowie Geschäftsordnungen.
+
+  eu_internal_procedures:
+    label: Interne EU-Verfahren
+    text: >-
+      Verfahrensregeln der EU-Organe selbst, etwa wie die Kommission Kartell-
+      oder Beihilfeverfahren führt, Auskunftspflichten gegenüber einer
+      EU-Behörde im Verwaltungsverfahren und die interne Arbeitsweise von
+      EU-Fonds und Gremien.
+    except: >-
+      Inhaltliche Pflichten für Unternehmen, die im selben Rechtsakt stehen.
+
+  individual_decisions:
+    label: Einzelfallentscheidungen über fremde Unternehmen
+    text: >-
+      Wettbewerbs-, Fusions- und Beihilfeentscheidungen über einzelne,
+      namentlich genannte Unternehmen sowie Freistellungen und Genehmigungen
+      für einen bestimmten Einzelfall.
+    except: >-
+      Entscheidungen über Max Bögl selbst. Genehmigungen deutscher
+      Förderregelungen, die Max Bögl nutzen kann (z. B. für erneuerbare
+      Energien), sind INDIRECT.
+
+  foreign_single_case:
+    label: Ausschließlich ausländischer Einzelfall
+    text: >-
+      Rechtsakte, die ausschließlich einen anderen Staat, dessen Behörden oder
+      dortige namentlich genannte Unternehmen binden.
+    except: >-
+      An Deutschland gerichtete Rechtsakte und allgemeine EU-Regeln für alle
+      Wirtschaftsteilnehmer.
+
+  sanctions_listings:
+    label: Namenslisten bei Sanktionen
+    text: >-
+      Aufnahme, Streichung und Änderung von Einträgen namentlich genannter
+      Personen und Organisationen in Sanktionslisten.
+    except: >-
+      Allgemeine Verbote für EU-Unternehmen (Anker compliance_governance).
+
+  consumer_electronics_telecom:
+    label: Konsumelektronik und Telekommunikationsdienste
+    text: >-
+      Mobiltelefone, Tablets, Laptops und Haushaltsgeräte für Verbraucher,
+      Ladegeräte, Funkfrequenzen, Mobilfunk- und Internetdienste, Roaming und
+      audiovisuelle Mediendienste.
+    except: >-
+      Pflichten bei Bauarbeiten und in Gebäuden für Hochgeschwindigkeitsnetze
+      (Anker broadband_civil_works).
+
+  ships_maritime:
+    label: Schiffe und Seeverkehr
+    text: >-
+      Bau, Ausrüstung und Recycling von See- und Binnenschiffen,
+      Schiffssicherheit, Hafenstaatkontrolle, Seeleute und
+      Seeverkehrsdienste.
+    except: >-
+      Bau von Häfen, Kaianlagen und Wasserstraßen.
+
+  aviation:
+    label: Luftfahrt
+    text: >-
+      Bemannte Luftfahrzeuge, Luftfahrtunternehmen, Flugsicherung,
+      Lufttüchtigkeit, Fluggastrechte, Flughafenentgelte und Zeitnischen.
+    except: >-
+      Drohnen für Vermessung und Baustellen (Anker drones_surveying) und der
+      Bau von Flughäfen.
+
+  nuclear:
+    label: Kernenergie und Euratom
+    text: >-
+      Kernbrennstoffe, Kernkraftwerke und kerntechnische Anlagen, Beförderung
+      radioaktiver Stoffe, nukleare Sicherheitsüberwachung und medizinische
+      Strahlenanwendung.
+    except: >-
+      Radon an Arbeitsplätzen und in Gebäuden sowie Radioaktivität von
+      Baustoffen (Anker radiation_radon).
+
+  textiles_consumer_goods:
+    label: Textilien und Konsumgüter
+    text: >-
+      Textilfasern und Textilkennzeichnung, Bekleidung, Schuhe, Lederwaren,
+      Spielzeug, Kosmetik, Fahrräder und Freizeitprodukte für Verbraucher.
+    except: >-
+      Persönliche Schutzausrüstung und Arbeitskleidung der Beschäftigten.
+
+  statistics:
+    label: Amtliche Statistik
+    text: >-
+      Europäische Statistiken, Erhebungen und Stichproben, Übermittlung
+      statistischer Daten durch die Mitgliedstaaten und statistische
+      Klassifikationen.
+
+  ecsc_historic:
+    label: Historische EGKS-Regelungen zu Kohle und Stahl
+    text: >-
+      Historische EGKS-Regelungen über Kohle, Rohstahl, Produktionsumlagen,
+      Preise, Beihilfen und Meldungen von Bergbau- und Stahlunternehmen ohne
+      heutige Pflicht.
+
+  external_aid:
+    label: Entwicklungsfonds und Hilfe für Drittstaaten
+    text: >-
+      Aufstellung und Verwaltung von Entwicklungsfonds sowie Finanzhilfen und
+      Programme zugunsten von Drittstaaten.

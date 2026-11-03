@@ -1,0 +1,9 @@
+# Python 3.10 or newer
+PyYAML>=6.0
+# Excel sheet for labelling
+openpyxl>=3.1
+# only needed for exporting acts from the local PostgreSQL database
+psycopg[binary]>=3.1
+
+# Validate structured AI responses locally
+jsonschema>=4.20,<5

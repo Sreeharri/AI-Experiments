@@ -1,0 +1,264 @@
+
+
+version: domains-v1
+
+domains:
+
+  occupational_health_safety:
+    title: Arbeitsschutz und Arbeitssicherheit
+    scope: >-
+      Arbeitgeberpflichten zum Schutz der Beschäftigten: Gefährdungsbeurteilung,
+      Unterweisung, persönliche Schutzausrüstung, Sicherheit auf Baustellen,
+      Absturzsicherung, Gerüste, Arbeitsplatzgrenzwerte für Asbest, Quarzstaub,
+      Lärm und Vibration, Unfallmeldung und arbeitsmedizinische Vorsorge.
+    distinguish: >-
+      Arbeitsmittel in der Hand des Beschäftigten, nicht das Produkt selbst -
+      das ist machinery_safety.
+    departments: [Arbeitssicherheit, Bauleitung, Personal]
+
+  environmental_protection:
+    title: Umweltschutz und Umweltrecht
+    scope: >-
+      Umweltverträglichkeitsprüfung und Genehmigung von Anlagen und Bauvorhaben,
+      beste verfügbare Techniken, Emissionsgrenzwerte, Naturschutz und
+      Artenschutz bei Bauprojekten, Umwelthaftung, Altlasten und
+      Bodensanierung, Staub- und Lärmimmissionen aus Baustellen und Steinbrüchen.
+    distinguish: >-
+      Die Anlage und ihre Genehmigung, nicht der Stoff als Produkt - das ist
+      dangerous_goods.
+    departments: [Umweltmanagement, Nachhaltigkeit, Bauleitung]
+
+  waste_management:
+    title: Abfallwirtschaft
+    scope: >-
+      Trennung, Transport, Verwertung und Beseitigung von Bau- und Abbruchabfall,
+      Pflichten von Abfallerzeugern und -besitzern, Nachweisverfahren und
+      Beförderererlaubnis, Deponiebetrieb und Annahmekriterien, Ende der
+      Abfalleigenschaft für Recycling-Gesteinskörnungen, Bodenaushub und
+      mineralische Abfälle, Einstufung gefährlicher Abfälle.
+    departments: [Umweltmanagement, Bauleitung, Einkauf]
+
+  water_protection:
+    title: Gewässerschutz und Abwasser
+    scope: >-
+      Erlaubnisse für Wasserentnahme, Abwassereinleitung und Bauwasserhaltung
+      mit Grundwasserbezug, Wasserschutzgebiete, Bewirtschaftungspläne,
+      Oberflächengewässerqualität, Baustellenentwässerung, Niederschlagswasser
+      und Prozesswasserbehandlung in Werken, Hochwasserrisiko und Bauen in
+      Überschwemmungsgebieten.
+    departments: [Umweltmanagement, Bauleitung]
+
+  energy_sustainability:
+    title: Energie und Nachhaltigkeit
+    scope: >-
+      Gesamtenergieeffizienz von Gebäuden, Energieausweise und
+      Sanierungspflichten, Energiemanagementsysteme und Energieaudits,
+      Nachhaltigkeitsberichterstattung und ESRS, Taxonomie-Konformität,
+      graue Energie und Ökobilanz von Bauwerken, Prozesswärme in
+      Produktionsanlagen.
+    departments: [Nachhaltigkeit, Energiemanagement, Controlling]
+
+  construction_building:
+    title: Bau- und Bauordnungsrecht
+    scope: >-
+      Technische Anforderungen an Tragwerk, Standsicherheit, Brandschutz und
+      Dauerhaftigkeit, Bauprodukte mit harmonisierten technischen
+      Spezifikationen, Leistungserklärung und CE-Kennzeichnung nach der
+      Bauprodukteverordnung, Eurocodes für Beton-, Stahl- und Holzbau,
+      Baugenehmigung und Planungsrecht, Betonfertigteile und modulares Bauen,
+      werkseigene Produktionskontrolle für Zement, Gesteinskörnungen und Beton.
+    distinguish: >-
+      Bauprodukte gehören hierher, nicht zu product_safety. Das Bauwerk als
+      Hochbau, nicht Brücke oder Tunnel - das ist
+      infrastructure_civil_engineering.
+    departments: [Technisches Büro, Qualitätssicherung, Fertigteilwerk]
+
+  infrastructure_civil_engineering:
+    title: Infrastruktur und Ingenieurbau
+    scope: >-
+      Planung, Genehmigung und Bau von Brücken, Tunneln, Straßen und
+      Bahnstrecken, Bahninfrastruktur und technische Spezifikationen für die
+      Interoperabilität, transeuropäische Verkehrsnetze, Prüfung, Erhaltung
+      und Standsicherheit bestehender Brücken, Sicherheitsanforderungen für
+      Straßentunnel.
+    departments: [Ingenieurbau, Bahnsysteme, Technisches Büro]
+
+  geotechnical_mining:
+    title: Geotechnik und Bergrecht
+    scope: >-
+      Baugrunduntersuchung, Bodenmechanik, Gründungen und Böschungsstandsicherheit,
+      Baugruben, Wasserhaltung, Tunnelvortrieb und Untertagebau, Steinbrüche und
+      Gewinnung von Sand, Kies und Naturstein, Bergbauberechtigungen,
+      geologische Erkundung, Rekultivierung von Abbaustätten, Abfälle aus der
+      mineralgewinnenden Industrie.
+    departments: [Geotechnik, Rohstoffe, Tunnelbau]
+
+  product_safety:
+    title: Produktsicherheit und technische Normung
+    scope: >-
+      Konformitätsbewertung, notifizierte Stellen, Baumusterprüfung und
+      CE-Kennzeichnung geregelter Produkte, Druckgeräte, Aufzüge,
+      Seilbahnen, elektrische Betriebsmittel und Messgeräte,
+      Marktüberwachung und Rückrufe, elektromagnetische Verträglichkeit,
+      Geräte für explosionsgefährdete Bereiche.
+    distinguish: >-
+      NICHT Bauprodukte - die gehören zu construction_building.
+    departments: [Qualitätssicherung, Einkauf, Technisches Büro]
+
+  machinery_safety:
+    title: Maschinen- und Anlagensicherheit
+    scope: >-
+      Sicherheits- und Gesundheitsanforderungen an die Konstruktion von
+      Maschinen beim Inverkehrbringen, Krane, Hebezeuge, Hubarbeitsbühnen und
+      Erdbaumaschinen, Schutzeinrichtungen und Not-Halt, Geräusch- und
+      Abgasemissionen von Baumaschinen im Freien und mobilen Maschinen,
+      wiederkehrende Prüfung von Anlagen, Druckbehältern und Arbeitsmitteln.
+    distinguish: >-
+      Die Maschine als Produkt. Der Beschäftigte an der Maschine ist
+      occupational_health_safety.
+    departments: [Technik, Werkstatt, Arbeitssicherheit]
+
+  transport_fleet:
+    title: Transport und Fuhrpark
+    scope: >-
+      Fahrtenschreiber, Lenk- und Ruhezeiten, Kontrollen bei Berufskraftfahrern,
+      Hauptuntersuchung, Zulassung und technische Anforderungen an Nutzfahrzeuge,
+      Großraum- und Schwerlasttransporte mit Genehmigung, Maße und Gewichte,
+      Maut und Güterkraftverkehrserlaubnis, Schienengüterverkehr und
+      Triebfahrzeugführerschein.
+    departments: [Fuhrpark, Logistik, Bahnsysteme]
+
+  dangerous_goods:
+    title: Gefahrgut und Gefahrstoffe
+    scope: >-
+      Beförderung gefährlicher Güter auf Straße und Schiene mit Einstufung,
+      Verpackung, Kennzeichnung und Beförderungspapieren, Registrierung und
+      Zulassung chemischer Stoffe und Sicherheitsdatenblätter, Einstufung und
+      Kennzeichnung von Stoffen und Gemischen, Lagerung und sicherer Umgang mit
+      Gefahrstoffen auf Baustellen und in Werken, Störfallvorsorge,
+      Explosivstoffe für zivile Zwecke, Asbestsanierung.
+    departments: [Arbeitssicherheit, Logistik, Umweltmanagement]
+
+  public_procurement:
+    title: Vergaberecht
+    scope: >-
+      Vergabe öffentlicher Bauaufträge und Baukonzessionen, Vergabeverfahren,
+      Eignungsprüfung, Ausschlussgründe und Zuschlagskriterien, ungewöhnlich
+      niedrige Angebote, Rahmenvereinbarungen und elektronische Vergabe,
+      Nachprüfungsverfahren, drittstaatliche Subventionen im Vergabeverfahren.
+    distinguish: >-
+      Das Verfahren bis zum Zuschlag. Lieferantensorgfalt danach ist
+      procurement_supply_chain.
+    departments: [Kalkulation, Recht, Vertrieb]
+
+  procurement_supply_chain:
+    title: Lieferkette und Beschaffungssorgfalt
+    scope: >-
+      Sorgfaltspflichten für Menschenrechte und Umwelt in der Wertschöpfungskette,
+      Lieferantenaudits und Verhaltenskodizes, verantwortungsvolle
+      Rohstoffbeschaffung, Konfliktmineralien, entwaldungsfreie Lieferketten,
+      Verbot von Zwangsarbeit, Rückverfolgbarkeit und Sorgfaltserklärungen für
+      eingekaufte Materialien.
+    departments: [Einkauf, Nachhaltigkeit, Compliance]
+
+  contract_commercial:
+    title: Vertrags- und Handelsrecht
+    scope: >-
+      Bauverträge, Nachunternehmer, Nachträge und Abnahme, Zahlungsbedingungen,
+      Sicherheitseinbehalt und Bürgschaften, Gewährleistung, Mängelhaftung und
+      Streitbeilegung, Handelsvertreter- und Vertriebsverträge,
+      grenzüberschreitende Geschäfte, Gesellschaftsrecht und Umstrukturierung.
+    departments: [Recht, Kaufmännische Leitung]
+
+  insurance_liability:
+    title: Versicherung und Haftung
+    scope: >-
+      Haftung für Baumängel, Einsturz und Schäden durch Bauarbeiten,
+      Produkthaftung für fehlerhafte Produkte, Bauleistungs- und
+      Projektversicherung, Berufshaftpflicht und Pflichtversicherung,
+      gesetzliche Unfallversicherung und Schadenbearbeitung, Umwelthaftung und
+      Ausgleich für Schäden an Boden, Wasser und Lebensräumen.
+    departments: [Recht, Versicherung, Arbeitssicherheit]
+
+  finance_tax:
+    title: Finanzen, Rechnungswesen und Steuern
+    scope: >-
+      Umsatzsteuer und Reverse-Charge bei Bauleistungen, Körperschaftsteuer,
+      Verrechnungspreise und grenzüberschreitende Besteuerung,
+      Rechnungslegungsstandards, Jahres- und Konzernabschluss und
+      Offenlegungspflichten, elektronische Rechnungsstellung, Zahlungsverzug im
+      Geschäftsverkehr, Lohnsteuer und Sozialversicherungsbeiträge.
+    departments: [Finanzbuchhaltung, Controlling, Personal]
+
+  employment_law:
+    title: Arbeits- und Personalrecht
+    scope: >-
+      Arbeitsverträge, Arbeitszeit, Ruhezeiten und Überstunden, Entsendung von
+      Arbeitnehmern in andere Mitgliedstaaten, Arbeitnehmerüberlassung und
+      Nachunternehmereinsatz, Mindestlohn im Baugewerbe, Gleichbehandlung,
+      Elternzeit und Kündigungsschutz, Massenentlassung und Betriebsübergang.
+    departments: [Personal, Recht]
+
+  works_council:
+    title: Mitbestimmung und Betriebsrat
+    scope: >-
+      Rechte des Betriebsrats, Unterrichtung und Anhörung der
+      Arbeitnehmervertretung, Mitbestimmung im Aufsichtsrat, Europäische
+      Betriebsräte, Arbeitnehmerbeteiligung in der Europäischen Gesellschaft,
+      Tarifverträge im Baugewerbe.
+    departments: [Personal, Geschäftsführung]
+
+  data_protection:
+    title: Datenschutz
+    scope: >-
+      Verarbeitung personenbezogener Daten von Beschäftigten, Kunden und
+      Geschäftspartnern, Datenschutz-Folgenabschätzung, Verarbeitungsverzeichnis
+      und Meldepflicht bei Datenpannen, internationale Datenübermittlung,
+      Betroffenenrechte, Überwachung am Arbeitsplatz und Videoüberwachung.
+    departments: [Datenschutz, IT, Personal]
+
+  cybersecurity:
+    title: Cybersicherheit und Informationssicherheit
+    scope: >-
+      Risikomanagement für Netz- und Informationssysteme, Meldepflichten bei
+      Sicherheitsvorfällen, Sicherheitsanforderungen für kritische Einrichtungen
+      und die Lieferkette, Cyberresilienz vernetzter Produkte,
+      Zugangskontrolle, Verschlüsselung und Notfallwiederherstellung.
+    departments: [IT, Informationssicherheit]
+
+  corporate_compliance:
+    title: Compliance und Corporate Governance
+    scope: >-
+      Korruptionsprävention, Kartellrecht, Geldwäscheprävention,
+      Hinweisgeberschutz und interne Meldestellen, Sanktions- und
+      Exportkontrolle, Unternehmensführung und Berichtspflichten der
+      Geschäftsleitung.
+    departments: [Compliance, Recht, Interne Revision]
+
+  internal_audit:
+    title: Interne Revision und Risikomanagement
+    scope: >-
+      Abschlussprüfung und Prüferunabhängigkeit, internes Kontrollsystem,
+      Risikomanagementsystem und Risikoberichterstattung, Prüfung nicht
+      finanzieller Berichterstattung.
+    departments: [Interne Revision, Controlling]
+
+  communication_media:
+    title: Unternehmenskommunikation und Medienrecht
+    scope: >-
+      Unternehmenswerbung und irreführende Angaben, Umweltaussagen und
+      Greenwashing-Verbot, Urheberrecht an Plänen, Bildern und Publikationen,
+      Presse- und Äußerungsrecht, digitale Dienste und Plattformpflichten.
+    departments: [Unternehmenskommunikation, Recht, Marketing]
+
+  renewable_energy:
+    title: Erneuerbare Energien und Windenergie
+    scope: >-
+      Genehmigung und Beschleunigungsgebiete für Windenergieanlagen,
+      Netzanschluss und Einspeisung, Ausschreibungen und Förderung erneuerbarer
+      Energien, technische Anforderungen an Windenergieanlagen und ihre Türme,
+      Repowering und Rückbau, Ausbauziele für erneuerbare Energien.
+    distinguish: >-
+      Der Hybridturm als Bauwerk und Bauprodukt ist construction_building; die
+      Anlage und ihre energierechtliche Genehmigung gehört hierher.
+    departments: [Windenergie, Technisches Büro, Genehmigungsmanagement]

@@ -1,0 +1,1165 @@
+# =============================================================================
+# Business anchors for Legal Radar · English
+# Version business-anchors-v2 · 28 Oct 2026
+#
+# Purpose: describes the business areas Max Bögl works in and the legal roles
+# it holds there. With this, the model decides for each legal act:
+# DIRECT, INDIRECT or IRRELEVANT (rules under "levels").
+#
+# Same keys and same structure as business_anchors_de.yaml.
+# Whoever changes this file changes the German file in the same step and
+# checks both with:  py check_business_anchors.py
+#
+# Fields per anchor:
+#   domain       legal domain from domains.yaml (for routing later)
+#   label        short name
+#   scope        what the business area covers, with examples
+#   roles        roles Max Bögl holds here (keys from "roles")
+#   note         only where the basic rule is not enough
+#   not_covered  similar-sounding topics that are not meant
+#
+# ASSUMPTIONS - please confirm or correct:
+#   1. Max Bögl operates no installation that itself falls under EU emissions
+#      trading (cement and lime plants belong to suppliers).
+#   2. Max Bögl imports some steel, aluminium or cement itself from non-EU
+#      countries (role importer).
+#   3. Max Bögl uses drones for surveying and site documentation.
+#   4. Max Bögl falls under NIS2 as an electricity producer and large company.
+#   5. Max Bögl does not manufacture machines, vehicles or electrical
+#      equipment that it sells to others.
+# =============================================================================
+version: business-anchors-v2
+language: en
+
+levels:
+  DIRECT: >-
+    The act places duties on Max Bögl itself, or gives it rights, in one of
+    its roles. Max Bögl has to act. This includes duties from directives that
+    reach Max Bögl once they are transposed into German law.
+  INDIRECT: >-
+    The duties fall on others (manufacturers, suppliers, clients, authorities,
+    member states), but the act changes one of Max Bögl's business areas
+    through a concrete path (see indirect_paths). Max Bögl does not have to
+    act itself, but should know about it.
+  IRRELEVANT: >-
+    None of Max Bögl's business areas is affected. A similar topic or a single
+    matching word is not enough.
+  rule: >-
+    What decides is who carries the duties. If a duty falls on a role Max Bögl
+    holds in the affected business area, the act is DIRECT. If the duties fall
+    only on others, it is INDIRECT when there is a concrete path to Max Bögl,
+    otherwise IRRELEVANT. If an act contains both, the higher level applies.
+    When unsure between two levels, the higher level applies as well.
+
+indirect_paths:
+  client_requirements: >-
+    Clients or infrastructure managers must demand or meet something that Max
+    Bögl has to deliver as contractor.
+  suppliers_prices: >-
+    Duties on suppliers change the availability or prices of construction
+    materials, steel, energy or fuels.
+  purchased_products: >-
+    Duties on manufacturers change the machines, vehicles, equipment or
+    substances that Max Bögl buys and uses.
+  market_funding: >-
+    Expansion targets, funding programmes, tenders or investment plans change
+    demand and projects in Max Bögl's markets.
+
+roles:
+  client_developer: >-
+    Client and project developer of its own construction projects.
+  contractor: >-
+    Construction company, contractor and general contractor in building
+    construction, civil engineering, road, railway, bridge and tunnel
+    construction and turnkey projects.
+  employer: >-
+    Employer with its own staff on construction sites, in plants and offices,
+    including assignments abroad.
+  plant_operator: >-
+    Operator of its own plants and installations: precast, concrete and
+    asphalt plants, quarries and gravel pits, steel fabrication, workshop and
+    storage facilities.
+  construction_product_manufacturer: >-
+    Manufacturer placing its own construction products on the market: precast
+    concrete elements, ready-mixed concrete, asphalt, aggregates, steel
+    components, towers for wind turbines and track systems for railways.
+  chemicals_user: >-
+    Downstream user of substances and mixtures (cement, admixtures,
+    construction chemicals, coatings, fuels) and supplier of its own mixtures
+    such as concrete and mortar.
+  waste_producer: >-
+    Producer and holder of construction, demolition, excavation and
+    production waste.
+  fleet_operator: >-
+    Operator of its own fleet with lorries, transport of construction
+    machinery, heavy and dangerous goods, and track construction vehicles in
+    own-account transport.
+  energy_producer: >-
+    Producer of electricity from wind and photovoltaics and operator of
+    storage, including grid connection and marketing.
+  building_owner: >-
+    Owner and operator of its own buildings (offices, production halls) with
+    building services, air-conditioning and refrigeration systems and
+    charging points.
+  large_undertaking: >-
+    Large company and group with reporting, audit, due diligence, energy
+    audit and compliance duties.
+  bidder: >-
+    Bidder and candidate in public procurement procedures and concessions.
+  contract_party: >-
+    Party to construction, works, supply, rental and service contracts.
+  importer: >-
+    Importer of goods from non-EU countries, where Max Bögl imports itself
+    (e.g. steel, aluminium, cement, machinery).
+  data_controller: >-
+    Controller of personal data of employees, customers and business
+    partners.
+  it_operator: >-
+    Operator of its own IT, industrial control systems and software, and
+    deployer (user) of AI systems.
+  taxpayer: >-
+    Taxpayer, payer of levies and preparer of accounts.
+  drone_operator: >-
+    Operator of drones for surveying and site documentation.
+
+not_roles: >-
+  Max Bögl is generally not: an authority, contracting authority or member
+  state; a manufacturer of machinery, vehicles, lifts, electrical equipment or
+  consumer products; a manufacturer or importer of chemicals as such; a grid
+  operator or energy supplier to final customers; a bank, insurer or financial
+  service provider; an aviation, shipping or telecommunications company; an
+  agricultural, food or pharmaceutical business. Duties of these actors are at
+  most INDIRECT.
+
+anchors:
+
+  # --- Construction and infrastructure ----------------------------------------
+
+  building_construction:
+    domain: construction_building
+    label: Building construction
+    scope: >-
+      Construction of commercial, industrial, public and residential
+      buildings: basic requirements for construction works (mechanical
+      resistance and stability, fire safety, hygiene and health, safety in
+      use, noise protection, energy economy), structural design and Eurocodes,
+      facades, roofs, building services and accessibility of buildings.
+    roles: [client_developer, contractor]
+    not_covered: >-
+      Housing statistics, tenancy law and housing subsidies without duties for
+      construction companies.
+
+  building_energy_performance:
+    domain: energy_sustainability
+    label: Energy performance of buildings and renovation
+    scope: >-
+      Energy performance of buildings (e.g. Directive (EU) 2024/1275), energy
+      performance certificates, zero-emission buildings, life-cycle greenhouse
+      gas emissions of buildings, renovation obligations, building automation,
+      heating, ventilation and air-conditioning, solar installations and
+      charging points at buildings.
+    roles: [building_owner, client_developer, contractor]
+    note: >-
+      Requirements for new and renovated buildings fall on clients and
+      executing companies and are DIRECT. National renovation plans and
+      targets of member states are INDIRECT (market).
+    not_covered: >-
+      Energy labelling of household appliances.
+
+  modular_precast_construction:
+    domain: construction_building
+    label: Modular and precast construction
+    scope: >-
+      Serial and modular construction, prefabricated room modules and building
+      elements, industrial prefabrication of building parts, system building
+      and type approvals for serial construction methods.
+    roles: [contractor, construction_product_manufacturer]
+    not_covered: >-
+      Motorhomes, caravans and shipping containers.
+
+  civil_engineering_roads:
+    domain: infrastructure_civil_engineering
+    label: Civil engineering, roads and transport routes
+    scope: >-
+      Road construction, earthworks, foundations, drainage and sewer
+      construction, construction and maintenance of transport routes,
+      trans-European transport networks (e.g. Regulation (EU) 2024/1679) and
+      road infrastructure safety management.
+    roles: [contractor, client_developer]
+    note: >-
+      Duties of member states and road authorities (network planning, safety
+      audits, completion deadlines) are INDIRECT: they decide what clients
+      tender and demand.
+    not_covered: >-
+      Passenger rights, driving licence categories and transport statistics.
+
+  bridges_tunnels:
+    domain: infrastructure_civil_engineering
+    label: Bridges, tunnels and engineering structures
+    scope: >-
+      Engineering structures such as bridges, tunnels, retaining structures,
+      dams and hydraulic structures, underground construction and specialist
+      foundation engineering, inspection, monitoring and maintenance of
+      engineering structures, safety requirements for tunnels (e.g. Directive
+      2004/54/EC).
+    roles: [contractor, client_developer]
+    note: >-
+      Safety requirements that tunnel and structure managers must meet are
+      INDIRECT (client requirements), unless they fall on Max Bögl itself as
+      client.
+    not_covered: >-
+      Port dues and safety of passenger ships.
+
+  railway_infrastructure:
+    domain: infrastructure_civil_engineering
+    label: Railway construction and track technology
+    scope: >-
+      Construction and maintenance of railway track, slab track, overhead
+      line equipment, railway engineering structures, interoperability of the
+      rail system (e.g. Directive (EU) 2016/797), technical specifications for
+      the infrastructure and energy subsystems, and guided transport systems.
+    roles: [contractor, construction_product_manufacturer]
+    note: >-
+      Requirements for track components that Max Bögl manufactures itself
+      (e.g. slab track panels) are DIRECT. Duties of infrastructure managers
+      and railway undertakings are INDIRECT.
+    not_covered: >-
+      Rail passenger rights, track access charges and railway statistics.
+
+  broadband_civil_works:
+    domain: infrastructure_civil_engineering
+    label: Broadband and utility infrastructure in construction works
+    scope: >-
+      Coordination of civil works and access to physical infrastructure for
+      high-speed networks, in-building infrastructure and access points in new
+      and majorly renovated buildings (e.g. Regulation (EU) 2024/1309), and
+      utility construction in road and civil works.
+    roles: [contractor, client_developer, building_owner]
+    not_covered: >-
+      Radio frequencies, roaming, and telephone and internet services for
+      consumers.
+
+  geotechnics_extraction:
+    domain: geotechnical_mining
+    label: Geotechnics and raw material extraction
+    scope: >-
+      Ground investigation, soil mechanics, excavation and slope support,
+      dewatering, quarries and gravel pits, extraction of sand, gravel and
+      stone, waste from extractive industries (e.g. Directive 2006/21/EC) and
+      restoration of extraction sites.
+    roles: [plant_operator, contractor]
+    not_covered: >-
+      Deep-sea mining, oil and gas extraction and hard coal mining.
+
+  building_permits_planning:
+    domain: construction_building
+    label: Building permits and planning law
+    scope: >-
+      Building permits, planning and urban development law, land-use planning,
+      zoning and procedures before building authorities for construction
+      projects.
+    roles: [client_developer, contractor]
+    not_covered: >-
+      Approval of state aid schemes, residence permits and other
+      administrative procedures without a construction link.
+
+  # --- Construction materials, products and chemicals -------------------------
+
+  construction_materials_production:
+    domain: construction_building
+    label: Production of construction materials and precast concrete
+    scope: >-
+      Production of concrete, ready-mixed concrete, precast concrete elements,
+      asphalt and aggregates, processing of cement, lime, reinforcing and
+      prestressing steel, factory production control, emissions and best
+      available techniques in construction material plants.
+    roles: [plant_operator, construction_product_manufacturer, employer]
+    not_covered: >-
+      Food packaging, household ceramics and fertilisers.
+
+  construction_products_ce:
+    domain: construction_building
+    label: Construction products - declaration of performance and CE marking
+    scope: >-
+      Placing construction products on the market (Regulation (EU) No
+      305/2011 and Regulation (EU) 2024/3110): declaration of performance, CE
+      marking, assessment and verification of constancy of performance,
+      notified bodies, European Assessment Documents, environmental
+      information and digital product passport for construction products.
+    roles: [construction_product_manufacturer]
+    not_covered: >-
+      Conformity assessment of medical devices, toys and consumer products.
+
+  construction_products_standards:
+    domain: construction_building
+    label: Harmonised standards and classes for construction products
+    scope: >-
+      Harmonised technical specifications for construction products (concrete,
+      cement, aggregates, masonry units, insulation, windows, doors, steel or
+      timber components): references of harmonised standards,
+      standardisation requests, essential characteristics, performance
+      classes, reaction to fire and fire resistance, and systems for
+      assessing constancy of performance.
+    roles: [construction_product_manufacturer]
+    note: >-
+      Standards for construction products that Max Bögl manufactures are
+      DIRECT. Standards for construction products that Max Bögl only buys and
+      installs are INDIRECT.
+    not_covered: >-
+      Standards for medical devices, payment services, websites, motor
+      vehicles, aviation and other product groups without a construction link.
+
+  construction_products_market_surveillance:
+    domain: construction_building
+    label: Market surveillance and withdrawal of construction products
+    scope: >-
+      Market surveillance of construction products, safeguard procedures,
+      measures against non-compliant construction products, withdrawal and
+      recall.
+    roles: [construction_product_manufacturer]
+    note: >-
+      Manufacturer duties for its own products are DIRECT. Powers and
+      procedures of authorities are INDIRECT.
+    not_covered: >-
+      Market surveillance of cosmetics, food, toys and childcare articles.
+
+  steel_construction:
+    domain: construction_building
+    label: Steel construction
+    scope: >-
+      Fabrication and erection of steel structures for buildings, halls,
+      bridges and towers: welding, bolting, surface treatment, corrosion
+      protection, steel and aluminium products for construction.
+    roles: [contractor, construction_product_manufacturer]
+    note: >-
+      Anti-dumping, countervailing and safeguard duties on steel and aluminium
+      products for construction are INDIRECT (material prices), DIRECT only if
+      Max Bögl imports the goods itself from non-EU countries.
+    not_covered: >-
+      Steel for household goods, aluminium foil for packaging and historic
+      ECSC rules.
+
+  chemicals_reach:
+    domain: dangerous_goods
+    label: Chemicals in construction products and construction chemicals (REACH)
+    scope: >-
+      Registration, evaluation, authorisation and restriction of chemicals
+      (Regulation (EC) No 1907/2006), the candidate list of substances of very
+      high concern and safety data sheets, where substances in cement,
+      concrete, admixtures, construction chemicals, coatings, adhesives,
+      insulation or fuels are concerned.
+    roles: [chemicals_user, construction_product_manufacturer]
+    note: >-
+      Restrictions and authorisations for substances that Max Bögl uses or
+      supplies in its own products are DIRECT. Registration duties of
+      substance manufacturers are INDIRECT.
+    not_covered: >-
+      Plant protection products, cosmetic and food chemicals.
+
+  chemicals_clp:
+    domain: dangerous_goods
+    label: Classification, labelling and packaging (CLP)
+    scope: >-
+      Classification, labelling and packaging of substances and mixtures
+      (Regulation (EC) No 1272/2008), harmonised classifications, hazard
+      statements and labelling of containers.
+    roles: [chemicals_user, construction_product_manufacturer]
+    note: >-
+      Labelling of its own mixtures such as concrete and mortar is DIRECT. New
+      harmonised classifications are DIRECT for substances that Max Bögl uses
+      or supplies (e.g. cement, quartz, admixtures), otherwise INDIRECT.
+    not_covered: >-
+      Labelling of food and textiles.
+
+  # --- Machinery, installations and equipment ---------------------------------
+
+  machinery_work_equipment:
+    domain: machinery_safety
+    label: Construction machinery and work equipment
+    scope: >-
+      Cranes, tower cranes, excavators, hoists, concrete pumps, mobile
+      elevating work platforms and other work equipment on sites and in
+      plants: safe provision and use, periodic inspection and instruction
+      (e.g. Directive 2009/104/EC).
+    roles: [employer, plant_operator]
+    note: >-
+      Design, CE and conformity duties of machinery manufacturers (e.g.
+      Regulation (EU) 2023/1230) are INDIRECT: they change which machines Max
+      Bögl can buy.
+    not_covered: >-
+      Agricultural tractors, harvesting machinery, food-processing machinery
+      and leisure vehicles.
+
+  machinery_noise_engine_emissions:
+    domain: machinery_safety
+    label: Noise and exhaust emissions of mobile machinery
+    scope: >-
+      Noise emission of equipment and machinery for use outdoors (Directive
+      2000/14/EC), exhaust limits and type approval of engines for non-road
+      mobile machinery (Regulation (EU) 2016/1628), and operating restrictions
+      for such machinery.
+    roles: [plant_operator, fleet_operator]
+    note: >-
+      Limit values and type approval fall on manufacturers and are INDIRECT.
+      Operating restrictions and retrofit duties for operators are DIRECT.
+    not_covered: >-
+      Noise of passenger cars, aircraft, lawnmowers and leisure equipment.
+
+  electrical_explosion_protection:
+    domain: product_safety
+    label: Electrical equipment and explosion protection
+    scope: >-
+      Low voltage equipment, electromagnetic compatibility, equipment and
+      protective systems for potentially explosive atmospheres, temporary
+      site power supply, electrical installations in plants and on sites, and
+      protection of workers in explosive atmospheres (Directive 1999/92/EC).
+    roles: [employer, plant_operator]
+    note: >-
+      Duties of equipment manufacturers (Directives 2014/35/EU, 2014/30/EU and
+      2014/34/EU) are INDIRECT. Operator and employer duties are DIRECT.
+    not_covered: >-
+      Household appliances, consumer electronics, chargers for mobile phones
+      and radio frequencies.
+
+  pressure_equipment_lifts:
+    domain: product_safety
+    label: Pressure equipment, lifts and installations subject to inspection
+    scope: >-
+      Pressure equipment, simple pressure vessels, lifts and their safety
+      components, cableways, and operation and inspection of installations
+      subject to inspection in plants, on sites and in buildings.
+    roles: [plant_operator, building_owner, employer]
+    note: >-
+      Manufacturer duties (Directives 2014/68/EU, 2014/29/EU and 2014/33/EU)
+      are INDIRECT. Operation, inspection and duties when lifts are installed
+      in its own buildings are DIRECT.
+    not_covered: >-
+      Pressure vessels on seagoing ships and aerosol dispensers for cosmetics.
+
+  drones_surveying:
+    domain: machinery_safety
+    label: Drones for surveying and site documentation
+    scope: >-
+      Operation of unmanned aircraft for professional use: operational
+      categories, operator registration, remote pilot competence,
+      operational authorisations and geographical zones (e.g. Implementing
+      Regulation (EU) 2019/947).
+    roles: [drone_operator]
+    note: >-
+      Design and CE marking requirements for drones (e.g. Delegated
+      Regulation (EU) 2019/945) are INDIRECT.
+    not_covered: >-
+      Manned aviation, airlines and air passenger rights.
+
+  # --- Occupational safety and hazardous substances ---------------------------
+
+  site_safety:
+    domain: occupational_health_safety
+    label: Safety on construction sites
+    scope: >-
+      Safety and health at temporary or mobile construction sites (Directive
+      92/57/EEC): safety and health plan, coordinator, prior notice, fall
+      protection, scaffolding, work at height and in trenches, site traffic
+      and personal protective equipment.
+    roles: [employer, client_developer, contractor]
+    not_covered: >-
+      Safety on board fishing vessels and underground mining outside
+      construction.
+
+  occupational_safety_general:
+    domain: occupational_health_safety
+    label: Occupational health and safety in the company
+    scope: >-
+      General employer duties (Directive 89/391/EEC): risk assessment,
+      instruction, workplaces, use of personal protective equipment,
+      occupational health surveillance, limit values for noise, vibration,
+      electromagnetic fields and optical radiation, heat, and reporting of
+      occupational accidents and diseases.
+    roles: [employer]
+    note: >-
+      Requirements for the manufacture of personal protective equipment (e.g.
+      Regulation (EU) 2016/425) are INDIRECT.
+    not_covered: >-
+      Patient safety, consumer protection for cosmetics and animal welfare.
+
+  hazardous_substances_workplace:
+    domain: occupational_health_safety
+    label: Hazardous substances at work
+    scope: >-
+      Protection of workers against chemical agents, carcinogens, mutagens and
+      reprotoxic substances (Directives 98/24/EC and 2004/37/EC):
+      occupational exposure limits, respirable crystalline silica, diesel
+      engine exhaust, substitution and exposure records.
+    roles: [employer]
+    not_covered: >-
+      Maximum residue levels in food, veterinary medicines and cosmetic
+      ingredients.
+
+  asbestos_demolition:
+    domain: occupational_health_safety
+    label: Asbestos, building pollutants and demolition
+    scope: >-
+      Protection against asbestos (Directive 2009/148/EC), man-made mineral
+      fibres, PCBs and other building pollutants in demolition, refurbishment
+      and dismantling, pollutant surveys before demolition, notification and
+      competence duties, and disposal of asbestos-containing waste.
+    roles: [employer, contractor, waste_producer]
+    not_covered: >-
+      Disposal of household electrical waste and end-of-life vehicles.
+
+  radiation_radon:
+    domain: occupational_health_safety
+    label: Radiation protection - radon and radioactivity of building materials
+    scope: >-
+      Radon at workplaces and in buildings, and reference levels for gamma
+      radiation from building materials (Directive 2013/59/Euratom).
+    roles: [employer, construction_product_manufacturer, building_owner]
+    not_covered: >-
+      Nuclear power plants, nuclear fuel, transport of radioactive substances
+      and medical uses of radiation.
+
+  hazardous_substances_storage:
+    domain: dangerous_goods
+    label: Storage of hazardous substances and major-accident prevention
+    scope: >-
+      Storage, filling and handling of hazardous substances and mixtures in
+      plants and on sites, storage classes, retention facilities, substances
+      hazardous to water and control of major-accident hazards (Directive
+      2012/18/EU).
+    roles: [plant_operator, employer]
+    not_covered: >-
+      Storage of cereals and strategic oil stocks of member states.
+
+  explosives_blasting:
+    domain: dangerous_goods
+    label: Explosives and blasting
+    scope: >-
+      Acquisition, storage, traceability and use of explosives for civil uses
+      (Directive 2014/28/EU) in blasting in quarries, tunnelling and
+      demolition.
+    roles: [plant_operator, contractor, employer]
+    note: >-
+      Manufacturer duties are INDIRECT. Record-keeping and traceability duties
+      of users are DIRECT.
+    not_covered: >-
+      Consumer pyrotechnic articles and military ammunition.
+
+  # --- Transport and fleet ----------------------------------------------------
+
+  fleet_commercial_vehicles:
+    domain: transport_fleet
+    label: Fleet and commercial vehicles
+    scope: >-
+      Operation of lorries and transport of construction machinery and heavy
+      loads: driving times and rest periods (Regulation (EC) No 561/2006),
+      tachographs (Regulation (EU) No 165/2014), driver qualification,
+      roadworthiness, weights and dimensions (Directive 96/53/EC), tolls,
+      road haulage licences, and track construction vehicles and train drivers
+      in own-account transport.
+    roles: [fleet_operator, employer]
+    note: >-
+      Type approval and CO2 fleet standards for vehicle manufacturers are
+      INDIRECT.
+    not_covered: >-
+      Passenger car type approval, bus passenger rights and tolls for
+      passenger cars only.
+
+  dangerous_goods_transport:
+    domain: dangerous_goods
+    label: Transport of dangerous goods
+    scope: >-
+      Carriage of dangerous goods by road and rail (Directive 2008/68/EC, ADR
+      and RID): vehicle equipment, marking, transport documents, dangerous
+      goods safety advisers, training, and carriage of fuels, gases and
+      explosives to construction sites.
+    roles: [fleet_operator]
+    not_covered: >-
+      Dangerous goods in sea and air transport, transport of animals and
+      radioactive waste.
+
+  e_mobility_charging:
+    domain: transport_fleet
+    label: E-mobility and charging infrastructure
+    scope: >-
+      Charging points and pre-cabling at buildings and car parks, charging
+      infrastructure for cars, lorries and construction machinery, and
+      infrastructure for alternative fuels (Regulation (EU) 2023/1804).
+    roles: [building_owner, fleet_operator, contractor]
+    note: >-
+      Deployment duties of member states and duties of charge point operators
+      are INDIRECT, unless Max Bögl operates the charging points itself.
+    not_covered: >-
+      Chargers for mobile phones and laptops.
+
+  # --- Environment ------------------------------------------------------------
+
+  industrial_emissions:
+    domain: environmental_protection
+    label: Installation permits and air quality
+    scope: >-
+      Permitting and operation of installations: industrial emissions
+      (Directive 2010/75/EU, amended by Directive (EU) 2024/1785), BAT
+      conclusions for the production of cement and lime, medium combustion
+      plants in production sites (Directive (EU) 2015/2193), dust and odour
+      emissions from asphalt, concrete and crushing plants, and immission
+      control.
+    roles: [plant_operator]
+    note: >-
+      BAT conclusions for suppliers' cement and lime plants are INDIRECT; for
+      sectors with no link to Max Bögl they are IRRELEVANT.
+    not_covered: >-
+      Intensive livestock farming, refineries, and emission standards for
+      cars and ships.
+
+  emissions_trading_cbam:
+    domain: energy_sustainability
+    label: Emissions trading and carbon border adjustment
+    scope: >-
+      EU emissions trading for installations (Directive 2003/87/EC),
+      emissions trading for fuels in buildings and road transport, free
+      allocation, and the carbon border adjustment mechanism for imports of
+      cement, iron and steel, aluminium and electricity (Regulation (EU)
+      2023/956).
+    roles: [importer, plant_operator]
+    note: >-
+      DIRECT for its own imports under the carbon border adjustment mechanism
+      and for installations that Max Bögl operates itself and that fall under
+      emissions trading. Duties of cement, lime and steel producers and of
+      fuel suppliers are INDIRECT (material and fuel prices).
+    not_covered: >-
+      Emissions trading in aviation and maritime transport.
+
+  noise_vibration:
+    domain: environmental_protection
+    label: Noise and vibration
+    scope: >-
+      Construction noise and vibration from construction and blasting work,
+      restrictions on operating hours, noise protection along transport
+      routes, environmental noise and noise action plans (Directive
+      2002/49/EC).
+    roles: [contractor, plant_operator]
+    note: >-
+      Noise mapping and action plans of member states are INDIRECT (noise
+      barriers as a market, client requirements).
+    not_covered: >-
+      Aircraft noise, night-flight restrictions and noise from leisure
+      equipment.
+
+  soil_nature_eia:
+    domain: environmental_protection
+    label: Environmental assessment, nature and soil protection
+    scope: >-
+      Environmental impact assessment of projects (Directive 2011/92/EU),
+      Natura 2000 assessment and species protection in construction projects,
+      impact mitigation and compensation, soil protection and contaminated
+      land, environmental liability of operators (Directive 2004/35/EC) and
+      environmental criminal law for companies.
+    roles: [client_developer, plant_operator, contractor]
+    note: >-
+      Restoration and monitoring duties of member states (e.g. Regulation (EU)
+      2024/1991) are INDIRECT (conditions for projects).
+    not_covered: >-
+      Fish stocks and marine protected areas, organic farming and trade in
+      wild species.
+
+  waste_management:
+    domain: waste_management
+    label: Waste and construction and demolition waste
+    scope: >-
+      Waste hierarchy and duties of waste producers (Directive 2008/98/EC),
+      list of waste and classification, construction and demolition waste,
+      excavated soil, secondary construction materials and recycled
+      aggregates, end-of-waste status, landfill acceptance criteria and
+      shipments of waste (Regulation (EU) 2024/1157).
+    roles: [waste_producer, plant_operator]
+    not_covered: >-
+      Retail packaging waste, household bio-waste and household electrical
+      waste.
+
+  water_wastewater:
+    domain: water_protection
+    label: Water protection and wastewater
+    scope: >-
+      Water abstraction and groundwater lowering, discharge of construction
+      and process wastewater, stormwater, groundwater protection, building in
+      flood and protected areas, and handling of substances hazardous to
+      water.
+    roles: [plant_operator, contractor]
+    note: >-
+      Management plans and quality objectives of member states (e.g.
+      Directive 2000/60/EC) are INDIRECT (conditions in permits).
+    not_covered: >-
+      Bathing water, household drinking water and agricultural irrigation.
+
+  fluorinated_gases:
+    domain: environmental_protection
+    label: F-gases and ozone-depleting substances
+    scope: >-
+      Operation, leak checks, maintenance and decommissioning of
+      refrigeration, air-conditioning and heat pump equipment and vehicle air
+      conditioning containing fluorinated greenhouse gases (Regulation (EU)
+      2024/573) and ozone-depleting substances.
+    roles: [building_owner, plant_operator, fleet_operator]
+    note: >-
+      Placing-on-the-market bans for manufacturers are INDIRECT (choice of new
+      equipment).
+    not_covered: >-
+      Refrigerants in household refrigerators.
+
+  # --- Energy and sustainability ----------------------------------------------
+
+  energy_efficiency_operations:
+    domain: energy_sustainability
+    label: Energy efficiency in operations
+    scope: >-
+      Energy audits and energy management systems for companies (Directive
+      (EU) 2023/1791), energy consumption of plants and sites, waste heat and
+      process heat, and energy saving targets for companies.
+    roles: [large_undertaking, plant_operator]
+    note: >-
+      Energy labelling and ecodesign requirements for products fall on
+      manufacturers and are INDIRECT.
+    not_covered: >-
+      Energy labelling of household appliances and energy consumption of
+      private households.
+
+  renewable_energy_plants:
+    domain: renewable_energy
+    label: Renewable energy - construction and permitting of installations
+    scope: >-
+      Planning, permitting, construction and repowering of onshore wind
+      turbines with towers and foundations, photovoltaics on buildings and
+      open land, storage, acceleration areas and permit deadlines (Directive
+      (EU) 2018/2001, amended by Directive (EU) 2023/2413).
+    roles: [energy_producer, contractor, construction_product_manufacturer]
+    note: >-
+      Expansion targets and planning duties of member states are INDIRECT
+      (market). Permitting rules for installations are DIRECT.
+    not_covered: >-
+      Biofuels and agricultural biomass, and offshore wind energy without
+      construction or supply work by Max Bögl.
+
+  power_generation_market:
+    domain: renewable_energy
+    label: Power generation, storage and the electricity market
+    scope: >-
+      Duties of electricity producers and storage operators: grid connection
+      requirements for generating units (Regulation (EU) 2016/631), balancing,
+      redispatch, market rules for producers (Regulation (EU) 2019/943 and
+      Directive (EU) 2019/944), reporting in wholesale energy markets
+      (Regulation (EU) No 1227/2011), guarantees of origin, power purchase
+      agreements, support and auctions for renewable electricity, and
+      hydrogen.
+    roles: [energy_producer]
+    note: >-
+      Duties of grid operators, regulatory authorities and energy suppliers to
+      final customers are INDIRECT.
+    not_covered: >-
+      Nuclear energy, household electricity prices and household gas supply.
+
+  sustainability_reporting:
+    domain: energy_sustainability
+    label: Sustainability reporting and taxonomy
+    scope: >-
+      Corporate sustainability reporting (Directive (EU) 2022/2464) and the
+      European standards for it, the taxonomy for environmentally sustainable
+      economic activities (Regulation (EU) 2020/852) with the technical
+      criteria for construction and real estate, greenhouse gas accounting,
+      life-cycle assessment and environmental product declarations of
+      buildings and construction products.
+    roles: [large_undertaking, construction_product_manufacturer]
+    note: >-
+      Taxonomy criteria applied only by banks and investors are INDIRECT
+      (financing of projects and clients).
+    not_covered: >-
+      Disclosure duties of funds and financial market participants, and
+      statistics of member states.
+
+  # --- Procurement, supply chain and trade ------------------------------------
+
+  public_procurement:
+    domain: public_procurement
+    label: Public procurement
+    scope: >-
+      Award of public works, supply and service contracts and concessions
+      (Directives 2014/24/EU, 2014/25/EU and 2014/23/EU): thresholds,
+      procedures, selection and exclusion grounds, award criteria, abnormally
+      low tenders, review procedures, e-procurement, and notification duties
+      for foreign subsidies (Regulation (EU) 2022/2560).
+    roles: [bidder]
+    note: >-
+      The directives are addressed to contracting authorities, but rules on
+      procedures, thresholds, selection and tenders apply to Max Bögl as
+      bidder and are DIRECT. Rules on what contracting authorities must buy
+      (e.g. environmental criteria) are INDIRECT.
+    not_covered: >-
+      Procurement by EU institutions for their own needs, defence goods and
+      grants from EU programmes.
+
+  supply_chain_due_diligence:
+    domain: procurement_supply_chain
+    label: Supply chain due diligence
+    scope: >-
+      Due diligence for human rights and the environment in own operations and
+      the supply chain (Directive (EU) 2024/1760), deforestation-free supply
+      chains for wood and other commodities (Regulation (EU) 2023/1115), ban
+      on products made with forced labour, conflict minerals, supplier audits
+      and codes of conduct.
+    roles: [large_undertaking, importer]
+    note: >-
+      Duties that fall only on importers of specific raw materials (e.g.
+      conflict minerals) are INDIRECT, unless Max Bögl imports them itself.
+    not_covered: >-
+      Import controls for agricultural products and food, and settlement in
+      securities trading.
+
+  imports_trade_defence:
+    domain: procurement_supply_chain
+    label: Imports, customs and trade defence
+    scope: >-
+      Import of construction materials, steel, aluminium, machinery and
+      components into the EU: customs procedures, anti-dumping,
+      countervailing and safeguard duties, import surveillance and import bans
+      for industrial products.
+    roles: [importer]
+    note: >-
+      Trade defence duties on goods used in construction are INDIRECT (prices
+      and availability), DIRECT only if Max Bögl imports itself.
+    not_covered: >-
+      Tariff quotas for agricultural products, textiles, consumer goods and the
+      classification of individual goods without a construction link in the
+      Combined Nomenclature.
+
+  funding_investment:
+    domain: public_procurement
+    label: Funding programmes and infrastructure investment
+    scope: >-
+      EU programmes and funds financing construction, transport, energy and
+      innovation projects (e.g. the Connecting Europe Facility and the
+      Innovation Fund), funding conditions for companies and infrastructure
+      investment plans.
+    roles: []
+    note: >-
+      Usually INDIRECT (market and projects). DIRECT only if the act sets
+      duties for companies as funding recipients that Max Bögl must meet.
+    not_covered: >-
+      Agricultural funds, aid to non-EU countries and EU budget procedures.
+
+  # --- People -----------------------------------------------------------------
+
+  employment_law:
+    domain: employment_law
+    label: Employment and labour law
+    scope: >-
+      Working time (Directive 2003/88/EC), leave, pay transparency (Directive
+      (EU) 2023/970), transparent working conditions, fixed-term work,
+      temporary agency work, posting of workers (Directives 96/71/EC and
+      2014/67/EU), minimum wage, social security for assignments abroad
+      (Regulation (EC) No 883/2004, A1 certificate) and employment of workers
+      from non-EU countries.
+    roles: [employer]
+    not_covered: >-
+      Conditions of employment of EU staff and working conditions of
+      seafarers.
+
+  works_council:
+    domain: works_council
+    label: Co-determination and employee representation
+    scope: >-
+      Information and consultation of employees, European Works Councils
+      (Directive 2009/38/EC), co-determination, employee involvement in the
+      European Company, collective redundancies, transfers of undertakings and
+      collective agreements in construction.
+    roles: [employer]
+    not_covered: >-
+      Appointment of members of EU committees and representation of member
+      states in committees.
+
+  # --- IT, data and governance ------------------------------------------------
+
+  data_protection:
+    domain: data_protection
+    label: Data protection
+    scope: >-
+      Processing of personal data (Regulation (EU) 2016/679), data subject
+      rights, processors, data protection impact assessment, employee data and
+      video surveillance, transfers to third countries (adequacy decisions,
+      standard contractual clauses) and notification of data breaches.
+    roles: [data_controller]
+    not_covered: >-
+      Data processing by EU institutions, police and judicial authorities, and
+      passenger name records.
+
+  cybersecurity:
+    domain: cybersecurity
+    label: Cybersecurity and information security
+    scope: >-
+      Risk management and incident reporting for important and essential
+      entities including electricity producers (Directive (EU) 2022/2555),
+      security of industrial control systems, resilience of critical
+      entities, and security requirements for products with digital elements
+      (Regulation (EU) 2024/2847).
+    roles: [it_operator, energy_producer, large_undertaking]
+    note: >-
+      Duties under Directive (EU) 2022/2555 are DIRECT. Manufacturer duties
+      for products with digital elements are INDIRECT, unless Max Bögl places
+      such products on the market itself.
+    not_covered: >-
+      Cybersecurity in banking and networks of the EU institutions.
+
+  ai_data_digital:
+    domain: cybersecurity
+    label: Artificial intelligence and data law
+    scope: >-
+      Duties when using AI systems (Regulation (EU) 2024/1689), AI literacy of
+      staff, high-risk AI in human resources and safety-related applications,
+      access to and use of data from connected machinery and vehicles
+      (Regulation (EU) 2023/2854) and switching of cloud services.
+    roles: [it_operator, data_controller]
+    note: >-
+      Duties of AI providers and manufacturers of connected products are
+      INDIRECT, unless Max Bögl develops or sells them itself.
+    not_covered: >-
+      Duties of online platforms and search engines towards consumers.
+
+  software_copyright:
+    domain: communication_media
+    label: Software copyright and licensing
+    scope: >-
+      Legal protection of computer programs (Directive 2009/24/EC), rights in
+      software developed by employees, licence terms, permitted use, backup
+      copies, interoperability and open-source components.
+    roles: [it_operator]
+    not_covered: >-
+      Copyright in music, films and broadcasting.
+
+  compliance_governance:
+    domain: corporate_compliance
+    label: Compliance and corporate governance
+    scope: >-
+      Anti-corruption, competition law and block exemptions, whistleblower
+      protection (Directive (EU) 2019/1937), anti-money laundering, general
+      prohibitions from economic sanctions for EU companies, export control of
+      dual-use items (Regulation (EU) 2021/821) and internal control systems.
+    roles: [large_undertaking]
+    note: >-
+      General sanctions prohibitions (e.g. import, export and service bans)
+      are DIRECT. Mere changes to lists of names fall under the negative
+      anchor sanctions_listings.
+    not_covered: >-
+      Internal EU procedural rules and individual decisions on named foreign
+      companies.
+
+  internal_audit_risk:
+    domain: internal_audit
+    label: Statutory audit, internal audit and risk management
+    scope: >-
+      Audit of annual and consolidated financial statements (Directive
+      2006/43/EC), assurance of sustainability reporting, internal control
+      system, risk management and fraud prevention in the company.
+    roles: [large_undertaking]
+    note: >-
+      Special duties for public-interest entities (Regulation (EU) No
+      537/2014) are INDIRECT.
+    not_covered: >-
+      Supervision of banks and insurers and budgetary control of the EU.
+
+  communication_ip:
+    domain: communication_media
+    label: Communication, advertising and intellectual property
+    scope: >-
+      Corporate advertising and unfair commercial practices, environmental
+      claims and sustainability advertising (Directive (EU) 2024/825), trade
+      marks (Regulation (EU) 2017/1001), designs, copyright in plans, images
+      and publications, and imprint duties.
+    roles: [construction_product_manufacturer, large_undertaking]
+    not_covered: >-
+      Audiovisual media services, broadcasting and film funding.
+
+  # --- Commercial -------------------------------------------------------------
+
+  contract_law:
+    domain: contract_commercial
+    label: Construction and contract law
+    scope: >-
+      Construction and works contracts, subcontractors, variations,
+      acceptance, warranty and liability for defects, late payment in
+      commercial transactions (Directive 2011/7/EU), contractual penalties,
+      guarantees and securities, company law and corporate transactions.
+    roles: [contract_party, contractor]
+    not_covered: >-
+      Consumer distance contracts, package travel and insurance contracts for
+      private customers.
+
+  insurance_liability:
+    domain: insurance_liability
+    label: Insurance and liability
+    scope: >-
+      Liability for defective products (Directive (EU) 2024/2853) and
+      construction work, environmental liability, business and professional
+      liability, motor insurance for its own fleet (Directive 2009/103/EC),
+      insurance duties in construction projects and statutory accident
+      insurance.
+    roles: [construction_product_manufacturer, contractor, fleet_operator]
+    not_covered: >-
+      Supervision of insurance undertakings, deposit guarantee schemes and air
+      carrier liability.
+
+  finance_tax:
+    domain: finance_tax
+    label: Accounting, finance and tax
+    scope: >-
+      Annual and consolidated financial statements (Directive 2013/34/EU), VAT
+      (Directive 2006/112/EC) with reverse charge for construction services,
+      e-invoicing, global minimum tax for large groups (Directive (EU)
+      2022/2523), transfer pricing, tax reporting and record-keeping duties,
+      payroll tax and social security contributions.
+    roles: [taxpayer, large_undertaking, employer]
+    note: >-
+      Energy and excise taxes on fuels and electricity are INDIRECT (costs),
+      as long as they do not impose own filing duties on Max Bögl.
+    not_covered: >-
+      Excise duties on alcohol and tobacco, own resources and budget of the EU,
+      and taxation of financial services.
+
+# =============================================================================
+# Negative anchors: areas that are IRRELEVANT for Max Bögl.
+# "except" names cases that do NOT fall under them despite being similar.
+# =============================================================================
+negative_anchors:
+
+  agriculture_fisheries:
+    label: Agriculture, fisheries and aquaculture
+    text: >-
+      Common agricultural policy, direct payments, marketing standards for
+      agricultural products and wine, seed and variety registration, fishing
+      quotas, fishing vessels, aquaculture, and plant and animal health.
+
+  food_feed:
+    label: Food and feed
+    text: >-
+      Food safety and hygiene, food labelling, additives, flavourings, novel
+      foods, food contact materials, maximum residue levels and animal feed.
+
+  medicine_health:
+    label: Medicines, medical devices and healthcare
+    text: >-
+      Human and veterinary medicines and their authorisation, medical devices,
+      in vitro diagnostics, clinical trials and healthcare.
+
+  financial_supervision:
+    label: Banking and financial market supervision
+    text: >-
+      Supervision of credit institutions, insurers and investment firms,
+      capital requirements, securities markets, funds, payment services,
+      central counterparties and crypto-assets.
+    except: >-
+      Duties that apply to all companies (accounting, sustainability
+      reporting, taxonomy, late payment).
+
+  eu_administration_budget:
+    label: Internal administration and budget of the EU
+    text: >-
+      Appointment and replacement of members of EU committees, bodies and
+      agencies, staff regulations of EU officials, the EU budget, discharge
+      and accounts of the EU, and rules of procedure.
+
+  eu_internal_procedures:
+    label: Internal EU procedures
+    text: >-
+      Procedural rules of the EU institutions themselves, such as how the
+      Commission conducts competition or state aid proceedings, information
+      duties towards an EU authority in administrative proceedings, and the
+      internal working of EU funds and bodies.
+    except: >-
+      Substantive duties for companies contained in the same act.
+
+  individual_decisions:
+    label: Individual decisions on other companies
+    text: >-
+      Competition, merger and state aid decisions on individual, named
+      companies, and exemptions and approvals for a specific single case.
+    except: >-
+      Decisions on Max Bögl itself. Approvals of German support schemes that
+      Max Bögl can use (e.g. for renewable energy) are INDIRECT.
+
+  foreign_single_case:
+    label: Purely foreign single case
+    text: >-
+      Acts that bind only another state, its authorities or named companies
+      there.
+    except: >-
+      Acts addressed to Germany and general EU rules for all economic
+      operators.
+
+  sanctions_listings:
+    label: Lists of names under sanctions
+    text: >-
+      Adding, removing and amending entries of named persons and entities in
+      sanctions lists.
+    except: >-
+      General prohibitions for EU companies (anchor compliance_governance).
+
+  consumer_electronics_telecom:
+    label: Consumer electronics and telecommunications services
+    text: >-
+      Mobile phones, tablets, laptops and household appliances for consumers,
+      chargers, radio frequencies, mobile and internet services, roaming and
+      audiovisual media services.
+    except: >-
+      Duties in civil works and buildings for high-speed networks (anchor
+      broadband_civil_works).
+
+  ships_maritime:
+    label: Ships and maritime transport
+    text: >-
+      Construction, equipment and recycling of seagoing and inland vessels,
+      ship safety, port state control, seafarers and maritime transport
+      services.
+    except: >-
+      Construction of ports, quays and waterways.
+
+  aviation:
+    label: Aviation
+    text: >-
+      Manned aircraft, airlines, air traffic control, airworthiness, air
+      passenger rights, airport charges and slots.
+    except: >-
+      Drones for surveying and sites (anchor drones_surveying) and the
+      construction of airports.
+
+  nuclear:
+    label: Nuclear energy and Euratom
+    text: >-
+      Nuclear fuel, nuclear power plants and nuclear installations, transport
+      of radioactive substances, nuclear safeguards and medical uses of
+      radiation.
+    except: >-
+      Radon at workplaces and in buildings, and radioactivity of building
+      materials (anchor radiation_radon).
+
+  textiles_consumer_goods:
+    label: Textiles and consumer goods
+    text: >-
+      Textile fibres and textile labelling, clothing, footwear, leather goods,
+      toys, cosmetics, bicycles and leisure products for consumers.
+    except: >-
+      Personal protective equipment and workwear for employees.
+
+  statistics:
+    label: Official statistics
+    text: >-
+      European statistics, surveys and samples, transmission of statistical
+      data by member states and statistical classifications.
+
+  ecsc_historic:
+    label: Historic ECSC rules on coal and steel
+    text: >-
+      Historic ECSC rules on coal, crude steel, production levies, prices, aid
+      and reporting by mining and steel companies without a current duty.
+
+  external_aid:
+    label: Development funds and aid to non-EU countries
+    text: >-
+      Setting up and managing development funds, and financial aid and
+      programmes for non-EU countries.

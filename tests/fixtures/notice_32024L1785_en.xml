@@ -1,0 +1,1523 @@
+<NOTICE decoding="eng" type="branch">
+   <WORK>
+      <WORK_HAS_RESOURCE-TYPE type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/resource-type/DIR</VALUE>
+            <IDENTIFIER>DIR</IDENTIFIER>
+            <TYPE>resource-type</TYPE>
+         </URI>
+         <OP-CODE>DIR</OP-CODE>
+         <IDENTIFIER>DIR</IDENTIFIER>
+         <PREFLABEL>Directive</PREFLABEL>
+         <ALTLABEL>Directives</ALTLABEL>
+      </WORK_HAS_RESOURCE-TYPE>
+      <RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER type="concept_level">
+         <RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER_1 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/subject-matter/DECH</VALUE>
+               <IDENTIFIER>DECH</IDENTIFIER>
+               <TYPE>subject-matter</TYPE>
+            </URI>
+            <OP-CODE>DECH</OP-CODE>
+            <IDENTIFIER>DECH</IDENTIFIER>
+            <PREFLABEL>Waste</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER_1>
+      </RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/1158</VALUE>
+               <IDENTIFIER>1158</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>1158</IDENTIFIER>
+            <PREFLABEL>waste management</PREFLABEL>
+            <ALTLABEL>rubbish dump</ALTLABEL>
+            <ALTLABEL>landfill site</ALTLABEL>
+            <ALTLABEL>waste treatment</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/1158</VALUE>
+               <IDENTIFIER>1158</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>1158</IDENTIFIER>
+            <PREFLABEL>waste management</PREFLABEL>
+            <ALTLABEL>rubbish dump</ALTLABEL>
+            <ALTLABEL>landfill site</ALTLABEL>
+            <ALTLABEL>waste treatment</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100242</VALUE>
+               <IDENTIFIER>100242</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5206</IDENTIFIER>
+            <PREFLABEL>5206 environmental policy</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE type="concept_level">
+         <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_4 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/dir-eu-legal-act/15103030</VALUE>
+               <IDENTIFIER>15103030</IDENTIFIER>
+               <TYPE>dir-eu-legal-act</TYPE>
+            </URI>
+            <OP-CODE>15103030</OP-CODE>
+            <IDENTIFIER>15103030</IDENTIFIER>
+            <PREFLABEL>Waste management and clean technology</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_4>
+         <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_2 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/dir-eu-legal-act/1510</VALUE>
+               <IDENTIFIER>1510</IDENTIFIER>
+               <TYPE>dir-eu-legal-act</TYPE>
+            </URI>
+            <OP-CODE>1510</OP-CODE>
+            <IDENTIFIER>1510</IDENTIFIER>
+            <PREFLABEL>Environment</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_2>
+         <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_1 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/dir-eu-legal-act/15</VALUE>
+               <IDENTIFIER>15</IDENTIFIER>
+               <TYPE>dir-eu-legal-act</TYPE>
+            </URI>
+            <OP-CODE>15</OP-CODE>
+            <IDENTIFIER>15</IDENTIFIER>
+            <PREFLABEL>Environment, consumers and health protection</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_1>
+         <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_3 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/dir-eu-legal-act/151030</VALUE>
+               <IDENTIFIER>151030</IDENTIFIER>
+               <TYPE>dir-eu-legal-act</TYPE>
+            </URI>
+            <OP-CODE>151030</OP-CODE>
+            <IDENTIFIER>151030</IDENTIFIER>
+            <PREFLABEL>Space, environment and natural resources</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_3>
+      </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/3164</VALUE>
+               <IDENTIFIER>3164</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>3164</IDENTIFIER>
+            <PREFLABEL>industrial pollution</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2524</VALUE>
+               <IDENTIFIER>2524</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2524</IDENTIFIER>
+            <PREFLABEL>pollution</PREFLABEL>
+            <ALTLABEL>contamination</ALTLABEL>
+            <ALTLABEL>discharge of pollutants</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100244</VALUE>
+               <IDENTIFIER>100244</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5216</IDENTIFIER>
+            <PREFLABEL>5216 deterioration of the environment</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <RESOURCE_LEGAL_BASED_ON_RESOURCE_LEGAL type="link">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/cellar/cdbccbd7-06ae-4c9b-9076-57fc645256c2</VALUE>
+            <IDENTIFIER>cdbccbd7-06ae-4c9b-9076-57fc645256c2</IDENTIFIER>
+            <TYPE>cellar</TYPE>
+         </URI>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/celex/12016E192</VALUE>
+               <IDENTIFIER>12016E192</IDENTIFIER>
+               <TYPE>celex</TYPE>
+            </URI>
+         </SAMEAS>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/eli/treaty/tfeu_2016/art_192/oj</VALUE>
+               <IDENTIFIER>treaty:tfeu_2016:art_192:oj</IDENTIFIER>
+               <TYPE>eli</TYPE>
+            </URI>
+         </SAMEAS>
+         <ANNOTATION>
+            <COMMENT_ON_LEGAL_BASIS>P1</COMMENT_ON_LEGAL_BASIS>
+            <PARAGRAPH>1</PARAGRAPH>
+         </ANNOTATION>
+      </RESOURCE_LEGAL_BASED_ON_RESOURCE_LEGAL>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2530</VALUE>
+               <IDENTIFIER>2530</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2530</IDENTIFIER>
+            <PREFLABEL>water pollution</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2524</VALUE>
+               <IDENTIFIER>2524</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2524</IDENTIFIER>
+            <PREFLABEL>pollution</PREFLABEL>
+            <ALTLABEL>contamination</ALTLABEL>
+            <ALTLABEL>discharge of pollutants</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100244</VALUE>
+               <IDENTIFIER>100244</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5216</IDENTIFIER>
+            <PREFLABEL>5216 deterioration of the environment</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <ADDRESSES type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/corporate-body/EUMS</VALUE>
+            <IDENTIFIER>EUMS</IDENTIFIER>
+            <TYPE>corporate-body</TYPE>
+         </URI>
+         <OP-CODE>EUMS</OP-CODE>
+         <IDENTIFIER>EUMS</IDENTIFIER>
+         <PREFLABEL>The Member States</PREFLABEL>
+      </ADDRESSES>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2825</VALUE>
+               <IDENTIFIER>2825</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2825</IDENTIFIER>
+            <PREFLABEL>environmental protection</PREFLABEL>
+            <ALTLABEL>protection of nature</ALTLABEL>
+            <ALTLABEL>preservation of the environment</ALTLABEL>
+            <ALTLABEL>conservation of nature</ALTLABEL>
+            <ALTLABEL>nature protection</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2825</VALUE>
+               <IDENTIFIER>2825</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2825</IDENTIFIER>
+            <PREFLABEL>environmental protection</PREFLABEL>
+            <ALTLABEL>protection of nature</ALTLABEL>
+            <ALTLABEL>preservation of the environment</ALTLABEL>
+            <ALTLABEL>conservation of nature</ALTLABEL>
+            <ALTLABEL>nature protection</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100242</VALUE>
+               <IDENTIFIER>100242</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5206</IDENTIFIER>
+            <PREFLABEL>5206 environmental policy</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <RESOURCE_LEGAL_AMENDS_RESOURCE_LEGAL type="link">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/cellar/ec0a6777-382e-4614-900a-ea7011fb5c4f</VALUE>
+            <IDENTIFIER>ec0a6777-382e-4614-900a-ea7011fb5c4f</IDENTIFIER>
+            <TYPE>cellar</TYPE>
+         </URI>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/oj/JOL_1999_182_R_0001_001</VALUE>
+               <IDENTIFIER>JOL_1999_182_R_0001_001</IDENTIFIER>
+               <TYPE>oj</TYPE>
+            </URI>
+         </SAMEAS>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/celex/31999L0031</VALUE>
+               <IDENTIFIER>31999L0031</IDENTIFIER>
+               <TYPE>celex</TYPE>
+            </URI>
+         </SAMEAS>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/eli/dir/1999/31/oj</VALUE>
+               <IDENTIFIER>dir:1999:31:oj</IDENTIFIER>
+               <TYPE>eli</TYPE>
+            </URI>
+         </SAMEAS>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{DEL|http://publications.europa.eu/resource/authority/fd_375/DEL}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 1 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+      </RESOURCE_LEGAL_AMENDS_RESOURCE_LEGAL>
+      <CREATED_BY type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/corporate-body/CONSIL</VALUE>
+            <IDENTIFIER>CONSIL</IDENTIFIER>
+            <TYPE>corporate-body</TYPE>
+         </URI>
+         <OP-CODE>CONSIL</OP-CODE>
+         <IDENTIFIER>CONSIL</IDENTIFIER>
+         <PREFLABEL>Council of the European Union</PREFLABEL>
+         <ALTLABEL>Council</ALTLABEL>
+      </CREATED_BY>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/5794</VALUE>
+               <IDENTIFIER>5794</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5794</IDENTIFIER>
+            <PREFLABEL>EU environmental policy</PREFLABEL>
+            <ALTLABEL>EU environment policy</ALTLABEL>
+            <ALTLABEL>European Union environment policy</ALTLABEL>
+            <ALTLABEL>European Union environmental policy</ALTLABEL>
+            <ALTLABEL>Community environmental policy</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2470</VALUE>
+               <IDENTIFIER>2470</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2470</IDENTIFIER>
+            <PREFLABEL>environmental policy</PREFLABEL>
+            <ALTLABEL>environmental management</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100242</VALUE>
+               <IDENTIFIER>100242</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5206</IDENTIFIER>
+            <PREFLABEL>5206 environmental policy</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2534</VALUE>
+               <IDENTIFIER>2534</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2534</IDENTIFIER>
+            <PREFLABEL>soil pollution</PREFLABEL>
+            <ALTLABEL>underground pollution</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2524</VALUE>
+               <IDENTIFIER>2524</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2524</IDENTIFIER>
+            <PREFLABEL>pollution</PREFLABEL>
+            <ALTLABEL>contamination</ALTLABEL>
+            <ALTLABEL>discharge of pollutants</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100244</VALUE>
+               <IDENTIFIER>100244</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5216</IDENTIFIER>
+            <PREFLABEL>5216 deterioration of the environment</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <WORK_CREATED_BY_AGENT type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/corporate-body/CONSIL</VALUE>
+            <IDENTIFIER>CONSIL</IDENTIFIER>
+            <TYPE>corporate-body</TYPE>
+         </URI>
+         <OP-CODE>CONSIL</OP-CODE>
+         <IDENTIFIER>CONSIL</IDENTIFIER>
+         <PREFLABEL>Council of the European Union</PREFLABEL>
+         <ALTLABEL>Council</ALTLABEL>
+      </WORK_CREATED_BY_AGENT>
+      <RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER type="concept_level">
+         <RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER_1 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/subject-matter/POLL</VALUE>
+               <IDENTIFIER>POLL</IDENTIFIER>
+               <TYPE>subject-matter</TYPE>
+            </URI>
+            <OP-CODE>POLL</OP-CODE>
+            <IDENTIFIER>POLL</IDENTIFIER>
+            <PREFLABEL>Pollution</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER_1>
+      </RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/c_c9724a74</VALUE>
+               <IDENTIFIER>c_c9724a74</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>c_c9724a74</IDENTIFIER>
+            <PREFLABEL>carbon neutrality</PREFLABEL>
+            <ALTLABEL>net zero carbon foot print</ALTLABEL>
+            <ALTLABEL>CO2 neutrality</ALTLABEL>
+            <ALTLABEL>climate neutrality</ALTLABEL>
+            <ALTLABEL>greenhouse gas neutrality</ALTLABEL>
+            <ALTLABEL>net zero carbon dioxide emissions</ALTLABEL>
+            <ALTLABEL>carbon dioxide neutrality</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/434743</VALUE>
+               <IDENTIFIER>434743</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>434743</IDENTIFIER>
+            <PREFLABEL>climate change policy</PREFLABEL>
+            <ALTLABEL>policy for responding to climate change</ALTLABEL>
+            <ALTLABEL>climate action</ALTLABEL>
+            <ALTLABEL>climate policy</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100242</VALUE>
+               <IDENTIFIER>100242</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5206</IDENTIFIER>
+            <PREFLABEL>5206 environmental policy</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/1707</VALUE>
+               <IDENTIFIER>1707</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>1707</IDENTIFIER>
+            <PREFLABEL>pollution control measures</PREFLABEL>
+            <ALTLABEL>reduction of pollution</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/1707</VALUE>
+               <IDENTIFIER>1707</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>1707</IDENTIFIER>
+            <PREFLABEL>pollution control measures</PREFLABEL>
+            <ALTLABEL>reduction of pollution</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100242</VALUE>
+               <IDENTIFIER>100242</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5206</IDENTIFIER>
+            <PREFLABEL>5206 environmental policy</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <RESOURCE_LEGAL_RESPONSIBILITY_OF_AGENT type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/corporate-body/ENV</VALUE>
+            <IDENTIFIER>ENV</IDENTIFIER>
+            <TYPE>corporate-body</TYPE>
+         </URI>
+         <OP-CODE>ENV</OP-CODE>
+         <IDENTIFIER>ENV</IDENTIFIER>
+         <PREFLABEL>Directorate-General for Environment</PREFLABEL>
+         <ALTLABEL>DG Environment</ALTLABEL>
+         <ALTLABEL>ENV</ALTLABEL>
+         <ALTLABEL>Environment</ALTLABEL>
+      </RESOURCE_LEGAL_RESPONSIBILITY_OF_AGENT>
+      <RESOURCE_LEGAL_AMENDS_RESOURCE_LEGAL type="link">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/cellar/c7191b72-4e07-4712-86d6-d3ae5e4f0082</VALUE>
+            <IDENTIFIER>c7191b72-4e07-4712-86d6-d3ae5e4f0082</IDENTIFIER>
+            <TYPE>cellar</TYPE>
+         </URI>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/celex/32010L0075</VALUE>
+               <IDENTIFIER>32010L0075</IDENTIFIER>
+               <TYPE>celex</TYPE>
+            </URI>
+         </SAMEAS>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/oj/JOL_2010_334_R_0017_01</VALUE>
+               <IDENTIFIER>JOL_2010_334_R_0017_01</IDENTIFIER>
+               <TYPE>oj</TYPE>
+            </URI>
+         </SAMEAS>
+         <SAMEAS>
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/eli/dir/2010/75/oj</VALUE>
+               <IDENTIFIER>dir:2010:75:oj</IDENTIFIER>
+               <TYPE>eli</TYPE>
+            </URI>
+         </SAMEAS>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 48 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} III {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 5</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 27c</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 20 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 9 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (aa)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 27a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 23 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 4 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 5</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 5.3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 9a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} IIa</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 13b</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 73 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 27b</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 63 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70f</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 5a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{TIT|http://publications.europa.eu/resource/authority/fd_370/TIT}</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 11 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (fa)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70d</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70c</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 14</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (e)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 50</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 12a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} III {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 10</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 2 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{DEL|http://publications.europa.eu/resource/authority/fd_375/DEL}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 77</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 49</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 15</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (d) {PTI|http://publications.europa.eu/resource/authority/fd_370/PTI} (iii)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (e)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 15a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 2.3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 21 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 5 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (c)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 1.4</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} III {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 11</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (ba)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} II</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 16 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 10 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (b)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (bb)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 6.6</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} V {PRT|http://publications.europa.eu/resource/authority/fd_370/PRT} 3 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 8 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 30 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 5</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (e)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 5 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 4</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2 {TXT|http://publications.europa.eu/resource/authority/fd_370/TXT}</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 12 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (c)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 48</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 27d</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 13a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} IV {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {TXT|http://publications.europa.eu/resource/authority/fd_370/TXT}</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} VI {PRT|http://publications.europa.eu/resource/authority/fd_370/PRT} 6 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 1.2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (f)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} IV {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 5</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 11 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (fb)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 27</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (b)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 6.2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 6.5</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70h</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 12</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 3.6</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 2.7</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 26 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 10 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (c)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 72 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 6</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 23b</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 16 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 4</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70i</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (d)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 23</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 75</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (a)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 4 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN}</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 73 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 4</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 7</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (a)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{DEL|http://publications.europa.eu/resource/authority/fd_375/DEL}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 78</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 73 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 1</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 12 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (b)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (h)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70b</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 30 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 6 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 79</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 4 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 76</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 79a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} IV {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (d)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 21 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 3 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 1 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (a)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 25 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN}</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 34a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} III {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 26 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70e</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 13aa</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} V {PRT|http://publications.europa.eu/resource/authority/fd_370/PRT} 3 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 10 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 16 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 14 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (ab)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 21 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 5 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (d)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} III {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 9</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 73 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 24 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (c)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 27e</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{CHA|http://publications.europa.eu/resource/authority/fd_370/CHA} VIa {AR|http://publications.europa.eu/resource/authority/fd_370/AR} 70g</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 8</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 23a</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 4.2 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (a)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} I {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 3.5</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 13 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 2 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN}</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 42 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {ALN|http://publications.europa.eu/resource/authority/fd_370/ALN} 2</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 3 {PO|http://publications.europa.eu/resource/authority/fd_370/PO} 17</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 18</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 11 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (f)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 12 {PA|http://publications.europa.eu/resource/authority/fd_370/PA} 1 {PTA|http://publications.europa.eu/resource/authority/fd_370/PTA} (f)</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{J|http://publications.europa.eu/resource/authority/fd_375/J}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AN|http://publications.europa.eu/resource/authority/fd_370/AN} Ia</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+         <ANNOTATION>
+            <TYPE_OF_LINK_TARGET>MS</TYPE_OF_LINK_TARGET>
+            <ROLE2>{R|http://publications.europa.eu/resource/authority/fd_375/R}</ROLE2>
+            <REFERENCE_TO_MODIFIED_LOCATION>{AR|http://publications.europa.eu/resource/authority/fd_370/AR} 74</REFERENCE_TO_MODIFIED_LOCATION>
+            <START_OF_VALIDITY>2024-08-04</START_OF_VALIDITY>
+         </ANNOTATION>
+      </RESOURCE_LEGAL_AMENDS_RESOURCE_LEGAL>
+      <WORK_CREATED_BY_AGENT type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/corporate-body/EP</VALUE>
+            <IDENTIFIER>EP</IDENTIFIER>
+            <TYPE>corporate-body</TYPE>
+         </URI>
+         <OP-CODE>EP</OP-CODE>
+         <IDENTIFIER>EP</IDENTIFIER>
+         <PREFLABEL>European Parliament</PREFLABEL>
+         <ALTLABEL>EP</ALTLABEL>
+      </WORK_CREATED_BY_AGENT>
+      <RESOURCE_LEGAL_ADDRESSES_INSTITUTION type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/corporate-body/EUMS</VALUE>
+            <IDENTIFIER>EUMS</IDENTIFIER>
+            <TYPE>corporate-body</TYPE>
+         </URI>
+         <OP-CODE>EUMS</OP-CODE>
+         <IDENTIFIER>EUMS</IDENTIFIER>
+         <PREFLABEL>The Member States</PREFLABEL>
+      </RESOURCE_LEGAL_ADDRESSES_INSTITUTION>
+      <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE type="concept_level">
+         <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_3 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/dir-eu-legal-act/151020</VALUE>
+               <IDENTIFIER>151020</IDENTIFIER>
+               <TYPE>dir-eu-legal-act</TYPE>
+            </URI>
+            <OP-CODE>151020</OP-CODE>
+            <IDENTIFIER>151020</IDENTIFIER>
+            <PREFLABEL>Pollution and nuisances</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_3>
+         <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_2 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/dir-eu-legal-act/1510</VALUE>
+               <IDENTIFIER>1510</IDENTIFIER>
+               <TYPE>dir-eu-legal-act</TYPE>
+            </URI>
+            <OP-CODE>1510</OP-CODE>
+            <IDENTIFIER>1510</IDENTIFIER>
+            <PREFLABEL>Environment</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_2>
+         <RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_1 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/dir-eu-legal-act/15</VALUE>
+               <IDENTIFIER>15</IDENTIFIER>
+               <TYPE>dir-eu-legal-act</TYPE>
+            </URI>
+            <OP-CODE>15</OP-CODE>
+            <IDENTIFIER>15</IDENTIFIER>
+            <PREFLABEL>Environment, consumers and health protection</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE_1>
+      </RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2527</VALUE>
+               <IDENTIFIER>2527</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2527</IDENTIFIER>
+            <PREFLABEL>air quality</PREFLABEL>
+            <ALTLABEL>air pollution</ALTLABEL>
+            <ALTLABEL>atmospheric pollution</ALTLABEL>
+            <ALTLABEL>smog</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2524</VALUE>
+               <IDENTIFIER>2524</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2524</IDENTIFIER>
+            <PREFLABEL>pollution</PREFLABEL>
+            <ALTLABEL>contamination</ALTLABEL>
+            <ALTLABEL>discharge of pollutants</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100244</VALUE>
+               <IDENTIFIER>100244</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5216</IDENTIFIER>
+            <PREFLABEL>5216 deterioration of the environment</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <CREATED_BY type="concept">
+         <URI>
+            <VALUE>http://publications.europa.eu/resource/authority/corporate-body/EP</VALUE>
+            <IDENTIFIER>EP</IDENTIFIER>
+            <TYPE>corporate-body</TYPE>
+         </URI>
+         <OP-CODE>EP</OP-CODE>
+         <IDENTIFIER>EP</IDENTIFIER>
+         <PREFLABEL>European Parliament</PREFLABEL>
+         <ALTLABEL>EP</ALTLABEL>
+      </CREATED_BY>
+      <DIRECTIVE_DATE_TRANSPOSITION type="date">
+         <VALUE>2026-07-01</VALUE>
+         <YEAR>2026</YEAR>
+         <MONTH>07</MONTH>
+         <DAY>01</DAY>
+         <ANNOTATION>
+            <COMMENT_ON_DATE>{V|http://publications.europa.eu/resource/authority/fd_361/V} {ART|http://publications.europa.eu/resource/authority/fd_361/ART} 4.1</COMMENT_ON_DATE>
+         </ANNOTATION>
+      </DIRECTIVE_DATE_TRANSPOSITION>
+      <RESOURCE_LEGAL_ID_CELEX type="data">
+         <VALUE>32024L1785</VALUE>
+      </RESOURCE_LEGAL_ID_CELEX>
+      <WORK_IS_ABOUT_CONCEPT_EUROVOC type="concept_facet">
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2538</VALUE>
+               <IDENTIFIER>2538</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2538</IDENTIFIER>
+            <PREFLABEL>pollution from agricultural sources</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_CONCEPT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_TT type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/2524</VALUE>
+               <IDENTIFIER>2524</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>2524</IDENTIFIER>
+            <PREFLABEL>pollution</PREFLABEL>
+            <ALTLABEL>contamination</ALTLABEL>
+            <ALTLABEL>discharge of pollutants</ALTLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_TT>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100155</VALUE>
+               <IDENTIFIER>100155</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>52</IDENTIFIER>
+            <PREFLABEL>52 ENVIRONMENT</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_DOM>
+         <WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH type="concept">
+            <URI>
+               <VALUE>http://eurovoc.europa.eu/100244</VALUE>
+               <IDENTIFIER>100244</IDENTIFIER>
+               <TYPE>EUROVOC</TYPE>
+            </URI>
+            <IDENTIFIER>5216</IDENTIFIER>
+            <PREFLABEL>5216 deterioration of the environment</PREFLABEL>
+         </WORK_IS_ABOUT_CONCEPT_EUROVOC_MTH>
+      </WORK_IS_ABOUT_CONCEPT_EUROVOC>
+      <RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER type="concept_level">
+         <RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER_1 type="concept">
+            <URI>
+               <VALUE>http://publications.europa.eu/resource/authority/subject-matter/ENV</VALUE>
+               <IDENTIFIER>ENV</IDENTIFIER>
+               <TYPE>subject-matter</TYPE>
+            </URI>
+            <OP-CODE>ENV</OP-CODE>
+            <IDENTIFIER>ENV</IDENTIFIER>
+            <PREFLABEL>Environment</PREFLABEL>
+         </RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER_1>
+      </RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER>
+      </WORK>
+   </NOTICE>
