@@ -1,0 +1,3684 @@
+{
+ "meta": {
+  "round": 1,
+  "created": "2026-10-28T15:59:55",
+  "seed": 20261029,
+  "export": "2026-10-28T14:56:31",
+  "near_domains": [
+   "28",
+   "32",
+   "40",
+   "44",
+   "48",
+   "52",
+   "64",
+   "66",
+   "68"
+  ],
+  "requested": {
+   "near": 200,
+   "far": 150,
+   "blocked": 50
+  },
+  "test_share": 0.5,
+  "excluded_from_earlier_rounds": 0
+ },
+ "strata": [
+  {
+   "stratum": "near/regulation",
+   "acts": 4809,
+   "picked": 83,
+   "weight": 57.9398
+  },
+  {
+   "stratum": "near/directive",
+   "acts": 810,
+   "picked": 33,
+   "weight": 24.5455
+  },
+  {
+   "stratum": "near/decision",
+   "acts": 4907,
+   "picked": 84,
+   "weight": 58.4167
+  },
+  {
+   "stratum": "far/regulation",
+   "acts": 1626,
+   "picked": 65,
+   "weight": 25.0154
+  },
+  {
+   "stratum": "far/directive",
+   "acts": 118,
+   "picked": 17,
+   "weight": 6.9412
+  },
+  {
+   "stratum": "far/decision",
+   "acts": 1742,
+   "picked": 68,
+   "weight": 25.6176
+  },
+  {
+   "stratum": "blocked/regulation",
+   "acts": 9849,
+   "picked": 22,
+   "weight": 447.6818
+  },
+  {
+   "stratum": "blocked/directive",
+   "acts": 377,
+   "picked": 4,
+   "weight": 94.25
+  },
+  {
+   "stratum": "blocked/decision",
+   "acts": 10589,
+   "picked": 24,
+   "weight": 441.2083
+  }
+ ],
+ "items": [
+  {
+   "celex": "32017D2377",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 1
+  },
+  {
+   "celex": "32013D0233",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 2
+  },
+  {
+   "celex": "32006R0389",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 3
+  },
+  {
+   "celex": "32024R0920",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 4
+  },
+  {
+   "celex": "32013D0532",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 5
+  },
+  {
+   "celex": "32022R0751",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 6
+  },
+  {
+   "celex": "32004L0037",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 7
+  },
+  {
+   "celex": "32009D0748",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 8
+  },
+  {
+   "celex": "32019R2241",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 9
+  },
+  {
+   "celex": "32011L0090",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 10
+  },
+  {
+   "celex": "32022D2443",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 11
+  },
+  {
+   "celex": "32023D2417",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 12
+  },
+  {
+   "celex": "32010R1240",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 13
+  },
+  {
+   "celex": "32008L0021",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 14
+  },
+  {
+   "celex": "32021D2113",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 15
+  },
+  {
+   "celex": "32025D2071",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 16
+  },
+  {
+   "celex": "32014R0802",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 17
+  },
+  {
+   "celex": "32017D2238",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 18
+  },
+  {
+   "celex": "31988D0281",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 19
+  },
+  {
+   "celex": "32004L0080",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 20
+  },
+  {
+   "celex": "32022D2349",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 21
+  },
+  {
+   "celex": "32021R0581",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 22
+  },
+  {
+   "celex": "32024L1712",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 23
+  },
+  {
+   "celex": "32012R0746",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 24
+  },
+  {
+   "celex": "32007L0048",
+   "group": "blocked",
+   "act_type": "directive",
+   "stratum": "blocked/directive",
+   "weight": 94.25,
+   "split": "test",
+   "row": 25
+  },
+  {
+   "celex": "32022R2304",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 26
+  },
+  {
+   "celex": "32006R1900",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 27
+  },
+  {
+   "celex": "31994D0416",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 28
+  },
+  {
+   "celex": "32026D2071",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 29
+  },
+  {
+   "celex": "32016R0638",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 30
+  },
+  {
+   "celex": "32017L1852",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 31
+  },
+  {
+   "celex": "32022R0076",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 32
+  },
+  {
+   "celex": "32025D1460",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 33
+  },
+  {
+   "celex": "31979D0486",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 34
+  },
+  {
+   "celex": "32015D0016(01)",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 35
+  },
+  {
+   "celex": "32025D2612",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 36
+  },
+  {
+   "celex": "32013R0175",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 37
+  },
+  {
+   "celex": "32023R0988",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 38
+  },
+  {
+   "celex": "32020D1793",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 39
+  },
+  {
+   "celex": "31993R1862",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 40
+  },
+  {
+   "celex": "32018D0170",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 41
+  },
+  {
+   "celex": "32017R1269",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 42
+  },
+  {
+   "celex": "32018D1018(02)",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 43
+  },
+  {
+   "celex": "32018R1915",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 44
+  },
+  {
+   "celex": "32024D1828",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 45
+  },
+  {
+   "celex": "32014L0025",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 46
+  },
+  {
+   "celex": "32010D0315",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 47
+  },
+  {
+   "celex": "32024R2794",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 48
+  },
+  {
+   "celex": "32017R1114",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 49
+  },
+  {
+   "celex": "32018D1213(01)",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 50
+  },
+  {
+   "celex": "32017R0867",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 51
+  },
+  {
+   "celex": "32015L1535",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 52
+  },
+  {
+   "celex": "31978D0295",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 53
+  },
+  {
+   "celex": "32011D0006(01)",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 54
+  },
+  {
+   "celex": "32022D1022",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 55
+  },
+  {
+   "celex": "32023R2606",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 56
+  },
+  {
+   "celex": "32013R1140",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 57
+  },
+  {
+   "celex": "32018R1097",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 58
+  },
+  {
+   "celex": "31994D0073",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 59
+  },
+  {
+   "celex": "32005D0191",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 60
+  },
+  {
+   "celex": "32023L0544",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 61
+  },
+  {
+   "celex": "32022D1981",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 62
+  },
+  {
+   "celex": "32023L2673",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 63
+  },
+  {
+   "celex": "31980D0391",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 64
+  },
+  {
+   "celex": "32023R1117",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 65
+  },
+  {
+   "celex": "32025D2353",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 66
+  },
+  {
+   "celex": "32026D0282",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 67
+  },
+  {
+   "celex": "31994D1047",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 68
+  },
+  {
+   "celex": "32023R0980",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 69
+  },
+  {
+   "celex": "31976R0692",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 70
+  },
+  {
+   "celex": "31999R1570",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 71
+  },
+  {
+   "celex": "31997R1090",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 72
+  },
+  {
+   "celex": "32004R1575",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 73
+  },
+  {
+   "celex": "32020L0362",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 74
+  },
+  {
+   "celex": "32016R0424",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 75
+  },
+  {
+   "celex": "32015D1410",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 76
+  },
+  {
+   "celex": "31993R1932",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 77
+  },
+  {
+   "celex": "32023R2663",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 78
+  },
+  {
+   "celex": "32016D0375",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 79
+  },
+  {
+   "celex": "32012D0700",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 80
+  },
+  {
+   "celex": "32022R0248",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 81
+  },
+  {
+   "celex": "31994D0258",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 82
+  },
+  {
+   "celex": "32022D2275",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 83
+  },
+  {
+   "celex": "32016L2309",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 84
+  },
+  {
+   "celex": "32023R2674",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 85
+  },
+  {
+   "celex": "32025D2296",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 86
+  },
+  {
+   "celex": "31978D0154",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 87
+  },
+  {
+   "celex": "32015R0585",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 88
+  },
+  {
+   "celex": "32019D1263",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 89
+  },
+  {
+   "celex": "32020D0109",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 90
+  },
+  {
+   "celex": "32020L0363",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 91
+  },
+  {
+   "celex": "32010D0096",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 92
+  },
+  {
+   "celex": "32013R0126",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 93
+  },
+  {
+   "celex": "32004L0038",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 94
+  },
+  {
+   "celex": "32001R2602",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 95
+  },
+  {
+   "celex": "32005R0284",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 96
+  },
+  {
+   "celex": "31978D0538",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 97
+  },
+  {
+   "celex": "32009D0111",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 98
+  },
+  {
+   "celex": "32000D0249",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 99
+  },
+  {
+   "celex": "32020R1064",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 100
+  },
+  {
+   "celex": "32016D0128(02)",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 101
+  },
+  {
+   "celex": "32018R1078",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 102
+  },
+  {
+   "celex": "32008L0076",
+   "group": "blocked",
+   "act_type": "directive",
+   "stratum": "blocked/directive",
+   "weight": 94.25,
+   "split": "dev",
+   "row": 103
+  },
+  {
+   "celex": "32023R1804",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 104
+  },
+  {
+   "celex": "31968R1397",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 105
+  },
+  {
+   "celex": "32026D2039",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 106
+  },
+  {
+   "celex": "31998D0600",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 107
+  },
+  {
+   "celex": "32017D2170",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 108
+  },
+  {
+   "celex": "32018D0221(02)",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 109
+  },
+  {
+   "celex": "32018R1632",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 110
+  },
+  {
+   "celex": "32023R2148",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 111
+  },
+  {
+   "celex": "32020D1277",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 112
+  },
+  {
+   "celex": "32021D0681",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 113
+  },
+  {
+   "celex": "32023D1095",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 114
+  },
+  {
+   "celex": "32023R2785",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 115
+  },
+  {
+   "celex": "32014R0497",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 116
+  },
+  {
+   "celex": "32026D1776",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 117
+  },
+  {
+   "celex": "31989L0665",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 118
+  },
+  {
+   "celex": "31989L0491",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 119
+  },
+  {
+   "celex": "32004D0056",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 120
+  },
+  {
+   "celex": "32008D0665",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 121
+  },
+  {
+   "celex": "32024D2150",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 122
+  },
+  {
+   "celex": "32024D2541",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 123
+  },
+  {
+   "celex": "32014D0044",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 124
+  },
+  {
+   "celex": "32025D0051",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 125
+  },
+  {
+   "celex": "32020R0421",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 126
+  },
+  {
+   "celex": "31993R1330",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 127
+  },
+  {
+   "celex": "32025R0486",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 128
+  },
+  {
+   "celex": "31989R2011",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 129
+  },
+  {
+   "celex": "32025D2157",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 130
+  },
+  {
+   "celex": "32014D0197",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 131
+  },
+  {
+   "celex": "32024D0865",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 132
+  },
+  {
+   "celex": "31967R0474",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 133
+  },
+  {
+   "celex": "32013R0485",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 134
+  },
+  {
+   "celex": "32016D0043",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 135
+  },
+  {
+   "celex": "32008L0122",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 136
+  },
+  {
+   "celex": "32021D2032",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 137
+  },
+  {
+   "celex": "32020D2127",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 138
+  },
+  {
+   "celex": "32003L0010",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 139
+  },
+  {
+   "celex": "31991R1221",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 140
+  },
+  {
+   "celex": "32023R2175",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 141
+  },
+  {
+   "celex": "32021R2079",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 142
+  },
+  {
+   "celex": "32016R2363",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 143
+  },
+  {
+   "celex": "32017D0944",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 144
+  },
+  {
+   "celex": "32018R1966",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 145
+  },
+  {
+   "celex": "32006D0550",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 146
+  },
+  {
+   "celex": "32003R0807",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 147
+  },
+  {
+   "celex": "31982D0004",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 148
+  },
+  {
+   "celex": "32010D0698",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 149
+  },
+  {
+   "celex": "32026R0473",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 150
+  },
+  {
+   "celex": "31991R3451",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 151
+  },
+  {
+   "celex": "32003L0040",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 152
+  },
+  {
+   "celex": "32024R0197",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 153
+  },
+  {
+   "celex": "32020R0156",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 154
+  },
+  {
+   "celex": "31999L0066",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 155
+  },
+  {
+   "celex": "32023D1681",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 156
+  },
+  {
+   "celex": "31970L0050",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 157
+  },
+  {
+   "celex": "32000R2595",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 158
+  },
+  {
+   "celex": "32025D0798",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 159
+  },
+  {
+   "celex": "32013R0806",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 160
+  },
+  {
+   "celex": "32011D0741",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 161
+  },
+  {
+   "celex": "32001L0055",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 162
+  },
+  {
+   "celex": "32007L0075",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 163
+  },
+  {
+   "celex": "32024R2803",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 164
+  },
+  {
+   "celex": "32012D0491",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 165
+  },
+  {
+   "celex": "31994D0072",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 166
+  },
+  {
+   "celex": "31999L0004",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 167
+  },
+  {
+   "celex": "32025R1929",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 168
+  },
+  {
+   "celex": "32018D1207(01)",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 169
+  },
+  {
+   "celex": "32015R2106",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 170
+  },
+  {
+   "celex": "31998R2721",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 171
+  },
+  {
+   "celex": "32021R1456",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 172
+  },
+  {
+   "celex": "32002D0609",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 173
+  },
+  {
+   "celex": "32016L0681",
+   "group": "blocked",
+   "act_type": "directive",
+   "stratum": "blocked/directive",
+   "weight": 94.25,
+   "split": "dev",
+   "row": 174
+  },
+  {
+   "celex": "32020L1833",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 175
+  },
+  {
+   "celex": "32018R1991",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 176
+  },
+  {
+   "celex": "32012R0847",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 177
+  },
+  {
+   "celex": "31990L0270",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 178
+  },
+  {
+   "celex": "31988D0172",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 179
+  },
+  {
+   "celex": "32003R0150",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 180
+  },
+  {
+   "celex": "32020R0877",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 181
+  },
+  {
+   "celex": "32023R2137",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 182
+  },
+  {
+   "celex": "32025R0645",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 183
+  },
+  {
+   "celex": "32020D2229",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 184
+  },
+  {
+   "celex": "31999D0493",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 185
+  },
+  {
+   "celex": "32011L0099",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 186
+  },
+  {
+   "celex": "32013R0284",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 187
+  },
+  {
+   "celex": "32015R0462",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 188
+  },
+  {
+   "celex": "32024R1958",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 189
+  },
+  {
+   "celex": "32009D0459",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 190
+  },
+  {
+   "celex": "32022D2318",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 191
+  },
+  {
+   "celex": "32026D1419",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 192
+  },
+  {
+   "celex": "32018R1724",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 193
+  },
+  {
+   "celex": "32017R0836",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 194
+  },
+  {
+   "celex": "32018D1082",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 195
+  },
+  {
+   "celex": "32014D0923",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 196
+  },
+  {
+   "celex": "32024R1774",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 197
+  },
+  {
+   "celex": "32021R0715",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 198
+  },
+  {
+   "celex": "32009R1167",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 199
+  },
+  {
+   "celex": "32008D0210",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 200
+  },
+  {
+   "celex": "31985D0336",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 201
+  },
+  {
+   "celex": "32021D0065",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 202
+  },
+  {
+   "celex": "32010L0024",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 203
+  },
+  {
+   "celex": "32018R0221",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 204
+  },
+  {
+   "celex": "32025D2066",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 205
+  },
+  {
+   "celex": "32007D0730",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 206
+  },
+  {
+   "celex": "32020R1062",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 207
+  },
+  {
+   "celex": "32017D0043",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 208
+  },
+  {
+   "celex": "32017R2217",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 209
+  },
+  {
+   "celex": "31979L0009",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 210
+  },
+  {
+   "celex": "32019D2137",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 211
+  },
+  {
+   "celex": "32022D0021",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 212
+  },
+  {
+   "celex": "32015D2276",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 213
+  },
+  {
+   "celex": "32011R0263",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 214
+  },
+  {
+   "celex": "31994D1071",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 215
+  },
+  {
+   "celex": "32017L0433",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 216
+  },
+  {
+   "celex": "31999R1766",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 217
+  },
+  {
+   "celex": "32009L0031",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 218
+  },
+  {
+   "celex": "32008L0048",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 219
+  },
+  {
+   "celex": "32017R0655",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 220
+  },
+  {
+   "celex": "31993R3521",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 221
+  },
+  {
+   "celex": "31997D0486",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 222
+  },
+  {
+   "celex": "31972R1370",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 223
+  },
+  {
+   "celex": "32019R1670",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 224
+  },
+  {
+   "celex": "32020D0721",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 225
+  },
+  {
+   "celex": "31989D0683",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 226
+  },
+  {
+   "celex": "32025R2223",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 227
+  },
+  {
+   "celex": "32018R1061",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 228
+  },
+  {
+   "celex": "31988R2580",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 229
+  },
+  {
+   "celex": "32020D0263",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 230
+  },
+  {
+   "celex": "32025D1158",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 231
+  },
+  {
+   "celex": "32014D0421",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 232
+  },
+  {
+   "celex": "31996R2351",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 233
+  },
+  {
+   "celex": "32024R1481",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 234
+  },
+  {
+   "celex": "32014R0847",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 235
+  },
+  {
+   "celex": "32012D0019(01)",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 236
+  },
+  {
+   "celex": "32023D0654",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 237
+  },
+  {
+   "celex": "31999D0690",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 238
+  },
+  {
+   "celex": "32022D0762",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 239
+  },
+  {
+   "celex": "32001D0705(01)",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 240
+  },
+  {
+   "celex": "32023D2698",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 241
+  },
+  {
+   "celex": "32020R0879",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 242
+  },
+  {
+   "celex": "32013R0017",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 243
+  },
+  {
+   "celex": "32015D1965",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 244
+  },
+  {
+   "celex": "31997D0823",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 245
+  },
+  {
+   "celex": "32024D1953",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 246
+  },
+  {
+   "celex": "32025R0914",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 247
+  },
+  {
+   "celex": "32025D2279",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 248
+  },
+  {
+   "celex": "32011R0706",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 249
+  },
+  {
+   "celex": "32022D0753",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 250
+  },
+  {
+   "celex": "32022D0348",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 251
+  },
+  {
+   "celex": "32023L1544",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 252
+  },
+  {
+   "celex": "32025D1807",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 253
+  },
+  {
+   "celex": "31999R1123",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 254
+  },
+  {
+   "celex": "32004D0562",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 255
+  },
+  {
+   "celex": "32006D0848",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 256
+  },
+  {
+   "celex": "32010R1152",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 257
+  },
+  {
+   "celex": "32026R1696",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 258
+  },
+  {
+   "celex": "31994D0211",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 259
+  },
+  {
+   "celex": "32023R2490",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 260
+  },
+  {
+   "celex": "32014L0076",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 261
+  },
+  {
+   "celex": "32022R2229",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 262
+  },
+  {
+   "celex": "32024D2685",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 263
+  },
+  {
+   "celex": "32019R1188",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 264
+  },
+  {
+   "celex": "31994D0983",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 265
+  },
+  {
+   "celex": "31987D0206",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 266
+  },
+  {
+   "celex": "32023R1631",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 267
+  },
+  {
+   "celex": "32025R0295",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 268
+  },
+  {
+   "celex": "32021R0080",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 269
+  },
+  {
+   "celex": "32008D0428",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 270
+  },
+  {
+   "celex": "32019R2024",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 271
+  },
+  {
+   "celex": "31998R0622",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 272
+  },
+  {
+   "celex": "32024R2865",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 273
+  },
+  {
+   "celex": "32023D0920",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 274
+  },
+  {
+   "celex": "32018D0997",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 275
+  },
+  {
+   "celex": "32018L1027",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "test",
+   "row": 276
+  },
+  {
+   "celex": "32012D0066",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 277
+  },
+  {
+   "celex": "32020D1241",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 278
+  },
+  {
+   "celex": "32018D1247",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 279
+  },
+  {
+   "celex": "32014L0007",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 280
+  },
+  {
+   "celex": "32003R1935",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 281
+  },
+  {
+   "celex": "32018R2005",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 282
+  },
+  {
+   "celex": "32019R1702",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 283
+  },
+  {
+   "celex": "32013R0886",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 284
+  },
+  {
+   "celex": "32015D0031",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 285
+  },
+  {
+   "celex": "32006D0497",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 286
+  },
+  {
+   "celex": "31986D0031",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 287
+  },
+  {
+   "celex": "32008D0066",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 288
+  },
+  {
+   "celex": "32025D2467",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 289
+  },
+  {
+   "celex": "32003L0100",
+   "group": "blocked",
+   "act_type": "directive",
+   "stratum": "blocked/directive",
+   "weight": 94.25,
+   "split": "test",
+   "row": 290
+  },
+  {
+   "celex": "32019R0943",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 291
+  },
+  {
+   "celex": "32021R1472",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 292
+  },
+  {
+   "celex": "32007L0066",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 293
+  },
+  {
+   "celex": "32019R0962",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 294
+  },
+  {
+   "celex": "32017D1201(01)",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 295
+  },
+  {
+   "celex": "32008D0627",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 296
+  },
+  {
+   "celex": "32009R0044",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 297
+  },
+  {
+   "celex": "32023D1017",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 298
+  },
+  {
+   "celex": "32007D0126",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 299
+  },
+  {
+   "celex": "32017R2469",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 300
+  },
+  {
+   "celex": "32020R1182",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 301
+  },
+  {
+   "celex": "32007R0445",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 302
+  },
+  {
+   "celex": "31983D0411",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 303
+  },
+  {
+   "celex": "32010D0718",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 304
+  },
+  {
+   "celex": "32025R2064",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 305
+  },
+  {
+   "celex": "32024D2118",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 306
+  },
+  {
+   "celex": "32007D0070",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 307
+  },
+  {
+   "celex": "32003D0190",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 308
+  },
+  {
+   "celex": "32025R1845",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 309
+  },
+  {
+   "celex": "32025D0369",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 310
+  },
+  {
+   "celex": "32022D1164",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 311
+  },
+  {
+   "celex": "32021R1465",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 312
+  },
+  {
+   "celex": "32016D2083",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 313
+  },
+  {
+   "celex": "32014D0234",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 314
+  },
+  {
+   "celex": "32026R2118",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 315
+  },
+  {
+   "celex": "32023R2743",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 316
+  },
+  {
+   "celex": "31958R0001",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 317
+  },
+  {
+   "celex": "32018R1865",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 318
+  },
+  {
+   "celex": "32025D2604",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 319
+  },
+  {
+   "celex": "32025D0075",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 320
+  },
+  {
+   "celex": "31988R1385",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 321
+  },
+  {
+   "celex": "32016R2281",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 322
+  },
+  {
+   "celex": "32019L0176",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 323
+  },
+  {
+   "celex": "32000L0043",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 324
+  },
+  {
+   "celex": "32013R0369",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 325
+  },
+  {
+   "celex": "32025D0504",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 326
+  },
+  {
+   "celex": "32005D0616",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 327
+  },
+  {
+   "celex": "32009L0103",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 328
+  },
+  {
+   "celex": "32019R0429",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 329
+  },
+  {
+   "celex": "32025D0435",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 330
+  },
+  {
+   "celex": "31983R0056",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 331
+  },
+  {
+   "celex": "32026R2096",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 332
+  },
+  {
+   "celex": "32026D0844",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 333
+  },
+  {
+   "celex": "32014R0030",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 334
+  },
+  {
+   "celex": "31968R0565",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 335
+  },
+  {
+   "celex": "32024R1060",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 336
+  },
+  {
+   "celex": "32013R0678",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 337
+  },
+  {
+   "celex": "32022R1925",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 338
+  },
+  {
+   "celex": "32003D0603",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 339
+  },
+  {
+   "celex": "32009L0041",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 340
+  },
+  {
+   "celex": "32009D0536",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 341
+  },
+  {
+   "celex": "32003L0087",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 342
+  },
+  {
+   "celex": "32020D1484",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 343
+  },
+  {
+   "celex": "32025R0925",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 344
+  },
+  {
+   "celex": "32016R2016",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 345
+  },
+  {
+   "celex": "32025D1582",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 346
+  },
+  {
+   "celex": "32022D1333",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 347
+  },
+  {
+   "celex": "32020D0467",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 348
+  },
+  {
+   "celex": "32025D0889",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 349
+  },
+  {
+   "celex": "32023R2414",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 350
+  },
+  {
+   "celex": "32014L0102",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 351
+  },
+  {
+   "celex": "32017R2068",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 352
+  },
+  {
+   "celex": "32018L0742",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 353
+  },
+  {
+   "celex": "32024R1749",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 354
+  },
+  {
+   "celex": "31990L0630",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 355
+  },
+  {
+   "celex": "32023L1526",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 356
+  },
+  {
+   "celex": "32023R2485",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 357
+  },
+  {
+   "celex": "32020R1676",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 358
+  },
+  {
+   "celex": "32015R1515",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 359
+  },
+  {
+   "celex": "32021R2201",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 360
+  },
+  {
+   "celex": "31993D0076",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 361
+  },
+  {
+   "celex": "32013D0097",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 362
+  },
+  {
+   "celex": "32006D0720",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 363
+  },
+  {
+   "celex": "31999R1898",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 364
+  },
+  {
+   "celex": "31984R2794",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 365
+  },
+  {
+   "celex": "32025D2026",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 366
+  },
+  {
+   "celex": "32025D2406",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "test",
+   "row": 367
+  },
+  {
+   "celex": "32026D1204",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 368
+  },
+  {
+   "celex": "32024D3081",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 369
+  },
+  {
+   "celex": "32011R0568",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 370
+  },
+  {
+   "celex": "32022R0388",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 371
+  },
+  {
+   "celex": "32015R0499",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 372
+  },
+  {
+   "celex": "32023R2809",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 373
+  },
+  {
+   "celex": "32016R0918",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 374
+  },
+  {
+   "celex": "32010L0040",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 375
+  },
+  {
+   "celex": "31994D0871",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 376
+  },
+  {
+   "celex": "32020D1114",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 377
+  },
+  {
+   "celex": "32022D0701",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "dev",
+   "row": 378
+  },
+  {
+   "celex": "32009R0392",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 379
+  },
+  {
+   "celex": "32014R0469",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 380
+  },
+  {
+   "celex": "32017R1533",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 381
+  },
+  {
+   "celex": "32024R0842",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "test",
+   "row": 382
+  },
+  {
+   "celex": "32005D0518",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 383
+  },
+  {
+   "celex": "32019R2178",
+   "group": "far",
+   "act_type": "regulation",
+   "stratum": "far/regulation",
+   "weight": 25.0154,
+   "split": "dev",
+   "row": 384
+  },
+  {
+   "celex": "32002L0014",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "test",
+   "row": 385
+  },
+  {
+   "celex": "32006R1262",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "dev",
+   "row": 386
+  },
+  {
+   "celex": "32023R0814",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 387
+  },
+  {
+   "celex": "32011D0797",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 388
+  },
+  {
+   "celex": "32023R1123",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 389
+  },
+  {
+   "celex": "32023L2225",
+   "group": "far",
+   "act_type": "directive",
+   "stratum": "far/directive",
+   "weight": 6.9412,
+   "split": "dev",
+   "row": 390
+  },
+  {
+   "celex": "32019D1958",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 391
+  },
+  {
+   "celex": "32014D0887",
+   "group": "far",
+   "act_type": "decision",
+   "stratum": "far/decision",
+   "weight": 25.6176,
+   "split": "test",
+   "row": 392
+  },
+  {
+   "celex": "32008R0971",
+   "group": "blocked",
+   "act_type": "regulation",
+   "stratum": "blocked/regulation",
+   "weight": 447.6818,
+   "split": "test",
+   "row": 393
+  },
+  {
+   "celex": "32025D0896",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "test",
+   "row": 394
+  },
+  {
+   "celex": "32000D0273",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 395
+  },
+  {
+   "celex": "31994D0343",
+   "group": "near",
+   "act_type": "decision",
+   "stratum": "near/decision",
+   "weight": 58.4167,
+   "split": "dev",
+   "row": 396
+  },
+  {
+   "celex": "32021R1140",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "test",
+   "row": 397
+  },
+  {
+   "celex": "32016L2341",
+   "group": "near",
+   "act_type": "directive",
+   "stratum": "near/directive",
+   "weight": 24.5455,
+   "split": "dev",
+   "row": 398
+  },
+  {
+   "celex": "32012D0321",
+   "group": "blocked",
+   "act_type": "decision",
+   "stratum": "blocked/decision",
+   "weight": 441.2083,
+   "split": "dev",
+   "row": 399
+  },
+  {
+   "celex": "32025R1311",
+   "group": "near",
+   "act_type": "regulation",
+   "stratum": "near/regulation",
+   "weight": 57.9398,
+   "split": "dev",
+   "row": 400
+  }
+ ]
+}

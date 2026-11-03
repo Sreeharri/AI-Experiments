@@ -1,0 +1,76 @@
+2026-10-28 14:11:22.821 CET [15108] LOG:  starting PostgreSQL 18.6 on x86_64-windows, compiled by msvc-19.44.35228, 64-bit
+2026-10-28 14:11:22.825 CET [15108] LOG:  listening on IPv6 address "::1", port 5432
+2026-10-28 14:11:22.825 CET [15108] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-10-28 14:11:23.022 CET [2448] LOG:  database system was interrupted; last known up at 2026-10-22 18:48:12 CEST
+2026-10-28 14:11:23.081 CET [18672] FATAL:  the database system is starting up
+2026-10-28 14:11:25.171 CET [8784] FATAL:  the database system is starting up
+2026-10-28 14:11:27.244 CET [20792] FATAL:  the database system is starting up
+2026-10-28 14:11:29.301 CET [8556] FATAL:  the database system is starting up
+2026-10-28 14:11:31.370 CET [21576] FATAL:  the database system is starting up
+2026-10-28 14:11:31.730 CET [2448] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-10-28 14:11:31.741 CET [2448] LOG:  redo starts at 35/B1C109F8
+2026-10-28 14:11:32.227 CET [2448] LOG:  invalid record length at 35/B47D2D98: expected at least 24, got 0
+2026-10-28 14:11:32.227 CET [2448] LOG:  redo done at 35/B47D2D60 system usage: CPU: user: 0.01 s, system: 0.14 s, elapsed: 0.48 s
+2026-10-28 14:11:32.306 CET [21460] LOG:  checkpoint starting: end-of-recovery immediate wait
+2026-10-28 14:11:33.449 CET [20844] FATAL:  the database system is not yet accepting connections
+2026-10-28 14:11:33.449 CET [20844] DETAIL:  Consistent recovery state has not been yet reached.
+2026-10-28 14:11:35.512 CET [20888] FATAL:  the database system is not yet accepting connections
+2026-10-28 14:11:35.512 CET [20888] DETAIL:  Consistent recovery state has not been yet reached.
+2026-10-28 14:11:37.131 CET [21460] LOG:  checkpoint complete: wrote 6985 buffers (42.6%), wrote 2 SLRU buffers; 0 WAL file(s) added, 3 removed, 0 recycled; write=0.123 s, sync=4.675 s, total=4.859 s; sync files=113, longest=2.312 s, average=0.042 s; distance=44808 kB, estimate=44808 kB; lsn=35/B47D2D98, redo lsn=35/B47D2D98
+2026-10-28 14:11:37.164 CET [15108] LOG:  database system is ready to accept connections
+2026-10-28 14:11:44.997 CET [7596] FATAL:  password authentication failed for user "legal_radar_app"
+2026-10-28 14:11:44.997 CET [7596] DETAIL:  Connection matched file "D:/LegalRadarData/PostgreSQL18/pg_hba.conf" line 117: "host    all             all             ::1/128                 scram-sha-256"
+2026-10-28 14:11:45.036 CET [7104] FATAL:  password authentication failed for user "legal_radar_app"
+2026-10-28 14:11:45.036 CET [7104] DETAIL:  Connection matched file "D:/LegalRadarData/PostgreSQL18/pg_hba.conf" line 115: "host    all             all             127.0.0.1/32            scram-sha-256"
+2026-10-28 14:16:11.219 CET [14432] ERROR:  canceling statement due to statement timeout
+2026-10-28 14:16:11.219 CET [14432] STATEMENT:  select count(*) from "public"."act_structure_v"
+2026-10-28 14:16:11.221 CET [16156] FATAL:  terminating background worker "parallel worker" due to administrator command
+2026-10-28 14:16:11.221 CET [16156] STATEMENT:  select count(*) from "public"."act_structure_v"
+2026-10-28 14:16:11.221 CET [20612] FATAL:  terminating background worker "parallel worker" due to administrator command
+2026-10-28 14:16:11.221 CET [20612] STATEMENT:  select count(*) from "public"."act_structure_v"
+2026-10-28 14:16:11.278 CET [15108] LOG:  background worker "parallel worker" (PID 16156) exited with exit code 1
+2026-10-28 14:16:11.280 CET [15108] LOG:  background worker "parallel worker" (PID 20612) exited with exit code 1
+2026-10-28 14:16:32.144 CET [21460] LOG:  checkpoint starting: time
+2026-10-28 14:18:42.400 CET [14432] ERROR:  canceling statement due to statement timeout
+2026-10-28 14:18:42.400 CET [14432] STATEMENT:  select count(*) from "public"."legal_elements"
+2026-10-28 14:18:42.401 CET [18596] FATAL:  terminating background worker "parallel worker" due to administrator command
+2026-10-28 14:18:42.401 CET [18596] STATEMENT:  select count(*) from "public"."legal_elements"
+2026-10-28 14:18:42.401 CET [18608] FATAL:  terminating background worker "parallel worker" due to administrator command
+2026-10-28 14:18:42.401 CET [18608] STATEMENT:  select count(*) from "public"."legal_elements"
+2026-10-28 14:18:42.464 CET [15108] LOG:  background worker "parallel worker" (PID 18596) exited with exit code 1
+2026-10-28 14:18:42.465 CET [15108] LOG:  background worker "parallel worker" (PID 18608) exited with exit code 1
+2026-10-28 14:20:54.605 CET [14432] ERROR:  canceling statement due to statement timeout
+2026-10-28 14:20:54.605 CET [14432] STATEMENT:  select count(*) from "public"."recitals_v"
+2026-10-28 14:20:54.606 CET [5996] FATAL:  terminating background worker "parallel worker" due to administrator command
+2026-10-28 14:20:54.606 CET [5996] STATEMENT:  select count(*) from "public"."recitals_v"
+2026-10-28 14:20:54.606 CET [12036] FATAL:  terminating background worker "parallel worker" due to administrator command
+2026-10-28 14:20:54.606 CET [12036] STATEMENT:  select count(*) from "public"."recitals_v"
+2026-10-28 14:20:54.612 CET [15108] LOG:  background worker "parallel worker" (PID 5996) exited with exit code 1
+2026-10-28 14:20:54.612 CET [15108] LOG:  background worker "parallel worker" (PID 12036) exited with exit code 1
+2026-10-28 14:21:02.600 CET [21460] LOG:  checkpoint complete: wrote 97 buffers (0.6%), wrote 0 SLRU buffers; 0 WAL file(s) added, 3 removed, 0 recycled; write=269.938 s, sync=0.435 s, total=270.456 s; sync files=42, longest=0.057 s, average=0.011 s; distance=48815 kB, estimate=48815 kB; lsn=35/C41BCFA8, redo lsn=35/B777EC50
+2026-10-28 14:21:32.612 CET [21460] LOG:  checkpoint starting: time
+2026-10-28 14:21:35.305 CET [21460] LOG:  checkpoint complete: wrote 0 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 14 recycled; write=0.001 s, sync=0.945 s, total=2.694 s; sync files=19, longest=0.072 s, average=0.050 s; distance=229831 kB, estimate=229831 kB; lsn=35/C57F09D8, redo lsn=35/C57F0980
+2026-10-28 14:26:32.318 CET [21460] LOG:  checkpoint starting: time
+2026-10-28 14:26:33.130 CET [21460] LOG:  checkpoint complete: wrote 7 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.765 s, sync=0.020 s, total=0.813 s; sync files=4, longest=0.008 s, average=0.005 s; distance=180 kB, estimate=206866 kB; lsn=35/C581DB78, redo lsn=35/C581DB20
+2026-10-28 14:41:32.151 CET [21460] LOG:  checkpoint starting: time
+2026-10-28 14:41:32.528 CET [21460] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.098 s, sync=0.256 s, total=0.378 s; sync files=2, longest=0.250 s, average=0.128 s; distance=31 kB, estimate=186182 kB; lsn=35/C5825890, redo lsn=35/C5825838
+2026-10-28 14:56:32.565 CET [21460] LOG:  checkpoint starting: time
+2026-10-28 14:56:32.694 CET [21460] LOG:  checkpoint complete: wrote 0 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.002 s, total=0.130 s; sync files=1, longest=0.002 s, average=0.002 s; distance=7 kB, estimate=167565 kB; lsn=35/C5827698, redo lsn=35/C5827608
+2026-10-28 15:52:48.467 CET [7724] LOG:  could not receive data from client: An existing connection was forcibly closed by the remote host.
+	
+2026-10-28 15:53:58.207 CET [15492] LOG:  could not receive data from client: An existing connection was forcibly closed by the remote host.
+	
+2026-10-28 16:38:51.384 CET [15108] LOG:  client backend (PID 1436) was terminated by exception 0xC000013A
+2026-10-28 16:38:51.384 CET [15108] DETAIL:  Failed process was running: SELECT t.table_name "name", 
+	    pg_catalog.obj_description(pgc.oid, 'pg_class') "comment",
+	    pgc.reltuples "table_rows",
+	    pg_total_relation_size(quote_ident(table_name)) AS "data_length"
+	FROM information_schema.tables t
+	JOIN pg_catalog.pg_class pgc ON t.table_name = pgc.relname 
+	JOIN pg_catalog.pg_namespace pgn ON pgn.oid=pgc.relnamespace and pgn.nspname=t.table_schema
+	WHERE t.table_type='BASE TABLE'
+	AND t.table_schema='undefined' order by t.table_name;
+2026-10-28 16:38:51.384 CET [15108] HINT:  See C include file "ntstatus.h" for a description of the hexadecimal value.
+2026-10-28 16:38:51.384 CET [15108] LOG:  terminating any other active server processes
+2026-10-28 16:38:51.400 CET [15108] LOG:  received fast shutdown request
+^C
