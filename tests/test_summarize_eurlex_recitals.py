@@ -31,7 +31,11 @@ class FakeClient:
             ]
         else:
             points = [point for brief in data["partial_briefs"] for point in brief]
-        return SimpleNamespace(parse_json=lambda: ({"points": points}, None))
+        result = {"points": points}
+        if kwargs["schema_name"] == "act_summary":
+            result = {"summary": "One integrated act-level paragraph.",
+                      "references": sorted({r for p in points for r in p["references"]})}
+        return SimpleNamespace(parse_json=lambda: (result, None))
 
 
 class SummarizationTests(unittest.TestCase):
@@ -61,11 +65,19 @@ class SummarizationTests(unittest.TestCase):
                     self.assertEqual(chat.call_count, 4)
                 result = json.loads(args.output.read_text(encoding="utf-8"))["acts"]
                 self.assertEqual(result["A"]["recital_numbers"], {"R1": "7", "R2": "8"})
-                self.assertEqual([p["references"] for p in result["A"]["points"]], [["R1"], ["R2"]])
+                self.assertEqual(result["A"]["references"], ["R1", "R2"])
+                self.assertEqual(result["A"]["summary"], "One integrated act-level paragraph.")
+                self.assertNotIn("points", result["A"])
                 self.assertEqual(result["B"]["source_language"], "de")
                 self.assertEqual(result["B"]["summary_language"], "en")
                 self.assertEqual(result["C"]["status"], "no_recitals")
-                self.assertEqual(result["C"]["points"], [])
+                self.assertIsNone(result["C"]["summary"])
+                self.assertEqual(result["C"]["references"], [])
+                changed = json.loads(args.output.read_text())
+                changed["settings"]["output_format"] = "old"
+                cli.save(args.output, changed)
+                with self.assertRaisesRegex(ValueError, "Use a new output path"):
+                    cli.run(args)
 
     def test_unknown_citation_fails(self):
         client = FakeClient()
@@ -73,6 +85,28 @@ class SummarizationTests(unittest.TestCase):
         with patch.object(client, "chat", return_value=SimpleNamespace(parse_json=lambda: (response, None))):
             with self.assertRaisesRegex(ValueError, "Unknown recital references"):
                 cli.relevance_model.summarize(client, "Title", "EN", [{"ref": "R1", "text": "Text"}])
+
+    def test_act_summary_schema_and_citations(self):
+        client = FakeClient()
+        rows = [{"ref": "R1", "text": "Source text"}]
+        for response in (
+            {"summary": "Unsupported", "references": ["R99"]},
+            {"summary": "  ", "references": ["R1"]},
+            {"summary": "First paragraph.\nSecond paragraph.", "references": ["R1"]},
+            {"points": [{"statement": "Old format", "references": ["R1"]}]},
+        ):
+            with self.subTest(response=response):
+                with patch.object(client, "chat", return_value=SimpleNamespace(
+                    parse_json=lambda: (response, None)
+                )):
+                    with self.assertRaises((ValueError, cli.ValidationError)):
+                        cli.relevance_model.summarize(client, "Title", "EN", rows, act_level=True)
+
+    def test_legacy_call_remains_points(self):
+        result = cli.relevance_model.summarize(
+            FakeClient(), "Title", "EN", [{"ref": "R1", "text": "Text"}]
+        )
+        self.assertEqual(result, [{"statement": "Grounded summary", "references": ["R1"]}])
 
 
 if __name__ == "__main__":

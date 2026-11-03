@@ -1,4 +1,4 @@
-"""Generate resumable English recital briefs for one selected EUR-Lex set."""
+"""Generate resumable English act-level summaries for one selected EUR-Lex set."""
 
 import argparse
 from collections import Counter
@@ -115,6 +115,7 @@ def run(args):
         if client.tokenize(messages=[{"role": "user", "content": "Token count check"}]) is None:
             raise ValueError("The configured Qwen server did not provide /tokenize.")
     settings = {
+        "output_format": "act-summary-v2",
         "input_sha256": source_hash,
         "split": args.split,
         "selected_ids": [act["id"] for act in selected],
@@ -140,12 +141,16 @@ def run(args):
             continue
         record = {
             "id": celex, "title_en": act["title_en"], "source_language": language,
-            "summary_language": "en", "status": "no_recitals", "points": [],
+            "summary_language": "en", "status": "no_recitals", "summary": None, "references": [],
             "recital_numbers": {row["ref"]: row["number"] for row in rows},
         }
         if rows:
             try:
-                record["points"] = relevance_model.summarize(client, act["title_en"], "EN", rows)
+                points = relevance_model.summarize(
+                    client, act["title_en"], "EN", rows, act_level=True,
+                )
+                record["summary"] = points[0]["statement"]
+                record["references"] = points[0]["references"]
                 record["status"] = "ok"
             except (ValueError, ValidationError) as exc:
                 record["status"] = "failed"
