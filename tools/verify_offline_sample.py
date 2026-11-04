@@ -54,7 +54,7 @@ def main():
                 calls.append({'celex': celex, 'output_token_limit': payload['max_tokens'],
                               'excerpts': len(evidence['excerpts'])})
             level = 'NEEDS_REVIEW' if (first and celex in review_first) or celex == '32023R2053' else 'DIRECT'
-            content = json.dumps({'level': level})
+            content = json.dumps({'reason': 'SCRIPTED LOCAL TEST RESPONSE, not a Qwen assessment.', 'anchor_ids': [], 'level': level})
             self.send_json({'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': content},
                                          'finish_reason': 'stop'}]})
 

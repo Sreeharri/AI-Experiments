@@ -1,4 +1,4 @@
-Python 3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]
+3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]
 
 test_all_review_does_not_pass_evaluation (test_catalogue_and_eval.CatalogueTests.test_all_review_does_not_pass_evaluation) ... ok
 test_invalid_celex_rejected (test_catalogue_and_eval.CatalogueTests.test_invalid_celex_rejected) ... ok
@@ -6,17 +6,20 @@ test_parenthesised_celex_and_language_fallback (test_catalogue_and_eval.Catalogu
 test_direct_indirect_ignore_are_saved_immediately (test_simple_flow.SimpleFlowTests.test_direct_indirect_ignore_are_saved_immediately) ... ok
 test_duplicate_and_rejected_data_do_not_override_qwen (test_simple_flow.SimpleFlowTests.test_duplicate_and_rejected_data_do_not_override_qwen) ... ok
 test_future_version_does_not_override_qwen (test_simple_flow.SimpleFlowTests.test_future_version_does_not_override_qwen) ... ok
+test_ignore_keeps_empty_anchor_list (test_simple_flow.SimpleFlowTests.test_ignore_keeps_empty_anchor_list) ... ok
 test_missing_text_does_not_override_qwen (test_simple_flow.SimpleFlowTests.test_missing_text_does_not_override_qwen) ... ok
-test_no_quote_anchor_or_role_requirements (test_simple_flow.SimpleFlowTests.test_no_quote_anchor_or_role_requirements) ... ok
+test_no_quote_anchor_or_role_checks (test_simple_flow.SimpleFlowTests.test_no_quote_anchor_or_role_checks) ... ok
 test_not_roles_reaches_model (test_simple_flow.SimpleFlowTests.test_not_roles_reaches_model) ... ok
 test_profile_loader_preserves_not_roles (test_simple_flow.SimpleFlowTests.test_profile_loader_preserves_not_roles) ... ok
 test_protocol_error_is_failure_not_review_and_no_second_call (test_simple_flow.SimpleFlowTests.test_protocol_error_is_failure_not_review_and_no_second_call) ... ok
+test_reason_and_anchors_are_preserved_exactly (test_simple_flow.SimpleFlowTests.test_reason_and_anchors_are_preserved_exactly) ... ok
 test_review_then_resolved (test_simple_flow.SimpleFlowTests.test_review_then_resolved) ... ok
 test_review_twice_is_saved_without_third_call (test_simple_flow.SimpleFlowTests.test_review_twice_is_saved_without_third_call) ... ok
 test_second_pass_has_thinking_and_larger_allowance (test_simple_flow.SimpleFlowTests.test_second_pass_has_thinking_and_larger_allowance) ... ok
+test_second_pass_reason_and_anchors_are_saved (test_simple_flow.SimpleFlowTests.test_second_pass_reason_and_anchors_are_saved) ... ok
 test_second_pass_receives_extra_available_passages (test_simple_flow.SimpleFlowTests.test_second_pass_receives_extra_available_passages) ... ok
 
 ----------------------------------------------------------------------
-Ran 15 tests in 0.192s
+Ran 18 tests in 0.138s
 
 OK

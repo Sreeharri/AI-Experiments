@@ -11,8 +11,13 @@ FIRST_OUTPUT_TOKENS = 1024
 RETRY_OUTPUT_TOKENS = 6000
 SCHEMA = {
     "type": "object",
-    "properties": {"level": {"type": "string", "enum": LEVELS}},
-    "required": ["level"],
+    "properties": {
+        "reason": {"type": "string", "maxLength": 600},
+        "anchor_ids": {"type": "array", "maxItems": 3,
+                       "items": {"type": "string", "maxLength": 100}},
+        "level": {"type": "string", "enum": LEVELS},
+    },
+    "required": ["reason", "anchor_ids", "level"],
     "additionalProperties": False,
 }
 

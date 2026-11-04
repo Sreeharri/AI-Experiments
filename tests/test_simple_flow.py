@@ -19,11 +19,17 @@ def act():
                 for i in range(1, 20)]}
 
 
+def model_decision(level):
+    return {'reason': f'Model explanation for {level}.',
+            'anchor_ids': ['plant'] if level in ('DIRECT', 'INDIRECT') else [],
+            'level': level}
+
+
 class Reply:
     ok = True
     finish_reason = 'stop'
     def __init__(self, level, error=None):
-        self.value = {'level': level}
+        self.value = model_decision(level)
         self.content = json.dumps(self.value)
         self.error = error
     def parse_json(self):
@@ -52,21 +58,21 @@ class SimpleFlowTests(unittest.TestCase):
             with self.subTest(label=label):
                 c = Client([Reply(label)])
                 result = run(c)
-                self.assertEqual(result['decision'], {'level': label})
+                self.assertEqual(result['decision'], model_decision(label))
                 self.assertEqual(len(c.calls), 1)
 
     def test_review_then_resolved(self):
         for label in ('DIRECT', 'INDIRECT', 'IGNORE'):
             c = Client([Reply('NEEDS_REVIEW'), Reply(label)])
             result = run(c)
-            self.assertEqual(result['decision'], {'level': label})
+            self.assertEqual(result['decision'], model_decision(label))
             self.assertEqual(len(c.calls), 2)
-            self.assertEqual(c.calls[1]['payload']['previous_decision'], {'level': 'NEEDS_REVIEW'})
+            self.assertEqual(c.calls[1]['payload']['previous_decision'], model_decision('NEEDS_REVIEW'))
 
     def test_review_twice_is_saved_without_third_call(self):
         c = Client([Reply('NEEDS_REVIEW'), Reply('NEEDS_REVIEW')])
         result = run(c)
-        self.assertEqual(result['decision'], {'level': 'NEEDS_REVIEW'})
+        self.assertEqual(result['decision'], model_decision('NEEDS_REVIEW'))
         self.assertEqual(result['status'], 'needs_review')
         self.assertEqual(len(c.calls), 2)
 
@@ -81,14 +87,14 @@ class SimpleFlowTests(unittest.TestCase):
         value = act(); value['elements'] = []
         c = Client([Reply('DIRECT')])
         result = run(c, value)
-        self.assertEqual(result['decision'], {'level': 'DIRECT'})
+        self.assertEqual(result['decision'], model_decision('DIRECT'))
         self.assertEqual(len(c.calls), 1)
 
     def test_future_version_does_not_override_qwen(self):
         value = act(); value['version']['version_date'] = '2027-01-01'
         c = Client([Reply('IGNORE')])
         result = run(c, value)
-        self.assertEqual(result['decision'], {'level': 'IGNORE'})
+        self.assertEqual(result['decision'], model_decision('IGNORE'))
         self.assertTrue(result['version_assessment']['future_version'])
 
     def test_duplicate_and_rejected_data_do_not_override_qwen(self):
@@ -96,10 +102,10 @@ class SimpleFlowTests(unittest.TestCase):
         value['version']['quality_status'] = 'REJECTED'
         c = Client([Reply('DIRECT')])
         result = run(c, value)
-        self.assertEqual(result['decision'], {'level': 'DIRECT'})
+        self.assertEqual(result['decision'], model_decision('DIRECT'))
 
-    def test_no_quote_anchor_or_role_requirements(self):
-        self.assertEqual(list(f.SCHEMA['properties']), ['level'])
+    def test_no_quote_anchor_or_role_checks(self):
+        self.assertEqual(list(f.SCHEMA['properties']), ['reason', 'anchor_ids', 'level'])
         self.assertFalse(hasattr(f, 'check_decision'))
         self.assertFalse(hasattr(f, 'REVIEW_PROMPT'))
 
@@ -128,6 +134,27 @@ class SimpleFlowTests(unittest.TestCase):
         c = Client([Reply('NEEDS_REVIEW'), Reply('DIRECT')]); run(c)
         self.assertEqual([x['options']['thinking'] for x in c.calls], [False, True])
         self.assertGreater(c.calls[1]['options']['max_tokens'], c.calls[0]['options']['max_tokens'])
+
+    def test_reason_and_anchors_are_preserved_exactly(self):
+        reply = Reply('DIRECT')
+        reply.value.update(reason='Conditional model reasoning, copied without judgement.',
+                           anchor_ids=['an_id_chosen_by_qwen'])
+        c = Client([reply])
+        result = run(c)
+        self.assertEqual(result['decision'], reply.value)
+        self.assertEqual(len(c.calls), 1)
+
+    def test_second_pass_reason_and_anchors_are_saved(self):
+        first, second = Reply('NEEDS_REVIEW'), Reply('INDIRECT')
+        second.value.update(reason='Supplier requirements affect purchased equipment.', anchor_ids=['equipment'])
+        result = run(Client([first, second]))
+        self.assertEqual(result['decision'], second.value)
+        self.assertEqual(result['rounds'][0]['candidate'], first.value)
+
+    def test_ignore_keeps_empty_anchor_list(self):
+        result = run(Client([Reply('IGNORE')]))
+        self.assertEqual(result['decision']['anchor_ids'], [])
+        self.assertTrue(result['decision']['reason'])
 
 
 if __name__ == '__main__':

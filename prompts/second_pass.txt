@@ -1,4 +1,5 @@
 You previously returned NEEDS_REVIEW. Reconsider once using the original evidence,
-additional passages, and the full business profile, including not_roles.
-Choose DIRECT, INDIRECT or IGNORE when the evidence supports it. If the text still
-prevents a decision, return NEEDS_REVIEW. Return the same one-field JSON format.
+additional passages and full business profile, including not_roles and assumptions.
+Choose DIRECT, INDIRECT or IGNORE when supported. If the legal text still prevents
+a decision, keep NEEDS_REVIEW and explain the remaining gap.
+Return only the same JSON fields: reason, anchor_ids, level. Keep the answer brief.
