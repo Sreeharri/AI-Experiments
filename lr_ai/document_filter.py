@@ -7,7 +7,7 @@ import math
 import re
 
 LEVELS = ["DIRECT", "INDIRECT", "IGNORE", "NEEDS_REVIEW"]
-FIRST_OUTPUT_TOKENS = 1024
+FIRST_OUTPUT_TOKENS = 6000
 RETRY_OUTPUT_TOKENS = 6000
 SCHEMA = {
     "type": "object",
@@ -152,8 +152,14 @@ def ranked(blocks, query):
     return sorted(blocks, key=lambda b: (-score(b), b["source_id"]))
 
 
+def retrieval_anchors(profile):
+    # Keep the previous passage-ranking inputs when notes move beside scopes.
+    return {key: {k: value[k] for k in ('label', 'scope', 'roles') if k in value}
+            for key, value in profile['anchors'].items()}
+
+
 def initial_selection(blocks, profile):
-    query = json.dumps({"anchors": profile["anchors"], "roles": profile["roles"]},
+    query = json.dumps({"anchors": retrieval_anchors(profile), "roles": profile["roles"]},
                        ensure_ascii=False)
     ordered = ranked(blocks, query)
     scope_pattern = r"\b(scope|subject matter|definitions|exemptions|anwendungsbereich|begriffsbestimmungen|ausnahmen)\b"
@@ -241,7 +247,9 @@ def request(client, prompt, payload, context_limit, *, thinking, output_tokens,
                            schema_name='document_relevance', max_tokens=output_tokens)
     # These are HTTP/decoding errors only; no legal, quote, role or anchor validation.
     details = {'raw_content': getattr(response, 'content', ''),
-               'finish_reason': getattr(response, 'finish_reason', None)}
+               'finish_reason': getattr(response, 'finish_reason', None),
+               'reasoning_chars': len(getattr(response, 'reasoning', '') or ''),
+               'completion_tokens': getattr(response, 'completion_tokens', None)}
     diagnostics.update(details)
     if not getattr(response, 'ok', True):
         raise RequestError(client.clean(str(getattr(response, 'error', 'Request failed'))), details, payload['excerpts'])
@@ -275,7 +283,7 @@ def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_bud
         prompt = DECISION_PROMPT + ('\n\n' + SECOND_PASS_PROMPT if turn else '')
         try:
             candidate, shown = request(client, prompt, payload, context_limit,
-                                       thinking=bool(turn),
+                                       thinking=True,
                                        output_tokens=RETRY_OUTPUT_TOKENS if turn else FIRST_OUTPUT_TOKENS,
                                        input_budget=input_budget, diagnostics=entry)
             entry['candidate'] = candidate
@@ -296,6 +304,6 @@ def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_bud
         # Only Qwen's NEEDS_REVIEW triggers a second call, with extra available text.
         seen = {b['source_id'] for b in shown}
         remaining = [b for b in blocks if b['source_id'] not in seen]
-        additional = ranked(remaining, json.dumps(profile.get('anchors', {}), ensure_ascii=False))[:8]
+        additional = ranked(remaining, json.dumps(retrieval_anchors(profile), ensure_ascii=False))[:8]
         selected = list(dict.fromkeys([b['source_id'] for b in shown] +
                                      [b['source_id'] for b in additional]))[:max_chunks]

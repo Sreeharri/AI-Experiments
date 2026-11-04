@@ -1,7 +1,4 @@
 Python 3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]
-
-19 tests passed using:
-python -m unittest discover -s tests -p "test_*.py" -v
-
-Includes reference-list generation, preserved anchor caveats, exact saving of model explanations/anchor IDs, immediate saving of resolved labels, bounded NEEDS_REVIEW second pass, and unchanged technical-error handling.
-No live Qwen endpoint used; model reasoning/accuracy not measured.
+22 tests passed: python -m unittest discover -s tests -p "test_*.py" -v
+Initial passage selections match the actual v6.2 run for all 10 supplied acts.
+No live company endpoint test; no relevance accuracy measurement.

@@ -79,19 +79,22 @@ def profile(path, domains_path):
             raise ValueError(f"Unknown domain for {key}")
         if set(anchor.get("roles", [])) - set(parsed["roles"]):
             raise ValueError(f"Unknown role for {key}")
-    # Compact main-call profile keeps all scopes and roles. Preserve all special
-    # notes and exclusions as a separate caveat map, provided alongside those IDs.
+    # Keep each anchor scope, roles, note and exclusions together for Qwen.
     compact = {
         "version": parsed.get("version"),
+        "company_summary": (
+            "Max Bögl's supplied profile covers construction and infrastructure; "
+            "construction materials and precast products; wind/solar electricity generation "
+            "and storage; own plants and installations; fleet, employees and IT. "
+            "Use the detailed role/anchor scopes below; this summary does not create new roles."
+        ),
         "valid_anchor_ids": list(parsed["anchors"]),
         "roles": parsed["roles"], "not_roles": parsed.get("not_roles", {}),
         "indirect_paths": parsed["indirect_paths"],
-        "anchors": {key: {k: value[k] for k in ("label", "scope", "roles") if k in value}
+        "anchors": {key: {k: value[k] for k in ("label", "scope", "roles", "note", "not_covered") if k in value}
                     for key, value in parsed["anchors"].items()},
         "negative_anchors": parsed["negative_anchors"],
-        "anchor_caveats": {key: {k: value[k] for k in ("note", "not_covered") if k in value}
-                           for key, value in parsed["anchors"].items()
-                           if value.get("note") or value.get("not_covered")},
+
     }
     comments = raw.decode("utf-8-sig").split("# ASSUMPTIONS", 1)
     compact["unconfirmed_assumptions"] = comments[-1].split("version:", 1)[0] if len(comments) > 1 else ""

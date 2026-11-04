@@ -138,12 +138,12 @@ class SimpleFlowTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('runner', root/'tools/document_relevance.py')
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
         value, _ = module.profile(root/'config/business_anchors_en.yaml', root/'config/domains.yaml')
-        self.assertIn('INDIRECT', value['anchor_caveats']['machinery_work_equipment']['note'])
+        self.assertIn('INDIRECT', value['anchors']['machinery_work_equipment']['note'])
 
-    def test_second_pass_has_thinking_and_larger_allowance(self):
+    def test_both_passes_request_thinking_and_6000_tokens(self):
         c = Client([Reply('NEEDS_REVIEW'), Reply('DIRECT')]); run(c)
-        self.assertEqual([x['options']['thinking'] for x in c.calls], [False, True])
-        self.assertGreater(c.calls[1]['options']['max_tokens'], c.calls[0]['options']['max_tokens'])
+        self.assertEqual([x['options']['thinking'] for x in c.calls], [True, True])
+        self.assertEqual([x['options']['max_tokens'] for x in c.calls], [6000, 6000])
 
     def test_reason_and_anchors_are_preserved_exactly(self):
         reply = Reply('DIRECT')
@@ -165,6 +165,36 @@ class SimpleFlowTests(unittest.TestCase):
         result = run(Client([Reply('IGNORE')]))
         self.assertEqual(result['decision']['anchor_ids'], [])
         self.assertTrue(result['decision']['reason'])
+
+    def test_inline_notes_do_not_change_initial_passage_ranking(self):
+        compact = deepcopy(PROFILE)
+        inline = deepcopy(PROFILE)
+        inline['anchors']['plant'].update(note='New words must not alter retrieval.', not_covered='Different product')
+        blocks, _, _ = f.prepare(act(), date(2026, 11, 4))
+        self.assertEqual(f.initial_selection(blocks, compact), f.initial_selection(blocks, inline))
+
+    def test_profile_keeps_all_notes_inline_and_full_company_summary(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location('runner', root/'tools/document_relevance.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        value, _ = module.profile(root/'config/business_anchors_en.yaml', root/'config/domains.yaml')
+        import yaml
+        original = yaml.safe_load((root/'config/business_anchors_en.yaml').read_text())
+        for key, anchor in original['anchors'].items():
+            for field in ('scope', 'roles', 'note', 'not_covered'):
+                if field in anchor:
+                    self.assertEqual(value['anchors'][key][field], anchor[field])
+        self.assertNotIn('anchor_caveats', value)
+        self.assertIn('storage', value['company_summary'])
+        self.assertIn('wind/solar', value['company_summary'])
+
+    def test_real_http_client_serializes_first_pass_thinking(self):
+        from lr_ai.qwen_client import QwenClient
+        c = Client([Reply('DIRECT')]); run(c)
+        payload = QwenClient('https://example.invalid', model='test').build_payload(
+            [{'role': 'user', 'content': 'test'}], **c.calls[0]['options'])
+        self.assertTrue(payload['chat_template_kwargs']['enable_thinking'])
+        self.assertEqual(payload['max_tokens'], 6000)
 
 
 if __name__ == '__main__':
