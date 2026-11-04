@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from lr_ai import document_filter as engine
 from lr_ai.qwen_client import QwenClient
+from lr_ai.catalogue_input import Catalogue, validate_celex
+import time
 
 
 def digest(value):
@@ -75,12 +77,22 @@ def profile(path, domains_path):
             raise ValueError(f"Unknown domain for {key}")
         if set(anchor.get("roles", [])) - set(parsed["roles"]):
             raise ValueError(f"Unknown role for {key}")
-    # Preserve the source comments containing assumptions. They carry material
-    # information not available in yaml.safe_load()'s parsed mapping.
-    comments = "\n".join(line[1:].strip() for line in raw.decode("utf-8-sig").splitlines()
-                         if line.startswith("#"))
-    parsed["unconfirmed_company_assumptions_and_profile_notes"] = comments
-    return parsed, digest(raw)
+    # Compact main-call profile keeps all scopes and roles. Preserve all special
+    # notes and exclusions as a separate caveat map, provided alongside those IDs.
+    compact = {
+        "version": parsed.get("version"),
+        "roles": parsed["roles"], "indirect_paths": parsed["indirect_paths"],
+        "anchors": {key: {k: value[k] for k in ("label", "scope", "roles") if k in value}
+                    for key, value in parsed["anchors"].items()},
+        "negative_anchors": parsed["negative_anchors"],
+        "anchor_caveats": {key: {k: value[k] for k in ("note", "not_covered") if k in value}
+                           for key, value in parsed["anchors"].items()
+                           if value.get("note") or value.get("not_covered")},
+    }
+    comments = raw.decode("utf-8-sig").split("# ASSUMPTIONS", 1)
+    compact["unconfirmed_assumptions"] = comments[-1].split("version:", 1)[0] if len(comments) > 1 else ""
+    # Full caveats are retained: an 8k-token target may not fit every profile.
+    return compact, digest(raw)
 
 
 def main():
@@ -92,12 +104,17 @@ def main():
     parser.add_argument("--out", type=Path, required=True, help="Dedicated run directory")
     parser.add_argument("--as-of", type=date.fromisoformat, default=date.today())
     parser.add_argument("--context-limit", type=int, help="Confirmed context limit, if discovery omits it")
-    parser.add_argument("--max-rounds", type=int, default=3, choices=range(1, 4))
+    parser.add_argument("--max-rounds", type=int, default=2, choices=range(1, 4))
     parser.add_argument("--max-chunks", type=int, default=24, choices=range(12, 33))
+    parser.add_argument("--input-budget", type=int, default=12000,
+                        help="Total input token cap including profile (try 8000 after measuring)")
+    parser.add_argument("--critique", action="store_true", help="Critique only on second-look rounds")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--celex", help="Comma-separated CELEX IDs")
     parser.add_argument("--prepare-only", action="store_true", help="Inspect source selection without Qwen")
     args = parser.parse_args()
+    if args.input_budget < 2048:
+        parser.error("--input-budget must be at least 2048")
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
     if args.context_limit is not None and args.context_limit < 4096:
@@ -110,17 +127,35 @@ def main():
         parser.exit(1, "Run directory is locked. If no process is running, remove .writer.lock and retry.\n")
     os.close(handle)
     try:
-        acts, source_hash = read_input(args.input)
+        catalogue = None
+        if args.input.is_dir() or args.input.name.lower() in {"text_en.jsonl", "text_de.jsonl", "acts.jsonl"}:
+            catalogue = Catalogue(args.input if args.input.is_dir() else args.input.parent)
+            ids = catalogue.ids()
+            fingerprint = hashlib.sha256()
+            for path in catalogue.paths:
+                fingerprint.update(path.name.encode())
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                        fingerprint.update(chunk)
+            source_hash = fingerprint.hexdigest()
+            get_act = catalogue.get
+        else:
+            acts, source_hash = read_input(args.input)
+            by_id = {a["celex"]: a for a in acts}
+            ids = list(by_id)
+            get_act = by_id.__getitem__
+        for celex in ids:
+            validate_celex(celex)
         business, anchor_hash = profile(args.anchors, args.domains)
         if args.celex:
-            requested = set(args.celex.split(","))
-            acts = [a for a in acts if a["celex"] in requested]
-            missing = requested - {a["celex"] for a in acts}
+            requested = {validate_celex(c.strip()) for c in args.celex.split(",")}
+            missing = requested - set(ids)
             if missing:
                 raise ValueError(f"Requested acts absent from input: {sorted(missing)}")
+            ids = [c for c in ids if c in requested]
         if args.limit:
-            acts = acts[:args.limit]
-        if not acts:
+            ids = ids[:args.limit]
+        if not ids:
             raise ValueError("Selection is empty")
         client, context = None, None
         if not args.prepare_only:
@@ -135,13 +170,14 @@ def main():
         signature = {
             "input_sha256": source_hash, "anchor_sha256": anchor_hash,
             "domain_sha256": digest(args.domains.read_bytes()),
-            "as_of": args.as_of.isoformat(), "selected_celex": [a["celex"] for a in acts],
+            "as_of": args.as_of.isoformat(), "selected_celex": ids,
+            "input_budget": args.input_budget, "critique": args.critique,
             "max_rounds": args.max_rounds, "max_chunks": args.max_chunks,
             "prepare_only": args.prepare_only, "context_limit": context,
             "model": client.model if client else None,
             "endpoint_sha256": digest(client.api_base.encode()) if client else None,
             "code": {p.name: digest(p.read_bytes()) for p in (
-                Path(__file__), Path(engine.__file__), ROOT / "lr_ai/qwen_client.py")},
+                Path(__file__), Path(engine.__file__), ROOT / "lr_ai/qwen_client.py", ROOT / "lr_ai/catalogue_input.py")},
         }
         manifest = args.out / "manifest.json"
         if manifest.exists():
@@ -151,16 +187,18 @@ def main():
         else:
             save(manifest, signature)
         results = []
-        for index, act in enumerate(acts, 1):
+        for index, celex in enumerate(ids, 1):
+            act = get_act(celex)
             destination = args.out / f"{act['celex']}.json"
             if "/" in act["celex"] or "\\" in act["celex"] or ".." in act["celex"]:
                 raise ValueError("Invalid CELEX ID")
             if destination.exists():
                 previous = json.loads(destination.read_text(encoding="utf-8"))
                 if previous.get("status") != "failed":
-                    results.append(previous)
-                    print(f"[{index}/{len(acts)}] {act['celex']}: resumed", flush=True)
+                    results.append({"status": previous["status"], "decision": {"level": previous.get("decision", {}).get("level")}})
+                    print(f"[{index}/{len(ids)}] {act['celex']}: resumed", flush=True)
                     continue
+            clock_start = time.perf_counter()
             started = datetime.now(timezone.utc).isoformat()
             try:
                 if args.prepare_only:
@@ -174,17 +212,18 @@ def main():
                     }
                 else:
                     result = engine.run_act(client, act, business, args.as_of, context,
-                                            args.max_rounds, args.max_chunks)
+                                            args.max_rounds, args.max_chunks,
+                                            args.input_budget, args.critique)
             except RuntimeError as exc:
                 result = {"status": "failed", "error": client.clean(str(exc))}
-            result.update(celex=act["celex"], version_id=act["version"]["id"],
+            result.update(elapsed_seconds=round(time.perf_counter() - clock_start, 3), celex=act["celex"], version_id=act["version"]["id"],
                           started_at=started, finished_at=datetime.now(timezone.utc).isoformat())
             save(destination, result)
-            results.append(result)
-            print(f"[{index}/{len(acts)}] {act['celex']}: {result['status']}", flush=True)
+            results.append({"status": result["status"], "decision": {"level": result.get("decision", {}).get("level")}})
+            print(f"[{index}/{len(ids)}] {act['celex']}: {result['status']}", flush=True)
         counts = {}
         for result in results:
-            label = result.get("decision", {}).get("level", result["status"])
+            label = result.get("decision", {}).get("level") or result["status"]
             counts[label] = counts.get(label, 0) + 1
         save(args.out / "summary.json", {"counts": counts, "acts": len(results)})
         print(json.dumps(counts))
