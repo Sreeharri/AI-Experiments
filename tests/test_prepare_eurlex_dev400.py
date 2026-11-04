@@ -127,6 +127,16 @@ class EvidenceRequirements(unittest.TestCase):
         act["version"].update(version_kind="CONSOLIDATED", effective_from="2027-01-01")
         self.assertIn("Future consolidated text", prep.audit_act(act, AS_OF)[0]["problems"])
 
+    def test_single_annex_requires_explicit_option_and_zero_is_rejected(self):
+        act = make_act()
+        act["elements"] = [e for e in act["elements"] if e["path"] != "annex/2"]
+        self.assertTrue(prep.audit_act(act, AS_OF)[0]["problems"])
+        audit, blocks = prep.audit_act(act, AS_OF, min_annex_chunks=1)
+        self.assertFalse(audit["problems"])
+        self.assertFalse(prep.verify_selected_pack(blocks, BUSINESS, min_annex_chunks=1)[1])
+        act["elements"] = [e for e in act["elements"] if e["element_type"] != "ANNEX"]
+        self.assertTrue(prep.audit_act(act, AS_OF, min_annex_chunks=1)[0]["problems"])
+
     def test_published_original_future_start_is_not_excluded(self):
         act = make_act()
         act["version"]["effective_from"] = "2027-01-01"
@@ -143,6 +153,17 @@ class EvidenceRequirements(unittest.TestCase):
 
 
 class DatasetWorkflow(unittest.TestCase):
+    def test_export_records_explicit_one_annex_policy(self):
+        acts = [make_act(n) for n in range(1, 5)]
+        for act in acts:
+            act["elements"] = [e for e in act["elements"] if e["path"] != "annex/2"]
+        with TemporaryDirectory() as temporary, patch("sys.stdout", new=io.StringIO()):
+            out = Path(temporary) / "sets"
+            manifest = prep.prepare_sets(MemorySource(acts), out, set(), AS_OF, BUSINESS,
+                                         per_set=2, min_annex_chunks=1)
+            self.assertEqual(1, manifest["input_rules"]["annex_chunks_min"])
+            self.assertEqual(2, len(read_input(out / "dev_A_2.json")[0]))
+
     def generate(self, directory, acts, per_set=2, exclusions=None):
         with patch("sys.stdout", new=io.StringIO()):
             return prep.prepare_sets(MemorySource(acts), directory, exclusions or set(), AS_OF,
@@ -212,6 +233,11 @@ class DatasetWorkflow(unittest.TestCase):
                 self.generate(out, acts)
             self.assertFalse(out.exists())
             self.assertTrue(out.with_name("sets_insufficient.json").is_file())
+            diagnostic = json.loads(out.with_name("sets_insufficient.json").read_text())
+            cache = Path(diagnostic["eligible_cache"])
+            saved, _ = read_input(cache / "eligible_acts.json")
+            self.assertEqual(3, len(saved))
+            self.assertEqual("insufficient", json.loads((cache / "eligible_manifest.json").read_text())["status"])
 
     def test_shortlist_shortage_writes_no_sets(self):
         with TemporaryDirectory() as temporary:

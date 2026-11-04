@@ -1,3 +1,43 @@
+# Shortage fix — read first
+
+The uploaded report records 334 eligible acts and 139 rejected versions.
+100 versions failed the two-annex-chunk requirement; 42 failed the selected
+article distinctness check; three failed both. These are versions, not counts
+of distinct acts. The old report does not distinguish zero annex chunks from
+one, so it cannot prove how many are recoverable.
+
+The default requirement remains TWO annex chunks. To explicitly allow one
+usable annex chunk (for example a complete short annex), run:
+
+```powershell
+.\.venv\Scripts\python.exe .\tools\prepare_eurlex_dev400.py --env .\.env --as-of 2026-11-04 --min-annex-chunks 1 --out .\data\dev400_new_v2
+```
+
+Zero usable annex chunks are still rejected. The 9 distinct selected article
+paths, 3 usable recitals, chapter, title, same-version and date requirements
+remain. No missing text is invented, and the Qwen code/prompt is unchanged.
+
+If fewer than 400 qualify, the new version preserves all eligible full-text acts
+and blank labels in a timestamped sibling folder, with an `insufficient` manifest.
+It still exits unsuccessfully and does not claim to have made 200 + 200.
+The updated diagnostic records actual article/recital/annex counts per rejected
+version. The previous run did not preserve the 334 acts, so this rerun must read
+them from your database again.
+
+Extract this patch in the existing AI-Experiments root. It contains no AI/prompt
+replacements. Test with:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_prepare_eurlex_dev400.py" -v
+```
+
+20 offline tests pass, including 400-act fixture export, explicit one-annex mode,
+zero-annex rejection and preservation of eligible sources on a shortage. No live
+database export has been performed here. Getting 400 remains unconfirmed until
+the rerun completes.
+
+---
+
 # Prepare a new 200 + 200 development input
 
 This is an additive patch for your existing **v6.3 AI-Experiments project**.
@@ -68,7 +108,7 @@ relationship lists are omitted. This does not mean the model sees all text at
 once: the existing AI evidence selection and context budgeting remain unchanged.
 
 If fewer than 400 eligible acts exist after exclusions, preparation stops. It
-does not relax the requirements or write a partially filled pair. Where full
+does not relax the requirements or write a partially filled pair. Eligible full-text acts are now preserved in a separate timestamped `dev400_new_eligible_*` folder. Where full
 text was examined, an adjacent `dev400_new_insufficient.json` explains rejected
 versions. Additional source ingestion or parser repair may then be necessary.
 

@@ -1,8 +1,7 @@
-Development input preparation checks — 2026-11-04
-
 test_additional_exclusion_formats (test_prepare_eurlex_dev400.DatasetWorkflow.test_additional_exclusion_formats) ... ok
 test_exclusions_and_missing_text_are_backfilled (test_prepare_eurlex_dev400.DatasetWorkflow.test_exclusions_and_missing_text_are_backfilled) ... ok
 test_existing_directory_protected (test_prepare_eurlex_dev400.DatasetWorkflow.test_existing_directory_protected) ... ok
+test_export_records_explicit_one_annex_policy (test_prepare_eurlex_dev400.DatasetWorkflow.test_export_records_explicit_one_annex_policy) ... ok
 test_older_or_german_complete_version_is_fallback (test_prepare_eurlex_dev400.DatasetWorkflow.test_older_or_german_complete_version_is_fallback) ... ok
 test_real_profile_works_without_qwen (test_prepare_eurlex_dev400.DatasetWorkflow.test_real_profile_works_without_qwen) ... ok
 test_selection_and_split_reproduce_despite_candidate_order (test_prepare_eurlex_dev400.DatasetWorkflow.test_selection_and_split_reproduce_despite_candidate_order) ... ok
@@ -17,18 +16,13 @@ test_future_document_and_rejected_version_are_rejected (test_prepare_eurlex_dev4
 test_published_original_future_start_is_not_excluded (test_prepare_eurlex_dev400.EvidenceRequirements.test_published_original_future_start_is_not_excluded) ... ok
 test_recital_set_fallback_same_version (test_prepare_eurlex_dev400.EvidenceRequirements.test_recital_set_fallback_same_version) ... ok
 test_reject_mixed_version_elements_or_recitals (test_prepare_eurlex_dev400.EvidenceRequirements.test_reject_mixed_version_elements_or_recitals) ... ok
+test_single_annex_requires_explicit_option_and_zero_is_rejected (test_prepare_eurlex_dev400.EvidenceRequirements.test_single_annex_requires_explicit_option_and_zero_is_rejected) ... ok
 test_title_chapter_and_real_text_are_required (test_prepare_eurlex_dev400.EvidenceRequirements.test_title_chapter_and_real_text_are_required) ... ok
 
 ----------------------------------------------------------------------
-Ran 18 tests in 0.231s
+Ran 20 tests in 0.300s
 
 OK
 
-Additional checks:
-- Both parameterized SQL queries parse as one PostgreSQL SELECT statement (pglast).
-- End-to-end 400-act test uses synthetic fixtures, not real selected acts.
-- Tests use the unchanged v6.3 evidence builder and existing runner input reader.
-- AI engine, runner, client, prompts and profiles compared byte-for-byte to v6.3; unchanged.
-- Actual 10-act export audited offline: 5 meet all new pack requirements; 5 lack recitals or chapter structure/date eligibility. All 10 are excluded from the new sets.
-- No Qwen calls made. No live PostgreSQL export or model accuracy evaluation performed.
-- Package is additive: no AI or prompt files included.
+Uploaded shortage report reviewed: required400, eligible334, rejected versions139; annex100, article42, overlap3.
+No AI files changed. No live DB or Qwen run. SQL unchanged from original preparation package.

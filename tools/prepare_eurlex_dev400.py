@@ -53,7 +53,7 @@ def canonical_path(path):
     return re.sub(r"~duplicate[^/]*", "", path)
 
 
-def audit_act(act, as_of):
+def audit_act(act, as_of, min_annex_chunks=2):
     """Use the unchanged v6.3 parser and selection; require a populated pack."""
     problems = []
     version = act.get("version") or {}
@@ -96,8 +96,8 @@ def audit_act(act, as_of):
         problems.append("Fewer than 9 distinct articles with usable text")
     if len(recitals) < 3:
         problems.append("Fewer than 3 distinct recitals with usable text")
-    if len(annex_chunks) < 2:
-        problems.append("Fewer than 2 usable annex chunks")
+    if len(annex_chunks) < min_annex_chunks:
+        problems.append(f"Fewer than {min_annex_chunks} usable annex chunks")
     return {
         "title": title, "chapters": len(chapters), "articles": len(articles),
         "recitals": len(recitals), "annex_chunks": len(annex_chunks),
@@ -106,12 +106,12 @@ def audit_act(act, as_of):
     }, blocks
 
 
-def verify_selected_pack(blocks, business):
+def verify_selected_pack(blocks, business, min_annex_chunks=2):
     selected_ids = engine.initial_selection(blocks, business)
     chosen = [b for b in blocks if b["source_id"] in selected_ids]
     counts = Counter(b["type"] for b in chosen)
     problems = []
-    for kind, minimum in (("ARTICLE", 9), ("RECITAL", 3), ("ANNEX", 2)):
+    for kind, minimum in (("ARTICLE", 9), ("RECITAL", 3), ("ANNEX", min_annex_chunks)):
         if counts[kind] < minimum:
             problems.append(f"Current evidence selector returned fewer than {minimum} {kind} chunks")
     if len({canonical_path(b["path"]) for b in chosen if b["type"] == "ARTICLE"}) < 9:
@@ -198,12 +198,15 @@ class DatabaseSource:
             return row[0]
 
 
-def prepare_sets(source, out, excluded, as_of, business, seed=DEFAULT_SEED, per_set=200):
+def prepare_sets(source, out, excluded, as_of, business, seed=DEFAULT_SEED, per_set=200,
+                 min_annex_chunks=2):
     out = out.resolve()
     if out.exists():
         raise ValueError("Output already exists; choose a fresh directory to keep the sets frozen")
     if per_set < 1:
         raise ValueError("per_set must be positive")
+    if min_annex_chunks not in (1, 2):
+        raise ValueError("min_annex_chunks must be 1 or 2")
     out.parent.mkdir(parents=True, exist_ok=True)
     print("Searching stored EN/DE versions with chapter/article/recital/annex structure...", flush=True)
     candidates = source.candidates(excluded, as_of)
@@ -231,12 +234,14 @@ def prepare_sets(source, out, excluded, as_of, business, seed=DEFAULT_SEED, per_
                 act = source.act(candidate)
                 if act.get("celex") != celex or str(act.get("version", {}).get("id")) != str(candidate["version_id"]):
                     raise ValueError(f"Export identity mismatch for {celex}")
-                audit, blocks = audit_act(act, as_of)
-                selected, selection_problems = verify_selected_pack(blocks, business)
+                audit, blocks = audit_act(act, as_of, min_annex_chunks)
+                selected, selection_problems = verify_selected_pack(blocks, business, min_annex_chunks)
                 audit["problems"].extend(selection_problems)
                 if audit["problems"]:
                     rejected.append({"celex": celex, "version_id": candidate["version_id"],
-                                     "problems": " | ".join(audit["problems"])})
+                                     "problems": " | ".join(audit["problems"]),
+                                     "annex_chunks": audit["annex_chunks"],
+                                     "articles": audit["articles"], "recitals": audit["recitals"]})
                     continue
                 path = spool / f"{celex}.json"
                 path.write_text(json.dumps(act, ensure_ascii=False, allow_nan=False), encoding="utf-8")
@@ -256,12 +261,24 @@ def prepare_sets(source, out, excluded, as_of, business, seed=DEFAULT_SEED, per_
             if len(accepted) == needed:
                 break
         if len(accepted) < needed:
-            # A diagnostic beside the requested directory is not a runnable input.
+            # Preserve all usable source text; never pretend this is a full pair.
+            write_set(stage, "eligible_acts", accepted)
+            cache = out.with_name(out.name + "_eligible_" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))
+            (stage / "eligible_manifest.json").write_text(json.dumps({
+                "status": "insufficient", "required": needed, "eligible": len(accepted),
+                "as_of": as_of.isoformat(), "seed": seed, "min_annex_chunks": min_annex_chunks,
+                "excluded_celex": sorted(excluded),
+                "acts": [{k: v for k, v in r.items() if k != "path"} for r in accepted],
+                "input_sha256": hash_file(stage / "eligible_acts.json")
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
+            stage.rename(cache)
             report = out.with_name(out.name + "_insufficient.json")
             report.write_text(json.dumps({"required": needed, "eligible": len(accepted),
+                                          "min_annex_chunks": min_annex_chunks,
+                                          "eligible_cache": str(cache),
                                           "rejected_versions": rejected}, indent=2), encoding="utf-8")
             raise ValueError(f"Only {len(accepted)} acts passed the evidence requirements; need {needed}. "
-                             f"No input sets written. Diagnostics: {report.name}")
+                             f"No full pair written. Usable acts saved in {cache}. Diagnostics: {report.name}")
         sets = split_records(accepted, per_set, seed)
         all_records = []
         for name, records in zip(("dev_A_200", "dev_B_200"), sets):
@@ -282,7 +299,7 @@ def prepare_sets(source, out, excluded, as_of, business, seed=DEFAULT_SEED, per_
             "rejected_versions": len(rejected), "excluded_celex": sorted(excluded),
             "input_rules": {"title": True, "populated_chapters_min": 1,
                             "distinct_articles_min": 9, "distinct_recitals_min": 3,
-                            "annex_chunks_min": 2, "same_stored_version": True},
+                            "annex_chunks_min": min_annex_chunks, "same_stored_version": True},
             "selection": "Seeded CELEX sample from structurally eligible stored versions; "
                          "EN preferred, DE fallback; split balanced by act type and decade",
             "labels": "Blank; independent human labels required. No AI calls were made.",
@@ -314,6 +331,8 @@ def main():
     parser.add_argument("--as-of", type=date.fromisoformat, default=date.today())
     parser.add_argument("--seed", default=DEFAULT_SEED)
     parser.add_argument("--per-set", type=int, default=200)
+    parser.add_argument("--min-annex-chunks", type=int, choices=(1, 2), default=2,
+                        help="Default 2; use 1 to allow an act with one usable short annex chunk")
     parser.add_argument("--exclude-file", type=Path, action="append", default=[],
                         help="Additional CSV with celex column or text file with one CELEX per line")
     args = parser.parse_args()
@@ -336,7 +355,7 @@ def main():
         url, _ = database_url(args.env)
         with connect(url) as connection:
             prepare_sets(DatabaseSource(connection), args.out, excluded, args.as_of,
-                         business, args.seed, args.per_set)
+                         business, args.seed, args.per_set, args.min_annex_chunks)
     except (OSError, ValueError, ImportError) as exc:
         parser.exit(1, f"Development input preparation failed: {exc}\n")
     except psycopg.Error as exc:
