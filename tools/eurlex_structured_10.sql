@@ -16,6 +16,8 @@ WITH sample AS MATERIALIZED (
         FROM instrument_versions AS iv
         WHERE iv.instrument_id = i.id
           AND iv.language IN ('EN', 'DE')
+          AND (iv.version_date IS NULL OR iv.version_date <= CURRENT_DATE)
+          AND (iv.effective_from IS NULL OR iv.effective_from <= CURRENT_DATE)
           AND EXISTS (
               SELECT 1
               FROM legal_elements AS a

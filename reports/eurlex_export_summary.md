@@ -1,0 +1,105 @@
+# EUR-Lex export summary (2026-10-28T14:56)
+
+- Script: eurlex-export-1.0.0; database `legal_radar_backend` (alembic 0015)
+- Acts exported: **34,833** in 15.1 min
+
+## Acts
+
+| | count |
+|---|---:|
+| decision: BLOCK | 20,815 |
+| decision: KEEP | 14,002 |
+| decision: KEEP_METADATA_ONLY | 14 |
+| decision: NO_DECISION | 2 |
+| stage: GERMAN_TITLE_BLOCKLIST | 20,232 |
+| stage: CONTENT_REPAIR_EXISTING_INSTRUMENT | 13,865 |
+| stage: NEGATIVE_TITLE_RULES | 555 |
+| stage: PRIMARY_FILTER_PASSED | 87 |
+| stage: RELATIONSHIP_PROTECTION | 37 |
+| stage: IN_FORCE_SCOPE | 28 |
+| stage: PROTECTED_FROM_NEGATIVE_BLOCK | 13 |
+| stage: LIFECYCLE_UPDATE | 12 |
+| stage: LANGUAGE_POLICY | 2 |
+| stage: NO_DECISION | 2 |
+| act_type: decision | 17,244 |
+| act_type: regulation | 16,284 |
+| act_type: directive | 1,305 |
+| in_force: None | 20,820 |
+| in_force: True | 14,001 |
+| in_force: False | 12 |
+
+## Coverage
+
+| | acts |
+|---|---:|
+| title_en | 34,763 |
+| title_de | 34,823 |
+| with_instrument | 14,040 |
+| text_en | 13,962 |
+| text_de | 6 |
+| recitals_en | 11,036 |
+| recitals_de | 1 |
+| notice | 14,014 |
+| eurovoc | 13,991 |
+| notice_errors | 0 |
+
+## Not exported
+
+- never evaluated (only a link target): 7,612
+- corrigendum: 6,207
+- not a regulation/directive/decision: 2,282
+
+## EuroVoc domains (acts)
+
+- 20 TRADE: 6,202
+- 72 GEOGRAPHY: 5,583
+- 10 EUROPEAN UNION: 4,904
+- 28 SOCIAL QUESTIONS: 3,111
+- 64 PRODUCTION, TECHNOLOGY AND RESEARCH: 3,001
+- 08 INTERNATIONAL RELATIONS: 2,931
+- 56 AGRICULTURE, FORESTRY AND FISHERIES: 2,852
+- 68 INDUSTRY: 2,612
+- 24 FINANCE: 2,371
+- 32 EDUCATION AND COMMUNICATIONS: 2,364
+- 40 BUSINESS AND COMPETITION: 2,149
+- 60 AGRI-FOODSTUFFS: 2,109
+- 52 ENVIRONMENT: 2,094
+- 16 ECONOMICS: 1,676
+- 12 LAW: 1,659
+- 48 TRANSPORT: 1,591
+- 04 POLITICS: 1,425
+- 44 EMPLOYMENT AND WORKING CONDITIONS: 852
+- 66 ENERGY: 769
+- 76 INTERNATIONAL ORGANISATIONS: 678
+- 100147: 324
+- 20 HANDEL: 322
+- 100158: 260
+- 64 PRODUKTION, TECHNOLOGIE UND FORSCHUNG: 244
+- 36 SCIENCE: 207
+
+## Files
+
+- `acts.jsonl`: 114.1 MB
+- `text_en.jsonl`: 277.8 MB
+- `text_de.jsonl`: 397.8 KB
+
+## Notice fields seen (concept tags, count of notices)
+
+- IS_ABOUT: 287,250
+- WORK_IS_ABOUT_CONCEPT_EUROVOC: 190,527
+- RESOURCE_LEGAL_IS_ABOUT_SUBJECT-MATTER: 59,559
+- CREATED_BY: 39,449
+- WORK_CREATED_BY_AGENT: 39,449
+- RESOURCE_LEGAL_IS_ABOUT_CONCEPT_DIRECTORY-CODE: 37,164
+- PART_OF: 30,437
+- RESOURCE_LEGAL_BASED_ON_CONCEPT_TREATY: 28,949
+- BASED_ON: 28,949
+- RESOURCE_LEGAL_USES_ORIGINALLY_LANGUAGE: 28,462
+- WORK_HAS_RESOURCE-TYPE: 27,965
+- WORK_PART_OF_COLLECTION_DOCUMENT: 25,375
+- RESOURCE_LEGAL_RESPONSIBILITY_OF_AGENT: 15,340
+- ADDRESSES: 8,722
+- RESOURCE_LEGAL_ADDRESSES_INSTITUTION: 7,496
+- OFFICIAL-JOURNAL-ACT_PART_OF_COLLECTION_DOCUMENT: 5,062
+- RESOURCE_LEGAL_DOMAIN_REFERENCE_OJ-ACT: 4,712
+- RESOURCE_LEGAL_ADDRESSES_COUNTRY: 2,928
