@@ -1,0 +1,23 @@
+{
+  "test_type": "local_simulated_http_endpoint",
+  "live_company_endpoint_used": false,
+  "relevance_accuracy_measured": false,
+  "acts_expected": 10,
+  "acts_reached_http_endpoint": 10,
+  "chat_requests": 20,
+  "all_acts_reached_endpoint": true,
+  "requests_per_act": {
+    "32008L0098": 2,
+    "32010L0075": 2,
+    "32006R1907": 2,
+    "32008R1272": 2,
+    "32019R0943": 2,
+    "32023R1230": 2,
+    "32023R1542": 2,
+    "32023R2053": 2,
+    "32024R1689": 2,
+    "32024R3110": 2
+  },
+  "simulated_truncations_retried": true,
+  "runner_exit_code": 0
+}

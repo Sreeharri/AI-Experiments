@@ -60,6 +60,35 @@ class Catalogue:
         return adapt(meta, text or {})
 
 
+def _label(item):
+    return item.get("en") or item.get("de") or item.get("id") or ""
+
+
+def document_fields(meta):
+    """Map an acts.jsonl record to the document fields document_filter reads.
+
+    acts.jsonl stores titles as {"en", "de"}, addressees, family links and legal basis
+    under its own names; without this the model would get no title at all.
+    """
+    title = meta.get("title") or {}
+    dates = meta.get("dates") or {}
+    kinds = [_label(x) for x in meta.get("resource_type_label") or [] if _label(x)]
+    family = meta.get("family") or {}
+    return {
+        **meta,
+        "title_en": title.get("en") or meta.get("title_en"),
+        "title_de": title.get("de") or meta.get("title_de"),
+        "document_date": dates.get("document"),
+        "act_type": kinds[0] if kinds else meta.get("act_type"),
+        "addressed_to": [_label(x)[:120] for x in meta.get("addressees") or []],
+        "changes": [{"relation": c.get("relation"), "celex": c.get("celex"),
+                     "title": (c.get("title_en") or c.get("title_de") or "")[:200]}
+                    for c in (family.get("changes") or [])[:5]],
+        "legal_basis": [x.get("label") or (x.get("title_en") or x.get("title_de") or x.get("celex") or "")[:200]
+                        for x in meta.get("legal_basis") or []],
+    }
+
+
 def adapt(meta, text):
     version = text.get("version") or {}
     elements = []
@@ -80,9 +109,10 @@ def adapt(meta, text):
                          "heading": "", "body_text": text["document_text"],
                          "details": {"aggregate_body": True}})
     key = version.get("key")
+    document = document_fields(meta)
     return {
-        "celex": meta["celex"], "document": meta,
-        "instrument": {"title": meta.get("title_en") or meta.get("canonical_title")},
+        "celex": meta["celex"], "document": document,
+        "instrument": {"title": document["title_en"] or document["title_de"] or meta.get("canonical_title")},
         "version": {"id": key, "version_key": key, "version_date": version.get("date"),
                     "language": text.get("language"), "quality_status": version.get("quality")},
         "elements": elements, "recitals_version": text.get("recitals_version"),

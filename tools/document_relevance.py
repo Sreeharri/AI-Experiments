@@ -18,7 +18,9 @@ sys.path.insert(0, str(ROOT))
 from lr_ai import document_filter as engine
 from lr_ai.qwen_client import QwenClient
 from lr_ai.catalogue_input import Catalogue, validate_celex
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 
 def digest(value):
@@ -92,6 +94,7 @@ def profile(path, domains_path):
     comments = raw.decode("utf-8-sig").split("# ASSUMPTIONS", 1)
     compact["unconfirmed_assumptions"] = comments[-1].split("version:", 1)[0] if len(comments) > 1 else ""
     # Full caveats are retained: an 8k-token target may not fit every profile.
+    compact["fact_policy"] = "Explicit unconfirmed assumptions override general role descriptions; roles apply only within supplied scopes."
     return compact, digest(raw)
 
 
@@ -106,15 +109,20 @@ def main():
     parser.add_argument("--context-limit", type=int, help="Confirmed context limit, if discovery omits it")
     parser.add_argument("--max-rounds", type=int, default=2, choices=range(1, 4))
     parser.add_argument("--max-chunks", type=int, default=24, choices=range(12, 33))
-    parser.add_argument("--input-budget", type=int, default=12000,
-                        help="Total input token cap including profile (try 8000 after measuring)")
+    parser.add_argument("--input-budget", type=int, default=34000,
+                        help="Total input token cap including profile, outline and excerpts. "
+                             "The profile alone is about 11,000 tokens.")
     parser.add_argument("--critique", action="store_true", help="Critique only on second-look rounds")
+    parser.add_argument("--workers", type=int, default=4, choices=range(1, 9),
+                        help="Parallel requests (default 4, measure endpoint throughput before large runs)")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--celex", help="Comma-separated CELEX IDs")
     parser.add_argument("--prepare-only", action="store_true", help="Inspect source selection without Qwen")
     args = parser.parse_args()
     if args.input_budget < 2048:
         parser.error("--input-budget must be at least 2048")
+    if args.context_limit and args.input_budget + engine.RETRY_OUTPUT_TOKENS + 512 > args.context_limit:
+        parser.error("--input-budget leaves no room for the answer inside --context-limit")
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
     if args.context_limit is not None and args.context_limit < 4096:
@@ -186,8 +194,10 @@ def main():
                 raise ValueError("Run settings changed. Use a new --out directory")
         else:
             save(manifest, signature)
-        results = []
-        for index, celex in enumerate(ids, 1):
+        printing = threading.Lock()
+        total = len(ids)
+
+        def process(index, celex):
             act = get_act(celex)
             destination = args.out / f"{act['celex']}.json"
             if "/" in act["celex"] or "\\" in act["celex"] or ".." in act["celex"]:
@@ -195,9 +205,9 @@ def main():
             if destination.exists():
                 previous = json.loads(destination.read_text(encoding="utf-8"))
                 if previous.get("status") != "failed":
-                    results.append({"status": previous["status"], "decision": {"level": previous.get("decision", {}).get("level")}})
-                    print(f"[{index}/{len(ids)}] {act['celex']}: resumed", flush=True)
-                    continue
+                    with printing:
+                        print(f"[{index}/{total}] {act['celex']}: resumed", flush=True)
+                    return {"status": previous["status"], "decision": {"level": previous.get("decision", {}).get("level")}}
             clock_start = time.perf_counter()
             started = datetime.now(timezone.utc).isoformat()
             try:
@@ -205,7 +215,8 @@ def main():
                     blocks, outline, problems = engine.prepare(act, args.as_of)
                     selected = engine.initial_selection(blocks, business)[:args.max_chunks]
                     result = {
-                        "status": "prepared", "data_issues": problems, "outline": outline,
+                        "status": "prepared", "data_issues": problems,
+                        "data_warnings": act.get("input_warnings", []), "outline": outline,
                         "evidence": [b for b in blocks if b["source_id"] in selected],
                         "coverage": engine.coverage(blocks, selected),
                         "source_chunks_total": len(blocks),
@@ -214,19 +225,33 @@ def main():
                     result = engine.run_act(client, act, business, args.as_of, context,
                                             args.max_rounds, args.max_chunks,
                                             args.input_budget, args.critique)
-            except RuntimeError as exc:
-                result = {"status": "failed", "error": client.clean(str(exc))}
-            result.update(elapsed_seconds=round(time.perf_counter() - clock_start, 3), celex=act["celex"], version_id=act["version"]["id"],
-                          started_at=started, finished_at=datetime.now(timezone.utc).isoformat())
+            except Exception as exc:
+                result = {"status": "failed", "error": client.clean(str(exc)) if client else str(exc)}
+            result.update(elapsed_seconds=round(time.perf_counter() - clock_start, 3), celex=act["celex"],
+                          version_id=act["version"]["id"], started_at=started,
+                          finished_at=datetime.now(timezone.utc).isoformat())
             save(destination, result)
-            results.append({"status": result["status"], "decision": {"level": result.get("decision", {}).get("level")}})
-            print(f"[{index}/{len(ids)}] {act['celex']}: {result['status']}", flush=True)
+            level = result.get("decision", {}).get("level")
+            with printing:
+                print(f"[{index}/{total}] {act['celex']}: {level or result['status']} "
+                      f"({result['elapsed_seconds']:.1f} s)", flush=True)
+            return {"status": result["status"], "decision": {"level": level}}
+
+        wall_start = time.perf_counter()
+        # Requests run in parallel; every act still has its own result file, so order and
+        # resume behave as before. The endpoint check measured the best rate at 4.
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            futures = [pool.submit(process, index, celex) for index, celex in enumerate(ids, 1)]
+            results = [future.result() for future in futures]
+        wall = time.perf_counter() - wall_start
         counts = {}
         for result in results:
             label = result.get("decision", {}).get("level") or result["status"]
             counts[label] = counts.get(label, 0) + 1
-        save(args.out / "summary.json", {"counts": counts, "acts": len(results)})
+        save(args.out / "summary.json", {"counts": counts, "acts": len(results),
+                                         "workers": args.workers, "wall_seconds": round(wall, 1)})
         print(json.dumps(counts))
+        print(f"{len(results)} acts in {wall / 60:.1f} min with {args.workers} parallel requests")
         return int(any(r["status"] == "failed" for r in results))
     except (OSError, ValueError, RuntimeError) as exc:
         message = client.clean(str(exc)) if "client" in locals() and client else str(exc)

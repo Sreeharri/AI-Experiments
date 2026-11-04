@@ -57,16 +57,20 @@ class Tests(unittest.TestCase):
         }])
         self.assertEqual(self.run_one(c, critique=True)["decision"]["level"], "NEEDS_REVIEW")
         self.assertEqual(c.calls, 3)
-    def test_future_and_bad_boundaries(self):
+    def test_future_and_bad_boundaries_are_warnings(self):
         for change in ("future", "duplicate"):
             a=act()
             if change=="future":
                 a["version"]["version_date"]="2027-01-01"
             else:
-                a["elements"][0]["path"]="article/1~duplicate-2"
-            c=Client([])
-            self.assertEqual(self.run_one(c,a)["decision"]["level"],"NEEDS_REVIEW")
-            self.assertEqual(c.calls,0)
+                a["elements"].append(dict(a["elements"][0], path="article/1~duplicate-2"))
+            c=Client([decision()])
+            r=self.run_one(c,a)
+            self.assertEqual(r["decision"]["level"],"DIRECT")
+            self.assertEqual(c.calls,1)
+            self.assertEqual(len(r["data_warnings"]),1)
+            if change=="duplicate":   # the identical repeat is not sent twice
+                self.assertEqual(len(r["evidence"]),1)
     def test_ignore_coverage(self):
         a=act()
         for i in range(2,13):

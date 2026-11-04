@@ -1,0 +1,50 @@
+Python 3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]
+
+[2/6] 32022R0002: DIRECT (0.0 s)
+[1/6] 32021R0001: DIRECT (0.0 s)
+[3/6] 32023R0003: DIRECT (0.0 s)
+[5/6] 32025R0005: DIRECT (0.0 s)
+[6/6] 32026R0006: DIRECT (0.0 s)
+[4/6] 32024R0004: DIRECT (0.0 s)
+{"DIRECT": 6}
+6 acts in 0.0 min with 3 parallel requests
+
+test_all_review_does_not_pass_evaluation (test_catalogue_and_eval.CatalogueTests.test_all_review_does_not_pass_evaluation) ... ok
+test_invalid_celex_rejected (test_catalogue_and_eval.CatalogueTests.test_invalid_celex_rejected) ... ok
+test_parenthesised_celex_and_language_fallback (test_catalogue_and_eval.CatalogueTests.test_parenthesised_celex_and_language_fallback) ... ok
+test_bad_quote_can_be_corrected_without_new_passages (test_document_filter.Tests.test_bad_quote_can_be_corrected_without_new_passages) ... ok
+test_chunks_preserve_text (test_document_filter.Tests.test_chunks_preserve_text) ... ok
+test_context_trim_and_fixed_overflow (test_document_filter.Tests.test_context_trim_and_fixed_overflow) ... ok
+test_critique_is_optional_second_look_only (test_document_filter.Tests.test_critique_is_optional_second_look_only) ... ok
+test_failed_repair_remains_bounded (test_document_filter.Tests.test_failed_repair_remains_bounded) ... ok
+test_future_and_bad_boundaries_are_warnings (test_document_filter.Tests.test_future_and_bad_boundaries_are_warnings) ... ok
+test_ignore_coverage (test_document_filter.Tests.test_ignore_coverage) ... ok
+test_loop_adds_evidence (test_document_filter.Tests.test_loop_adds_evidence) ... ok
+test_quotes_and_anchor_ids (test_document_filter.Tests.test_quotes_and_anchor_ids) ... ok
+test_supported (test_document_filter.Tests.test_supported) ... ok
+test_unconfirmed_threshold_retains_potential_direct (test_document_filter.Tests.test_unconfirmed_threshold_retains_potential_direct) ... ok
+test_unstructured_full_text_fallback (test_document_filter.Tests.test_unstructured_full_text_fallback) ... ok
+test_whitespace_quote_saves_exact_original (test_document_filter.Tests.test_whitespace_quote_saves_exact_original) ... ok
+test_word_changes_still_fail (test_document_filter.Tests.test_word_changes_still_fail) ... ok
+test_fixed_part_leaves_room_for_excerpts (test_real_sizes.RealSizeTests.test_fixed_part_leaves_room_for_excerpts) ... ok
+test_jsonl_record_gives_title_and_metadata (test_real_sizes.RealSizeTests.test_jsonl_record_gives_title_and_metadata) ... ok
+test_outline_cap (test_real_sizes.RealSizeTests.test_outline_cap) ... ok
+test_cut_off_answer_gets_one_shorter_second_look (test_v4_rules.V4Tests.test_cut_off_answer_gets_one_shorter_second_look) ... ok
+test_long_quote_is_rejected (test_v4_rules.V4Tests.test_long_quote_is_rejected) ... ok
+test_parallel_runner_writes_every_act (test_v4_rules.V4Tests.test_parallel_runner_writes_every_act) ... ok
+test_prompt_states_roles_are_facts (test_v4_rules.V4Tests.test_prompt_states_roles_are_facts) ... ok
+test_too_many_anchors_is_rejected_and_retried (test_v4_rules.V4Tests.test_too_many_anchors_is_rejected_and_retried) ... ok
+test_twice_cut_off_is_review_not_failure (test_v4_rules.V4Tests.test_twice_cut_off_is_review_not_failure) ... ok
+test_bad_boundaries_reach_ai_and_preserve_warning (test_v5_regressions.RegressionTests.test_bad_boundaries_reach_ai_and_preserve_warning) ... ok
+test_future_version_reaches_ai_but_cannot_be_current (test_v5_regressions.RegressionTests.test_future_version_reaches_ai_but_cannot_be_current) ... ok
+test_importer_assumption_not_promoted_to_fact (test_v5_regressions.RegressionTests.test_importer_assumption_not_promoted_to_fact) ... ok
+test_long_review_reason_still_meets_schema (test_v5_regressions.RegressionTests.test_long_review_reason_still_meets_schema) ... ok
+test_missing_text_reaches_ai_and_stays_review (test_v5_regressions.RegressionTests.test_missing_text_reaches_ai_and_stays_review) ... ok
+test_output_retry_uses_same_passages_and_larger_budget (test_v5_regressions.RegressionTests.test_output_retry_uses_same_passages_and_larger_budget) ... ok
+test_rejected_source_reaches_ai_but_is_not_accepted (test_v5_regressions.RegressionTests.test_rejected_source_reaches_ai_but_is_not_accepted) ... ok
+test_same_text_in_distinct_articles_is_not_discarded (test_v5_regressions.RegressionTests.test_same_text_in_distinct_articles_is_not_discarded) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 0.559s
+
+OK

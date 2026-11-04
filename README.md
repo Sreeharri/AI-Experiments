@@ -1,146 +1,115 @@
-# Legal Radar document relevance experiment
+# Legal Radar document relevance — v5 complete package
 
-This package runs whole-document relevance against the supplied EN or DE business anchors.
-The uploaded profile has 58 anchors, 18 roles, four indirect paths and 17 negative anchors.
-Their full definitions, notes and exclusions are preserved. The 25-domain file validates
-anchor references. Department classification is a later stage.
+Complete standalone code, Qwen client, business profiles, export tools and tests.
+No private endpoint, password or API key is included.
 
-## Installation on Windows
+## Use in your existing AI-Experiments project
 
-Extract into a SEPARATE folder, for example C:\Users\YOUR_NAME\LegalRadar_Document_Filter.
-Open PowerShell in that folder. The commands below run from that folder.
+Back up your code. Copy the included lr_ai, tools and tests folders into
+AI-Experiments, replacing matching files. Keep your existing .env and data.
+Included config files match the earlier supplied profile; preserve any newer
+company-approved configuration you have edited since then.
 
-If using the Python launcher:
-    py -3 -m venv .venv
-    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-    Copy-Item .env.example .env
-    notepad .env
+Run from AI-Experiments in PowerShell:
 
-Enter the existing Qwen settings. DATABASE_URL is only needed for database export.
-Do not overwrite your existing project's .env. Do not include .env in uploads.
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v
+.\.venv\Scripts\python.exe .\tools\document_relevance.py --input .\data\inspection\eurlex_structured_10.json --as-of 2026-11-04 --input-budget 34000 --context-limit 40960 --workers 4 --out .\runs\sample10_v5
+```
 
-## Input
+Use a NEW output directory for v5. Repeat the identical command to resume;
+failed requests are retried, saved decisions/reviews are skipped. Send the
+complete runs/sample10_v5 folder after the live run. Four workers are a starting
+setting, not measured server capacity. For a timing comparison use --workers 1
+with a different output directory.
 
-Use eurlex_structured_10.json or its ZIP, produced by the complete-act exporter.
-The recitals-only export and selected_acts.zip from the previous summary experiment
-have a different schema and are not supported.
-Place the JSON at data\inspection\eurlex_structured_10.json.
+## Fresh separate installation
 
-Existing full sample: four acts have blocking data issues. The classifier flags the
-future CLP version and duplicate article boundaries in REACH, electricity and fisheries.
-It does not silently repair or delete their source content.
-Missing recitals alone do not block decisions if articles/annexes are available.
+Extract into a separate folder and open PowerShell there:
 
-## 1. Offline tests
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+notepad .env
+New-Item -ItemType Directory -Force .\data\inspection
+```
 
-    .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_document_filter.py" -v
+Enter your existing Qwen settings. Copy eurlex_structured_10.json into
+ data/inspection, then run the tests and pilot above. Python 3.10+ required.
 
-Seven tests cover quote/ID checks, unknown conditions, reviewer rejection, bounded
-retrieval, future dates, malformed boundaries, incomplete IGNORE coverage and chunk
-text preservation. These are engineering tests, not a legal accuracy measurement.
+## Changes
 
-## 2. Prepare evidence for all 10, without Qwen
+- All 10 supplied acts reach the model request path. Duplicate boundaries and
+  future versions are recorded input warnings, not pre-model stopping conditions.
+- Missing-text and rejected-source records also reach AI, but cannot yield an
+  accepted decision from missing/rejected evidence; they remain review cases.
+- Exact repeats within the same intended article/annex may be deduplicated.
+  Identical text in different article numbers is retained. Differing duplicate
+  fragments remain available. The database parser is NOT silently repaired.
+- Boundary warnings travel with evidence. Affected stored article references are
+  unverified. IGNORE cannot rely solely on a malformed ~duplicate path. An intact
+  scope can support exclusion; damaged scope requires more evidence or review.
+- Future text is screened for potential FUTURE relevance, preserving version
+  dates and forcing future_or_transposition. It is not proof of current wording.
+  Obtain an earlier version separately for current-law analysis.
+- First response: 4,096 tokens. Second look: 6,000 tokens. Truncated answers retry
+  using the same evidence and thinking OFF. Semantic unresolved cases may use
+  thinking ON. Second truncation stays NEEDS_REVIEW with diagnostics.
+- API/network failures remain failed, with saved request history.
+- Short output: strongest 3 anchors, 2 roles, 4 exact quotes up to 400 characters,
+  3 conditions, 600-character reason. These are supporting anchors, not a complete
+  mapping of every affected department/domain.
+- Company roles apply within business-anchor scopes. Explicit unconfirmed
+  assumptions override generic roles. Unknown product activities remain conditional.
+  Prompts cannot guarantee semantic correctness; validate with human labels.
+- Four parallel workers, one file per act, bounded retrieval and optional critique.
+  Critique uses the same model; it is not independent validation.
 
-    .\.venv\Scripts\python.exe .\tools\document_relevance.py --input .\data\inspection\eurlex_structured_10.json --prepare-only --as-of 2026-11-04 --out .\runs\prepare_v1
+## Context and selection
 
-Inspect the per-act JSON. It contains source selection, heading outline, coverage and
-data issues. No predictions are generated by prepare-only.
+Default TOTAL input: 34,000 tokens including instructions, business profile,
+metadata, outline, feedback and excerpts. With your confirmed 40,960 context:
 
-## 3. Live pilot on construction products and waste
+34,000 input + 6,000 output/thinking + 512 margin = 40,512 tokens.
 
-    .\.venv\Scripts\python.exe .\tools\document_relevance.py --input .\data\inspection\eurlex_structured_10.json --celex 32024R3110,32008L0098 --as-of 2026-11-04 --out .\runs\pilot_v1
+The server tokenizer counts each request. Lower-priority excerpts are trimmed
+when necessary. Unused space is not padded. CLI rejects a budget that leaves
+insufficient second-look output room.
 
-If discovery does not advertise the context window, add the confirmed limit:
-    --context-limit 40960
+Initial selection: up to nine article chunks from distinct paths, three recital
+chunks and two annex chunks. Subsequent retrieval is bounded. Long articles can
+span chunks; the initial pass is not guaranteed to contain each whole article.
+Scope selection and keyword ranking remain heuristics. Missing recitals alone do
+not stop the pipeline. Exact quote matching proves fidelity, not legal reasoning.
 
-The server tokenizer checks the complete request, including all anchors and outline.
-A request exceeding its budget goes to review, without silent text truncation.
+## Catalogue and evaluation
 
-## 4. Run the complete inspection sample
+--input .\data\eurlex supports acts.jsonl plus text_en.jsonl and/or text_de.jsonl.
+Records are read individually using offsets, with German fallback. Export truncation
+cannot be repaired from absent bytes. Existing export tools are included.
 
-    .\.venv\Scripts\python.exe .\tools\document_relevance.py --input .\data\inspection\eurlex_structured_10.json --as-of 2026-11-04 --out .\runs\sample_v1
+Evaluate independently labelled relevant AND irrelevant examples before scaling:
 
-Repeat exactly the same command to resume. Completed decisions/reviews are skipped.
-Infrastructure failures have status failed and are retried. Use a NEW output directory
-after changing code, input, anchors, assessment date, endpoint, model or options.
-Only one writer may use a run directory. A hard-killed process can leave .writer.lock:
-remove it only after confirming no run is active.
+```powershell
+.\.venv\Scripts\python.exe .\tools\evaluate_document_relevance.py --run .\runs\sample10_v5 --labels .\labels\dev.csv --max-miss-rate 0.05 --max-review-rate 0.15 --min-ignore-removal 0.70
+```
 
-## Output
+These targets are example settings to agree beforehand, not measured results.
+CSV: celex,label. Labels DIRECT, INDIRECT, IGNORE (IRRELEVANT accepted).
 
-Each CELEX file contains:
-- decision.level: DIRECT, INDIRECT, IGNORE or NEEDS_REVIEW
-- reason, affected_party, company_role_ids, anchor_ids and indirect_path_id
-- exact supporting quotes and source IDs
-- unresolved_conditions and applicability_basis
-- model candidates, critiques, retrieval requests and validation failures per round
-- every excerpt read and operative-text coverage
-- version ID and timing
+## Verification
 
-The manifest hashes input, anchors, domains, code and settings. Credentials and the
-endpoint URL are not written into the manifest. summary.json counts outcomes.
-No production database decisions or notifications are created.
+34 automated tests passed. Your complete supplied 10-act export also ran through
+the real HTTP client/concurrent runner against a LOCAL SIMULATED Qwen endpoint:
+10/10 reached it, three injected truncations retried, 20 calls, no runner failures.
+Simulation deliberately returns review placeholders. Those are NOT real Qwen
+classifications. Company endpoint and classification accuracy were not tested here.
 
-## Retrieval and loop
+Reports: verification/TEST_RESULTS.txt and verification/offline_verification.json.
+To reproduce only the local transport test, without contacting your endpoint:
 
-This implementation uses deterministic lexical ranking, not embeddings.
-Scope/definition/exception passages receive priority. The rest are ranked by overlap
-with profile terms weighted by rarity across source chunks.
-The initial pack includes excerpts from up to nine distinct articles, up to three
-recital chunks and two annex chunks. Original article/annex content is split into
-approximately 2,800-character chunks with source IDs. A selected article may need
-more chunks than the first one supplied. A nine-article limit is not nine full texts.
-
-The full outline is sent so Qwen can request additional source IDs. Each round:
-1. Qwen proposes a decision and requests source IDs or local search queries.
-2. Code verifies schema, allowed IDs, role/anchor consistency and exact quotations.
-3. A separate Qwen call critiques support, scope, assumptions and exclusions.
-4. Local retrieval adds requested or matching chunks and retries.
-
-Maximum three rounds, at most six model calls, with up to 24 chunks by default.
-The same model performs classification and critique. Agreement does not prove accuracy.
-Both calls use thinking disabled and deterministic sampling settings. There is no
-open-ended loop and no guarantee that repeated model calls converge to the truth.
-Source text and headings are treated as untrusted data in both prompts.
-
-IGNORE requires all stored operative chunks to have been read, plus supporting evidence
-and a favourable critique. Many large acts will consequently require review within the
-default budget. This conservative first version must be evaluated before changing that rule.
-No stored article/annex coverage proves the upstream parser captured the whole official act.
-
-The supplied YAML comments contain unconfirmed company assumptions. They are included
-in the prompt. Decisions depending on these assumptions should go to human review.
-
-Prompts: lr_ai\document_filter.py, DECISION_PROMPT and REVIEW_PROMPT.
-Existing Qwen client is reused. The package makes no Qwen endpoint configuration changes.
-
-## Optional corrected database export
-
-    .\.venv\Scripts\python.exe .\tools\export_eurlex_structured_10.py
-
-Uses the included SQL and helper, reads DATABASE_URL and runs read-only. The SQL excludes
-versions with version_date/effective_from after PostgreSQL CURRENT_DATE. It exports all
-stored elements from one eligible EN version per act, or DE fallback. It cannot recover
-missing official text or fix parser boundaries. Match the export date to the assessment
-date. For historical backtests, use a purpose-built as-of export.
-
-## Independent labels and evaluation
-
-Create a CSV with celex,label headers and your own labels DIRECT, INDIRECT or IGNORE.
-IRRELEVANT is accepted as an alias for IGNORE. Do not copy model predictions into labels.
-
-    .\.venv\Scripts\python.exe .\tools\evaluate_document_relevance.py --run .\runs\sample_v1 --labels .\labels\dev.csv
-
-Reports the confusion matrix, relevant acts wrongly ignored, irrelevant acts removed,
-exact accuracy, review rate, and failures/missing results.
-Use development labels to improve the method. Evaluate once on a separate held-out
-set after fixing the prompts. A curated structural sample is not a population estimate.
-
-## Verification completed here
-
-- Seven offline tests passed.
-- Evidence preparation completed for all 10 supplied acts, with resume checked.
-- Four source/version problems were identified and guarded.
-- Python modules compile.
-- The live company endpoint and office PostgreSQL were unavailable for verification.
-- Generated answer quality still needs the live pilot and independent human labels.
+```powershell
+.\.venv\Scripts\python.exe .\tools\verify_offline_sample.py --input .\data\inspection\eurlex_structured_10.json --out .\runs\OFFLINE_SIMULATION_v5
+```
