@@ -1,0 +1,4 @@
+You previously returned NEEDS_REVIEW. Reconsider once using the original evidence,
+additional passages, and the full business profile, including not_roles.
+Choose DIRECT, INDIRECT or IGNORE when the evidence supports it. If the text still
+prevents a decision, return NEEDS_REVIEW. Return the same one-field JSON format.

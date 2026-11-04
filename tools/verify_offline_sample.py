@@ -15,7 +15,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from lr_ai.qwen_client import QwenClient
-from lr_ai.document_filter import review_result
+
 
 
 def main():
@@ -24,7 +24,7 @@ def main():
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     calls, guard = [], threading.Lock()
-    cut_off = {'32008L0098', '32023R1230', '32024R1689'}
+    review_first = {'32008L0098', '32023R1230', '32024R1689', '32023R2053'}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_):
@@ -53,11 +53,11 @@ def main():
                 first = not any(c['celex'] == celex for c in calls)
                 calls.append({'celex': celex, 'output_token_limit': payload['max_tokens'],
                               'excerpts': len(evidence['excerpts'])})
-            truncated = first and celex in cut_off
-            content = '{"reason": "incomplete' if truncated else json.dumps(
-                review_result('LOCAL TRANSPORT TEST ONLY: no model relevance judgement.'))
+            level = 'NEEDS_REVIEW' if (first and celex in review_first) or celex == '32023R2053' else 'DIRECT'
+            content = json.dumps({'level': level})
             self.send_json({'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': content},
-                                         'finish_reason': 'length' if truncated else 'stop'}]})
+                                         'finish_reason': 'stop'}]})
+
 
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -83,7 +83,8 @@ def main():
               'acts_reached_http_endpoint': len(counts), 'chat_requests': len(calls),
               'all_acts_reached_endpoint': set(expected) == set(counts),
               'requests_per_act': dict(counts),
-              'simulated_truncations_retried': all(counts[c] == 2 for c in cut_off if c in expected),
+              'only_model_review_triggered_second_call': all(counts[c] == (2 if c in review_first else 1) for c in expected),
+              'labels_are_scripted_test_responses': True,
               'runner_exit_code': result}
     (args.out/'offline_verification.json').write_text(json.dumps(report, indent=2))
     print(json.dumps(report, indent=2))

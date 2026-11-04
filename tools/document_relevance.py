@@ -83,7 +83,8 @@ def profile(path, domains_path):
     # notes and exclusions as a separate caveat map, provided alongside those IDs.
     compact = {
         "version": parsed.get("version"),
-        "roles": parsed["roles"], "indirect_paths": parsed["indirect_paths"],
+        "roles": parsed["roles"], "not_roles": parsed.get("not_roles", {}),
+        "indirect_paths": parsed["indirect_paths"],
         "anchors": {key: {k: value[k] for k in ("label", "scope", "roles") if k in value}
                     for key, value in parsed["anchors"].items()},
         "negative_anchors": parsed["negative_anchors"],
@@ -107,12 +108,10 @@ def main():
     parser.add_argument("--out", type=Path, required=True, help="Dedicated run directory")
     parser.add_argument("--as-of", type=date.fromisoformat, default=date.today())
     parser.add_argument("--context-limit", type=int, help="Confirmed context limit, if discovery omits it")
-    parser.add_argument("--max-rounds", type=int, default=2, choices=range(1, 4))
     parser.add_argument("--max-chunks", type=int, default=24, choices=range(12, 33))
     parser.add_argument("--input-budget", type=int, default=34000,
                         help="Total input token cap including profile, outline and excerpts. "
                              "The profile alone is about 11,000 tokens.")
-    parser.add_argument("--critique", action="store_true", help="Critique only on second-look rounds")
     parser.add_argument("--workers", type=int, default=4, choices=range(1, 9),
                         help="Parallel requests (default 4, measure endpoint throughput before large runs)")
     parser.add_argument("--limit", type=int)
@@ -179,8 +178,9 @@ def main():
             "input_sha256": source_hash, "anchor_sha256": anchor_hash,
             "domain_sha256": digest(args.domains.read_bytes()),
             "as_of": args.as_of.isoformat(), "selected_celex": ids,
-            "input_budget": args.input_budget, "critique": args.critique,
-            "max_rounds": args.max_rounds, "max_chunks": args.max_chunks,
+            "input_budget": args.input_budget, "mode": "qwen_final_label",
+            "max_rounds": 2, "max_chunks": args.max_chunks,
+            "prompt_sha256": digest((engine.DECISION_PROMPT + engine.SECOND_PASS_PROMPT).encode()),
             "prepare_only": args.prepare_only, "context_limit": context,
             "model": client.model if client else None,
             "endpoint_sha256": digest(client.api_base.encode()) if client else None,
@@ -223,8 +223,7 @@ def main():
                     }
                 else:
                     result = engine.run_act(client, act, business, args.as_of, context,
-                                            args.max_rounds, args.max_chunks,
-                                            args.input_budget, args.critique)
+                                            max_chunks=args.max_chunks, input_budget=args.input_budget)
             except Exception as exc:
                 result = {"status": "failed", "error": client.clean(str(exc)) if client else str(exc)}
             result.update(elapsed_seconds=round(time.perf_counter() - clock_start, 3), celex=act["celex"],

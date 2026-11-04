@@ -4,20 +4,21 @@
   "relevance_accuracy_measured": false,
   "acts_expected": 10,
   "acts_reached_http_endpoint": 10,
-  "chat_requests": 20,
+  "chat_requests": 14,
   "all_acts_reached_endpoint": true,
   "requests_per_act": {
     "32008L0098": 2,
-    "32010L0075": 2,
-    "32006R1907": 2,
-    "32008R1272": 2,
-    "32019R0943": 2,
+    "32010L0075": 1,
+    "32006R1907": 1,
+    "32019R0943": 1,
+    "32008R1272": 1,
     "32023R1230": 2,
-    "32023R1542": 2,
-    "32023R2053": 2,
+    "32023R1542": 1,
     "32024R1689": 2,
-    "32024R3110": 2
+    "32023R2053": 2,
+    "32024R3110": 1
   },
-  "simulated_truncations_retried": true,
+  "only_model_review_triggered_second_call": true,
+  "labels_are_scripted_test_responses": true,
   "runner_exit_code": 0
 }
