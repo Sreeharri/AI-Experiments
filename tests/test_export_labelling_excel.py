@@ -11,6 +11,24 @@ e=importlib.util.module_from_spec(spec);spec.loader.exec_module(e)
 
 
 class ExportTests(unittest.TestCase):
+    def test_profile_mapping_entries_preserved(self):
+        value={'equipment':{'scope':'Machines'}}
+        self.assertEqual(list(value.items()),e.profile_entries(value))
+
+    def test_list_based_not_roles_preserved(self):
+        value=['bank','machinery_manufacturer']
+        self.assertEqual([('bank','bank'),('machinery_manufacturer','machinery_manufacturer')],
+                         e.profile_entries(value))
+
+    def test_list_of_profile_objects_and_empty_sections(self):
+        value=[{'id':'bank','note':'excluded'},{'scope':'Unkeyed original entry'}]
+        entries=e.profile_entries(value)
+        self.assertEqual('bank',entries[0][0])
+        self.assertEqual('entry_2',entries[1][0])
+        self.assertEqual(value,[entry[1] for entry in entries])
+        self.assertEqual([],e.profile_entries(None))
+        self.assertEqual([],e.profile_entries([]))
+
     def test_text_parts_preserve_every_character(self):
         text=('A line\nÜnicode text = 10; '*300)
         self.assertEqual(text,''.join(e.parts(text)))

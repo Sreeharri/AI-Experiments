@@ -69,6 +69,19 @@ def excel_text(value):
                   lambda m: '\\u%04x' % ord(m.group()), str(value or ''))
 
 
+def profile_entries(section):
+    """Preserve keyed sections and list-based sections such as not_roles."""
+    if section is None:
+        return []
+    if isinstance(section, dict):
+        return list(section.items())
+    if isinstance(section, list):
+        return [(str(value.get('id') or value.get('role_id') or f'entry_{index}')
+                 if isinstance(value, dict) else str(value), value)
+                for index, value in enumerate(section, 1)]
+    raise ValueError('Business profile sections must be mappings or lists')
+
+
 def evidence_rows(records):
     rows, first_rows = [], {}
     for record in records:
@@ -193,7 +206,7 @@ def build(args):
     sheet('Decision_guide',['Topic','Guidance / supplied prompt'],guide,{'A':35,'B':115},'DecisionGuide')
     anchors = []
     for kind in ('anchors','roles','not_roles','indirect_paths','negative_anchors'):
-        for key, value in (profile.get(kind) or {}).items():
+        for key, value in profile_entries(profile.get(kind)):
             v = value if isinstance(value,dict) else {'scope':value}
             anchors.append([kind,key,v.get('label',''),str(v.get('scope','')),
                             json.dumps(v.get('roles',[]),ensure_ascii=False),str(v.get('note','')),
