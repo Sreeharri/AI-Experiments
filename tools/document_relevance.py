@@ -83,6 +83,7 @@ def profile(path, domains_path):
     # notes and exclusions as a separate caveat map, provided alongside those IDs.
     compact = {
         "version": parsed.get("version"),
+        "valid_anchor_ids": list(parsed["anchors"]),
         "roles": parsed["roles"], "not_roles": parsed.get("not_roles", {}),
         "indirect_paths": parsed["indirect_paths"],
         "anchors": {key: {k: value[k] for k in ("label", "scope", "roles") if k in value}

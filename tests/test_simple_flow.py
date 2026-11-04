@@ -129,6 +129,16 @@ class SimpleFlowTests(unittest.TestCase):
         import yaml
         source = yaml.safe_load((root/'config/business_anchors_en.yaml').read_text())
         self.assertEqual(value['not_roles'], source.get('not_roles', {}))
+        self.assertEqual(value['valid_anchor_ids'], list(source['anchors']))
+        self.assertIn('chemicals_clp', value['valid_anchor_ids'])
+        self.assertNotIn('chemicals_user', value['valid_anchor_ids'])
+
+    def test_profile_keeps_explicit_machinery_note_for_qwen(self):
+        root = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location('runner', root/'tools/document_relevance.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        value, _ = module.profile(root/'config/business_anchors_en.yaml', root/'config/domains.yaml')
+        self.assertIn('INDIRECT', value['anchor_caveats']['machinery_work_equipment']['note'])
 
     def test_second_pass_has_thinking_and_larger_allowance(self):
         c = Client([Reply('NEEDS_REVIEW'), Reply('DIRECT')]); run(c)

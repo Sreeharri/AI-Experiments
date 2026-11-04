@@ -1,5 +1,5 @@
-You previously returned NEEDS_REVIEW. Reconsider once using the original evidence,
-additional passages and full business profile, including not_roles and assumptions.
-Choose DIRECT, INDIRECT or IGNORE when supported. If the legal text still prevents
-a decision, keep NEEDS_REVIEW and explain the remaining gap.
-Return only the same JSON fields: reason, anchor_ids, level. Keep the answer brief.
+You returned NEEDS_REVIEW. Reconsider ONCE with the original and additional passages.
+Recheck the duty bearer, anchor scopes, anchor_caveats, not_roles and assumptions.
+Return DIRECT, INDIRECT or IGNORE when supported; otherwise keep NEEDS_REVIEW.
+Return the same JSON: reason, anchor_ids, level. Use only exact business-anchor IDs
+from valid_anchor_ids, never roles. Explain the remaining gap if still NEEDS_REVIEW.
