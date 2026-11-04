@@ -1,0 +1,13 @@
+test_anchor_vocabulary_sent_to_server_without_rewriting_decision (test_document_screening_v7.ScreeningTests.test_anchor_vocabulary_sent_to_server_without_rewriting_decision) ... ok
+test_exact_three_field_and_three_level_contract (test_document_screening_v7.ScreeningTests.test_exact_three_field_and_three_level_contract) ... ok
+test_orphan_body_text_not_lost_when_recitals_exist (test_document_screening_v7.ScreeningTests.test_orphan_body_text_not_lost_when_recitals_exist) ... ok
+test_plain_text_without_article_or_chapter_headings_reaches_model (test_document_screening_v7.ScreeningTests.test_plain_text_without_article_or_chapter_headings_reaches_model) ... ok
+test_sample_covers_beginning_middle_and_end (test_document_screening_v7.ScreeningTests.test_sample_covers_beginning_middle_and_end) ... ok
+test_selection_is_independent_of_profile_words_and_headings (test_document_screening_v7.ScreeningTests.test_selection_is_independent_of_profile_words_and_headings) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.008s
+
+OK
+
+Existing saved evidence packs accepted by new sampler: 200/200. This checks compatibility only; these are OLD selected excerpts, not the full stored acts. No accuracy/endpoint run.

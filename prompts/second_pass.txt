@@ -1,5 +1,2 @@
-You returned NEEDS_REVIEW. Reconsider ONCE using the original and additional passages.
-Review the full company profile, including energy generation/storage, each anchor's
-scope/note/not_covered, not_roles and assumptions. Identify the legal duty bearer and
-the matching company activity before deciding. Return DIRECT, INDIRECT or IGNORE
-when supported; otherwise keep NEEDS_REVIEW. Return only reason, anchor_ids, level.
+The document screening workflow uses a single three-level decision. This legacy
+file is retained for compatibility with the existing runner's fingerprint only.

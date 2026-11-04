@@ -1,12 +1,10 @@
 """Qwen decides. Python prepares inputs, makes requests and saves outputs."""
-from collections import Counter
 from datetime import date
 from pathlib import Path
 import json
-import math
 import re
 
-LEVELS = ["DIRECT", "INDIRECT", "IGNORE", "NEEDS_REVIEW"]
+LEVELS = ["DIRECT", "INDIRECT", "IGNORE"]
 FIRST_OUTPUT_TOKENS = 6000
 RETRY_OUTPUT_TOKENS = 6000
 SCHEMA = {
@@ -140,42 +138,48 @@ def prepare(act, as_of):
     for issue in problems:
         if issue not in warnings:
             warnings.append(issue)
+    covered_paths = {b['path'] for b in blocks if b['type'] in ('ARTICLE', 'ANNEX', 'RECITAL', 'DOCUMENT_TEXT')}
+    for index, element in enumerate(elements):
+        path = element.get('path', f'unstructured/{index}')
+        if element.get('element_type') in {'TITLE', 'PART', 'CHAPTER', 'SECTION'}:
+            continue
+        if any(path == known or path.startswith(known + '/') for known in covered_paths):
+            continue
+        for chunk, text in enumerate(split_text(element.get('body_text') or ''), 1):
+            blocks.append({'source_id': f'unstructured/{index}#chunk{chunk}', 'path': path,
+                           'type': 'DOCUMENT_TEXT', 'heading': '', 'text': text,
+                           'source_version': version.get('id')})
+    if blocks:
+        problems = [p for p in problems if p not in ('No stored source text', 'No usable stored legal text')]
     return blocks, outline, problems
 
 
-def ranked(blocks, query):
-    query_words = words(query)
-    frequency = Counter(w for b in blocks for w in words(b["heading"] + " " + b["text"]))
-    def score(block):
-        matched = words(block["heading"] + " " + block["text"]) & query_words
-        return sum(math.log(1 + len(blocks) / frequency[w]) for w in matched)
-    return sorted(blocks, key=lambda b: (-score(b), b["source_id"]))
-
-
-def retrieval_anchors(profile):
-    # Keep the previous passage-ranking inputs when notes move beside scopes.
-    return {key: {k: value[k] for k in ('label', 'scope', 'roles') if k in value}
-            for key, value in profile['anchors'].items()}
+def spread_order(items):
+    """Opening text then successively sample the widest remaining gaps."""
+    if not items:
+        return []
+    indices = [0]
+    if len(items) > 1:
+        indices.append(1)
+    remaining = set(range(len(items))) - set(indices)
+    while remaining and len(indices) < 32:
+        index = max(remaining, key=lambda i: (min(abs(i-j) for j in indices), -i))
+        indices.append(index)
+        remaining.remove(index)
+    return [items[i] for i in indices]
 
 
 def initial_selection(blocks, profile):
-    query = json.dumps({"anchors": retrieval_anchors(profile), "roles": profile["roles"]},
-                       ensure_ascii=False)
-    ordered = ranked(blocks, query)
-    scope_pattern = r"\b(scope|subject matter|definitions|exemptions|anwendungsbereich|begriffsbestimmungen|ausnahmen)\b"
-    scope = [b for b in blocks if b["type"] == "ARTICLE"
-             and re.search(scope_pattern, b["heading"] + " " + b["text"][:180], re.I)]
-    articles, paths = [], set()
-    for block in scope + ordered:
-        if block["type"] == "ARTICLE" and block["path"] not in paths:
-            articles.append(block)
-            paths.add(block["path"])
-            if len(paths) == 9:
-                break
-    recitals = [b for b in ordered if b["type"] == "RECITAL"][:3]
-    annexes = [b for b in ordered if b["type"] == "ANNEX"][:2]
-    fallback = [b for b in ordered if b["type"] == "DOCUMENT_TEXT"][:9] if not articles else []
-    return list(dict.fromkeys(b["source_id"] for b in articles + fallback + recitals + annexes))
+    # Source order and document coverage only: no business words or heading scores.
+    groups = [spread_order([b for b in blocks if b['type'] in ('ARTICLE', 'DOCUMENT_TEXT')]),
+              spread_order([b for b in blocks if b['type'] == 'RECITAL']),
+              spread_order([b for b in blocks if b['type'] == 'ANNEX'])]
+    selected = []
+    for offset in range(max((len(g) for g in groups), default=0)):
+        for group in groups:
+            if offset < len(group):
+                selected.append(group[offset]['source_id'])
+    return list(dict.fromkeys(selected))
 
 
 def coverage(blocks, selected):
@@ -242,8 +246,13 @@ def request(client, prompt, payload, context_limit, *, thinking, output_tokens,
     diagnostics.update(input_tokens=count, output_token_limit=output_tokens,
                        thinking_enabled=thinking,
                        selected_source_ids=[b['source_id'] for b in payload['excerpts']])
+    schema = json.loads(json.dumps(SCHEMA))
+    business = payload.get('business_profile') or {}
+    ids = business.get('valid_anchor_ids') or list(business.get('anchors') or {})
+    if ids:
+        schema['properties']['anchor_ids']['items']['enum'] = ids
     response = client.chat(messages, thinking=thinking, stream=False, seed=42,
-                           sampling={'temperature': 0}, schema=SCHEMA,
+                           sampling={'temperature': 0}, schema=schema,
                            schema_name='document_relevance', max_tokens=output_tokens)
     # These are HTTP/decoding errors only; no legal, quote, role or anchor validation.
     details = {'raw_content': getattr(response, 'content', ''),
@@ -264,46 +273,31 @@ def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_bud
     version = assess_version(act, as_of)
     selected = initial_selection(blocks, profile)[:max_chunks]
     by_id = {b['source_id']: b for b in blocks}
-    rounds, shown = [], []
-    candidate = None
-    for turn in range(2):
-        entry = {'round': turn + 1}
-        rounds.append(entry)
-        payload = {
-            'celex': act['celex'],
-            'title': act['document'].get('title_en') or act['document'].get('title_de') or act['instrument'].get('title'),
-            'business_profile': profile,
-            'outline': compact_outline(outline),
-            'excerpts': [by_id[s] for s in selected],
-            'version_assessment': version,
-            'input_warnings': act.get('input_warnings', []),
-            'data_issues': issues,
-            'previous_decision': candidate,
-        }
-        prompt = DECISION_PROMPT + ('\n\n' + SECOND_PASS_PROMPT if turn else '')
-        try:
-            candidate, shown = request(client, prompt, payload, context_limit,
-                                       thinking=True,
-                                       output_tokens=RETRY_OUTPUT_TOKENS if turn else FIRST_OUTPUT_TOKENS,
-                                       input_budget=input_budget, diagnostics=entry)
-            entry['candidate'] = candidate
-            # The model's label controls the flow. No Python judgement or rewriting.
-            level = candidate['level']
-        except Exception as exc:
-            entry['request_error'] = client.clean(str(exc))
-            if isinstance(exc, RequestError):
-                shown = exc.shown or shown
-            return {'status': 'failed', 'error': client.clean(str(exc)),
-                    'rounds': rounds, 'evidence': shown, 'data_warnings': act.get('input_warnings', []),
-                    'data_issues': issues, 'version_assessment': version}
-        if level != 'NEEDS_REVIEW' or turn == 1:
-            return {'status': 'needs_review' if level == 'NEEDS_REVIEW' else 'ok',
-                    'decision': candidate, 'rounds': rounds, 'evidence': shown,
-                    'data_warnings': act.get('input_warnings', []),
-                    'data_issues': issues, 'version_assessment': version}
-        # Only Qwen's NEEDS_REVIEW triggers a second call, with extra available text.
-        seen = {b['source_id'] for b in shown}
-        remaining = [b for b in blocks if b['source_id'] not in seen]
-        additional = ranked(remaining, json.dumps(retrieval_anchors(profile), ensure_ascii=False))[:8]
-        selected = list(dict.fromkeys([b['source_id'] for b in shown] +
-                                     [b['source_id'] for b in additional]))[:max_chunks]
+    entry = {'round': 1}
+    payload = {
+        'celex': act['celex'],
+        'title': act['document'].get('title_en') or act['document'].get('title_de') or act['instrument'].get('title'),
+        'business_profile': profile,
+        'outline': compact_outline(outline),
+        'excerpts': [by_id[s] for s in selected],
+        'version_assessment': version,
+        'input_warnings': act.get('input_warnings', []),
+        'data_issues': issues,
+        'evidence_note': 'Selected passages sampled across the stored text, not the entire act unless all passages fit. Headings and numbering may be unreliable.',
+    }
+    shown = []
+    try:
+        decision, shown = request(client, DECISION_PROMPT, payload, context_limit,
+                                  thinking=True, output_tokens=FIRST_OUTPUT_TOKENS,
+                                  input_budget=input_budget, diagnostics=entry)
+        entry['candidate'] = decision
+        return {'status': 'ok', 'decision': decision, 'rounds': [entry], 'evidence': shown,
+                'data_warnings': act.get('input_warnings', []), 'data_issues': issues,
+                'version_assessment': version}
+    except Exception as exc:
+        entry['request_error'] = client.clean(str(exc))
+        if isinstance(exc, RequestError):
+            shown = exc.shown or shown
+        return {'status': 'failed', 'error': client.clean(str(exc)), 'rounds': [entry],
+                'evidence': shown, 'data_warnings': act.get('input_warnings', []),
+                'data_issues': issues, 'version_assessment': version}
