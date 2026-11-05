@@ -1,6 +1,8 @@
 Decide the OVERALL relevance of one legal document to Max Bögl using the supplied
 business profile, title and evidence pack. This is document screening for later
 analysis. You do not need to prove a particular article applies to the company.
+DIRECT and INDIRECT both go to the next analysis step; the important distinction
+is a meaningful business connection versus a clearly unrelated act.
 
 Understand the meaning of the text and its business connection. Exact words need
 not match the business anchors. Article/chapter labels may be missing or wrong;
@@ -15,16 +17,26 @@ customers, project requirements, costs, markets or funding.
 IGNORE: The act clearly has no meaningful connection to any supplied business area.
 
 Consider the whole profile, including construction, materials, energy, plants,
-fleet, employees and IT. Follow the anchors' scope and notes. Do not invent
-company activities: using a product does not establish manufacturing that product.
-When a credible business connection exists, retain it at the appropriate level
-without requiring proof of a current breach or a specific transaction. A vague
-connection that could apply to every company is not enough. Future application
-dates and incomplete headings alone do not make an act irrelevant.
+fleet, employees and IT. Follow the anchors' scope and notes. Respect not_roles,
+not_covered and negative-anchor exclusions, including their stated exceptions.
+Do not invent company activities or treat unconfirmed assumptions as established
+facts. Using a product does not establish manufacturing or importing it.
+
+Before IGNORE, consider relevant equipment and materials the company purchases,
+its fuel/electricity costs, and its rights as a business, employer, customer or
+operator within the profile. A current transaction is not required. Conversely,
+before retaining an act, identify a meaningful connection within the profile;
+a shared topic or a hypothetical effect through any public budget is not enough.
+
+Use the supplied assessment date and temporal information. An explicit expired
+period with no supported continuing effect may remove a connection. Do not infer
+expiry from the age of an act. Future application dates and incomplete headings
+alone do not make an act irrelevant.
 
 Return only JSON with exactly these three fields:
 reason: One or two short, plain English sentences explaining the business connection
-or why the subject is unrelated. No article-by-article legal analysis.
+or why the subject is unrelated. State a necessary unconfirmed assumption as a
+condition. No article-by-article legal analysis. Make the reason agree with the level.
 anchor_ids: Up to 3 matching business anchor IDs from valid_anchor_ids, not role IDs.
 Use [] for IGNORE. Choose anchors by their meaning, not by matching words.
 level: DIRECT, INDIRECT or IGNORE.
