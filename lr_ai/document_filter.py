@@ -209,7 +209,7 @@ def prepare(act, as_of):
     # prediction or an external act. Version remains the same as this input.
     for owner, container in [('act',act),('document',act.get('document') or {}),
                               ('version',act.get('version') or {})]:
-        for key in ('full_text','body_text','text_content'):
+        for key in ('full_text','body_text','text_content','content_text','plain_text'):
             raw = container.get(key)
             if isinstance(raw,str) and raw.strip():
                 for i, part in enumerate(split_text(raw),1):

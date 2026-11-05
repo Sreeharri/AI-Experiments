@@ -17,7 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from lr_ai import document_filter as engine
 from lr_ai.qwen_client import QwenClient
-from lr_ai.catalogue_input import Catalogue, validate_celex
+from lr_ai.catalogue_input import Catalogue
+from lr_ai.stored_corpus import StoredCorpus, validate_celex
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -144,6 +145,7 @@ def main():
                         help="Parallel requests (default 4, measure endpoint throughput before large runs)")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--celex", help="Comma-separated CELEX IDs")
+    parser.add_argument("--ids-file",type=Path,help="One CELEX per line; suitable for full-corpus selection on Windows")
     parser.add_argument("--prepare-only", action="store_true", help="Inspect source selection without Qwen")
     parser.add_argument("--no-ignore-review", action="store_true", help="Ablation: disable the default one-time LLM review of IGNORE")
     args = parser.parse_args()
@@ -166,7 +168,12 @@ def main():
     os.close(handle)
     try:
         catalogue = None
-        if args.input.is_dir() or args.input.name.lower() in {"text_en.jsonl", "text_de.jsonl", "acts.jsonl"}:
+        if args.input.is_dir() and (args.input/'corpus_manifest.json').is_file():
+            catalogue = StoredCorpus(args.input)
+            ids = catalogue.ids()
+            source_hash = catalogue.sha256
+            get_act = catalogue.get
+        elif args.input.is_dir() or args.input.name.lower() in {"text_en.jsonl", "text_de.jsonl", "acts.jsonl"}:
             catalogue = Catalogue(args.input if args.input.is_dir() else args.input.parent)
             ids = catalogue.ids()
             fingerprint = hashlib.sha256()
@@ -185,8 +192,12 @@ def main():
         for celex in ids:
             validate_celex(celex)
         business, anchor_hash = profile(args.anchors, args.domains)
-        if args.celex:
-            requested = {validate_celex(c.strip()) for c in args.celex.split(",")}
+        if args.celex and args.ids_file:
+            raise ValueError('Use --celex or --ids-file, not both')
+        if args.celex or args.ids_file:
+            entries=args.celex.split(',') if args.celex else args.ids_file.read_text(encoding='utf-8-sig').splitlines()
+            requested = {validate_celex(c.strip()) for c in entries if c.strip()}
+            if not requested:raise ValueError('Requested ID selection is empty')
             missing = requested - set(ids)
             if missing:
                 raise ValueError(f"Requested acts absent from input: {sorted(missing)}")
@@ -209,7 +220,7 @@ def main():
             "input_sha256": source_hash, "anchor_sha256": anchor_hash,
             "domain_sha256": digest(args.domains.read_bytes()),
             "as_of": args.as_of.isoformat(), "selected_celex": ids,
-            "input_budget": args.input_budget, "mode": "document_screening_v9",
+            "input_budget": args.input_budget, "mode": "document_screening_v10_corpus",
             "max_rounds": 1 if args.no_ignore_review else 2, "max_chunks": args.max_chunks,
             "ignore_review": not args.no_ignore_review,
             "prompt_sha256": digest((engine.DECISION_PROMPT + engine.REVIEW_IGNORE_PROMPT).encode()),
