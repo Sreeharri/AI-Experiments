@@ -136,7 +136,7 @@ def main():
     parser.add_argument("--out", type=Path, required=True, help="Dedicated run directory")
     parser.add_argument("--as-of", type=date.fromisoformat, default=date.today())
     parser.add_argument("--context-limit", type=int, help="Confirmed context limit, if discovery omits it")
-    parser.add_argument("--max-chunks", type=int, default=24, choices=range(12, 33))
+    parser.add_argument("--max-chunks", type=int, default=0, help="0: select by token budget; positive value: optional passage cap")
     parser.add_argument("--input-budget", type=int, default=34000,
                         help="Total input token cap including profile, outline and excerpts. "
                              "The profile alone is about 11,000 tokens.")
@@ -147,6 +147,8 @@ def main():
     parser.add_argument("--prepare-only", action="store_true", help="Inspect source selection without Qwen")
     parser.add_argument("--no-ignore-review", action="store_true", help="Ablation: disable the default one-time LLM review of IGNORE")
     args = parser.parse_args()
+    if args.max_chunks < 0:
+        parser.error("--max-chunks cannot be negative")
     if args.input_budget < 2048:
         parser.error("--input-budget must be at least 2048")
     if args.context_limit and args.input_budget + engine.RETRY_OUTPUT_TOKENS + 512 > args.context_limit:
@@ -207,7 +209,7 @@ def main():
             "input_sha256": source_hash, "anchor_sha256": anchor_hash,
             "domain_sha256": digest(args.domains.read_bytes()),
             "as_of": args.as_of.isoformat(), "selected_celex": ids,
-            "input_budget": args.input_budget, "mode": "document_screening_v8",
+            "input_budget": args.input_budget, "mode": "document_screening_v9",
             "max_rounds": 1 if args.no_ignore_review else 2, "max_chunks": args.max_chunks,
             "ignore_review": not args.no_ignore_review,
             "prompt_sha256": digest((engine.DECISION_PROMPT + engine.REVIEW_IGNORE_PROMPT).encode()),
@@ -244,7 +246,7 @@ def main():
             try:
                 if args.prepare_only:
                     blocks, outline, problems = engine.prepare(act, args.as_of)
-                    selected = engine.initial_selection(blocks, business)[:args.max_chunks]
+                    selected = (engine.initial_selection(blocks, business)[:args.max_chunks] if args.max_chunks else engine.initial_selection(blocks, business))
                     result = {
                         "status": "prepared", "data_issues": problems,
                         "data_warnings": act.get("input_warnings", []), "outline": outline,

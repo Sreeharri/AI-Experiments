@@ -45,7 +45,7 @@ def split_text(text, max_chars=2800):
         remaining = remaining[end:]
 
 
-def prepare(act, as_of):
+def _prepare_v8(act, as_of):
     version = act["version"]
     problems = []          # stop: nothing usable to screen
     warnings = act.setdefault("input_warnings", [])   # noted, screening continues
@@ -159,14 +159,18 @@ def spread_order(items):
     """Opening text then successively sample the widest remaining gaps."""
     if not items:
         return []
-    indices = [0]
-    if len(items) > 1:
-        indices.append(1)
-    remaining = set(range(len(items))) - set(indices)
-    while remaining and len(indices) < 32:
-        index = max(remaining, key=lambda i: (min(abs(i-j) for j in indices), -i))
-        indices.append(index)
-        remaining.remove(index)
+    import heapq
+    indices = list(dict.fromkeys([0, min(1, len(items)-1), len(items)-1]))
+    heap = []
+    def gap(a, b):
+        if b-a > 1:
+            m = (a+b)//2
+            heapq.heappush(heap, (-min(m-a,b-m), m, a, b))
+    gap(min(1,len(items)-1), len(items)-1)
+    while heap:
+        _, m, a, b = heapq.heappop(heap)
+        indices.append(m)
+        gap(a,m); gap(m,b)
     return [items[i] for i in indices]
 
 
@@ -176,16 +180,101 @@ def initial_selection(blocks, profile):
               spread_order([b for b in blocks if b['type'] == 'RECITAL']),
               spread_order([b for b in blocks if b['type'] == 'ANNEX'])]
     selected = []
-    for offset in range(max((len(g) for g in groups), default=0)):
-        for group in groups:
-            if offset < len(group):
-                selected.append(group[offset]['source_id'])
+    # Three substantive-body passages per recital/annex passage. No business-word
+    # scoring and no requirement for correct article headings.
+    positions = [0,0,0]
+    while any(positions[i] < len(groups[i]) for i in range(3)):
+        for i in (0,0,0,1,2):
+            if positions[i] < len(groups[i]):
+                selected.append(groups[i][positions[i]]['source_id'])
+                positions[i] += 1
     return list(dict.fromkeys(selected))
+
+
+def prepare(act, as_of):
+    blocks, outline, issues = _prepare_v8(act, as_of)
+    combined = ' '.join(' '.join(b['text'].split()) for b in blocks)
+    # A misleading aggregate parent must not hide substantive child paragraphs.
+    for index, element in enumerate(act.get('elements') or []):
+        if element.get('element_type') in {'TITLE','PART','CHAPTER','SECTION','ARTICLE','ANNEX','RECITAL','DOCUMENT_TEXT'}:
+            continue
+        raw = element.get('body_text') or ''
+        if raw.strip() and ' '.join(raw.split()) not in combined:
+            for i, part in enumerate(split_text(raw),1):
+                blocks.append({'source_id':f'recovered/{index}#chunk{i}',
+                               'path':element.get('path',f'row/{index}'),
+                               'type':'DOCUMENT_TEXT','heading':'Stored paragraph fallback',
+                               'text':part,'source_version':act['version'].get('id')})
+    # A supplied full-text field is a fallback, not text reconstructed from a
+    # prediction or an external act. Version remains the same as this input.
+    for owner, container in [('act',act),('document',act.get('document') or {}),
+                              ('version',act.get('version') or {})]:
+        for key in ('full_text','body_text','text_content'):
+            raw = container.get(key)
+            if isinstance(raw,str) and raw.strip():
+                for i, part in enumerate(split_text(raw),1):
+                    blocks.append({'source_id':f'raw/{owner}/{key}#chunk{i}',
+                                   'path':f'raw/{owner}/{key}','type':'DOCUMENT_TEXT',
+                                   'heading':'Stored full-text fallback','text':part,
+                                   'source_version':act['version'].get('id')})
+    result, seen, omitted = [], set(), []
+    reference = re.compile(r'(?:(?:Article|Artikel|Art\.?)[ ]*\d+[a-z]?(?:\(\d+\))*[\s–—\-,;.]*)+',re.I)
+    for block in blocks:
+        normalized = ' '.join(block['text'].split())
+        reason = 'reference_only' if reference.fullmatch(normalized) else 'exact_duplicate' if normalized in seen else None
+        if reason:
+            omitted.append({'source_id':block['source_id'],'reason':reason,'text':block['text']})
+            continue
+        seen.add(normalized)
+        result.append(block)
+    act['_evidence_preparation'] = {'original_chunks':len(blocks),'usable_chunks':len(result),
+                                    'omitted_chunks':omitted,
+                                    'note':'Only reference-only fragments and exact repeated passages omitted. No relevance filtering.'}
+    if result:
+        issues = [x for x in issues if x not in ('No stored source text','No usable stored legal text')]
+    return result, outline, issues
+
+
+def fit_payload(client, prompt, payload, limit, other_prompts=()):
+    """Grow a coverage-ordered prefix, using the real tokenizer, then binary fit."""
+    candidates = payload['excerpts']
+    prompts = (prompt,) + tuple(other_prompts)
+    cache = {}
+    def measure(n):
+        if n not in cache:
+            body = json.dumps(dict(payload,excerpts=candidates[:n]),ensure_ascii=False)
+            counts = [client.tokenize(messages=[{'role':'system','content':p},{'role':'user','content':body}]) for p in prompts]
+            if any(v is None for v in counts):
+                raise RequestError('Server tokenizer unavailable')
+            cache[n] = counts
+        return cache[n]
+    if max(measure(0)) > limit:
+        raise RequestError('Profile, prompt and metadata exceed input budget')
+    if not candidates:
+        raise RequestError('No usable source text to screen')
+    low, high = 0, min(4,len(candidates))
+    while max(measure(high)) <= limit:
+        low = high
+        if high == len(candidates):
+            break
+        high = min(len(candidates),high*2)
+    if low != len(candidates):
+        while high-low > 1:
+            mid = (low+high)//2
+            if max(measure(mid)) <= limit: low = mid
+            else: high = mid
+    if low == 0:
+        raise RequestError('No source passage fits input budget')
+    return dict(payload,excerpts=candidates[:low]), measure(low)
 
 
 def coverage(blocks, selected):
     operative = {b["source_id"] for b in blocks if b["type"] in {"ARTICLE", "ANNEX"}}
-    return {"operative_chunks_total": len(operative),
+    selected = set(selected)
+    return {"source_chunks_total":len(blocks),
+            "source_chunks_seen":sum(b['source_id'] in selected for b in blocks),
+            "all_prepared_chunks_seen":all(b['source_id'] in selected for b in blocks),
+            "operative_chunks_total": len(operative),
             "operative_chunks_seen": len(operative & set(selected)),
             "all_operative_chunks_seen": bool(operative) and operative <= set(selected)}
 
@@ -231,25 +320,11 @@ class RequestError(RuntimeError):
 
 def request(client, prompt, payload, context_limit, *, thinking, output_tokens,
             input_budget, diagnostics, fit_prompts=()):
-    payload = dict(payload)
-    payload['excerpts'] = list(payload['excerpts'])
-    while True:
-        messages = [{'role': 'system', 'content': prompt},
-                    {'role': 'user', 'content': json.dumps(payload, ensure_ascii=False)}]
-        count = client.tokenize(messages=messages)
-        if count is None:
-            raise RequestError('Server tokenizer unavailable')
-        counts = [count]
-        for other in fit_prompts:
-            other_count = client.tokenize(messages=[{'role': 'system', 'content': other}, messages[1]])
-            if other_count is None:
-                raise RequestError('Server tokenizer unavailable for review budget')
-            counts.append(other_count)
-        if max(counts) <= min(input_budget, context_limit-output_tokens-512):
-            break
-        if len(payload['excerpts']) <= 1:
-            raise RequestError('Request exceeds context budget')
-        payload['excerpts'].pop()
+    payload, counts = fit_payload(client, prompt, payload,
+                                  min(input_budget, context_limit-output_tokens-512), fit_prompts)
+    count = counts[0]
+    messages = [{'role': 'system', 'content': prompt},
+                {'role': 'user', 'content': json.dumps(payload, ensure_ascii=False)}]
     diagnostics.update(input_tokens=count, output_token_limit=output_tokens,
                        thinking_enabled=thinking,
                        selected_source_ids=[b['source_id'] for b in payload['excerpts']])
@@ -300,11 +375,13 @@ def legal_status_metadata(act):
             'independently_verified': False, 'fields': fields}
 
 
-def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_budget=34000,
+def run_act(client, act, profile, as_of, context_limit, max_chunks=0, input_budget=34000,
             review_ignore=True):
     blocks, outline, issues = prepare(act, as_of)
     version = assess_version(act, as_of)
-    selected = initial_selection(blocks, profile)[:max_chunks]
+    selected = initial_selection(blocks, profile)
+    if max_chunks:
+        selected = selected[:max_chunks]
     by_id = {b['source_id']: b for b in blocks}
     entry = {'round': 1, 'purpose': 'initial_screening'}
     rounds = [entry]
@@ -328,29 +405,43 @@ def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_bud
         decision, shown = request(client, DECISION_PROMPT, payload, context_limit,
                                   thinking=True, output_tokens=FIRST_OUTPUT_TOKENS,
                                   input_budget=input_budget, diagnostics=entry,
-                                  fit_prompts=(review_prompt,) if review_ignore else ())
+                                  fit_prompts=())
         entry['candidate'] = decision
         first_decision = decision
+        entry['evidence'] = shown
+        entry['coverage'] = coverage(blocks,[b['source_id'] for b in shown])
         if review_ignore and decision['level'] == 'IGNORE':
             verification['required'] = True
             entry = {'round': 2, 'purpose': 'independent_ignore_review'}
             rounds.append(entry)
-            # Re-send the actual first-pass evidence and full profile, not its
-            # reason or hidden thinking. Reserve above keeps both packs identical.
-            review_payload = dict(payload, excerpts=shown)
+            # Retain opening context, then prioritize previously unseen source text.
+            # Neither the first reason nor hidden thinking is sent to the reviewer.
+            seen = {b['source_id'] for b in shown}
+            unseen = [by_id[s] for s in selected if s not in seen]
+            # Preserve opening context; expose unseen passages before repeated
+            # material. If the entire act already fitted, reuse that complete pack.
+            review_candidates = shown if not unseen else shown[:4] + unseen + shown[4:]
+            review_payload = dict(payload, excerpts=review_candidates)
             decision, review_shown = request(client, review_prompt, review_payload, context_limit,
                                              thinking=True, output_tokens=RETRY_OUTPUT_TOKENS,
                                              input_budget=input_budget, diagnostics=entry)
             entry['candidate'] = decision
+            entry['evidence'] = review_shown
+            entry['coverage'] = coverage(blocks,[b['source_id'] for b in review_shown])
+            entry['new_source_ids'] = [b['source_id'] for b in review_shown if b['source_id'] not in seen]
             entry['same_evidence_as_first_pass'] = [b['source_id'] for b in review_shown] == [b['source_id'] for b in shown]
             verification['completed'] = True
         return {'status': 'ok', 'decision': decision, 'first_pass_decision': first_decision,
                 'verification': verification, 'rounds': rounds, 'evidence': shown,
                 'data_warnings': act.get('input_warnings', []), 'data_issues': issues,
-                'version_assessment': version, 'legal_status_metadata': payload['legal_status_metadata']}
+                'version_assessment': version, 'legal_status_metadata': payload['legal_status_metadata'],
+                'evidence_preparation': act.get('_evidence_preparation'),
+                'coverage_first_pass': coverage(blocks,[b['source_id'] for b in shown]),
+                'source_chunks_total': len(blocks)}
     except Exception as exc:
         entry['request_error'] = client.clean(str(exc))
         if isinstance(exc, RequestError):
+            entry['evidence'] = exc.shown
             if not shown:
                 shown = exc.shown
         # A failed review is unresolved. Never silently use the first IGNORE as
@@ -359,4 +450,7 @@ def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_bud
                 'first_pass_decision': first_decision, 'verification': verification,
                 'evidence': shown, 'data_warnings': act.get('input_warnings', []),
                 'data_issues': issues, 'version_assessment': version,
-                'legal_status_metadata': payload['legal_status_metadata']}
+                'legal_status_metadata': payload['legal_status_metadata'],
+                'evidence_preparation': act.get('_evidence_preparation'),
+                'coverage_first_pass': coverage(blocks,[b['source_id'] for b in shown]),
+                'source_chunks_total': len(blocks)}

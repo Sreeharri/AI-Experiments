@@ -57,7 +57,7 @@ class PipelineTests(unittest.TestCase):
                           'B,Act B,INDIRECT,IGNORE,IGNORE\n'
                           'C,Act C,IGNORE,DIRECT,DIRECT\n'
                           'D,Act D,IGNORE,DIRECT,DIRECT\n')
-        acts = [{'celex':i, 'test_prediction':lev} for i,lev in
+        acts = [{'celex':i, 'test_prediction':lev, 'version':{'id':'v1'}, 'document':{'title_en':'Example'}, 'instrument':{}, 'elements':[{'path':'article/1','element_type':'ARTICLE','body_text':'A substantive stored provision for the extraction fixture.'}]} for i,lev in
                 [('A','INDIRECT'),('B','DIRECT'),('C','IGNORE'),('D','DIRECT'),('E','DIRECT')]]
         if fail:
             acts[0]['test_failure']=True

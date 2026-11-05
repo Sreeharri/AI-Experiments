@@ -140,13 +140,14 @@ class IgnoreReviewTests(unittest.TestCase):
         self.assertEqual(r['decision']['level'], 'IGNORE')
         self.assertFalse(r['verification']['enabled'])
 
-    def test_budget_reserved_for_both_prompts_keeps_same_evidence(self):
+    def test_both_prompts_fit_budget_and_review_sees_new_evidence(self):
         c = Client([decision('IGNORE'), decision('IGNORE')], limited=True)
         r = self.run_act(c, input_budget=1000)
         self.assertEqual(r['status'], 'ok')
-        self.assertEqual(r['rounds'][0]['selected_source_ids'], r['rounds'][1]['selected_source_ids'])
+        self.assertTrue(r['rounds'][1]['new_source_ids'])
+        self.assertEqual(r['rounds'][0]['selected_source_ids'][:4],r['rounds'][1]['selected_source_ids'][:4])
         self.assertLessEqual(r['rounds'][1]['input_tokens'], 1000)
-        self.assertEqual(len(r['evidence']), 7)
+        self.assertEqual(len(r['evidence']), 8)
 
     def test_status_metadata_preserved_without_guessing(self):
         a = act()

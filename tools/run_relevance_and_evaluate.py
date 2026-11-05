@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from evaluate_document_screening import read_labels
 from compare_screening_passes import evaluate_both_passes
+from extract_evidence_inputs import extract_inputs
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -96,7 +97,7 @@ def main(argv=None):
     parser.add_argument("--input-budget", type=int, default=34000)
     parser.add_argument("--context-limit", type=int, default=40960)
     parser.add_argument("--workers", type=int, default=4, choices=range(1, 9))
-    parser.add_argument("--max-chunks", type=int, default=24, choices=range(12, 33))
+    parser.add_argument("--max-chunks", type=int, default=0, help="0: token-budget selection")
     parser.add_argument("--no-ignore-review", action="store_true", help="Ablation: first pass only")
     parser.add_argument("--out", type=Path, help="New output folder; defaults to a unique runs/relevance_eval_* folder")
     args = parser.parse_args(argv)
@@ -141,13 +142,16 @@ def main(argv=None):
         prompt_hash = file_hash(prompt_dir / prompt_path.name)
         if prompt_hash != file_hash(prompt_path):
             raise ValueError("Prompt changed while being copied. Rerun after finishing the edit.")
-        command = classifier_command(args, list(labels), input_path, run_dir, ROOT)
+        print(f'Extracting {len(labels)} labelled IDs and preparing evidence...',flush=True)
+        selected_input = extract_inputs(input_path, list(labels), output / 'extracted_input', args.as_of)
+        command = classifier_command(args, list(labels), selected_input, run_dir, ROOT)
         state = {
             "status": "running", "started_at": datetime.now(timezone.utc).isoformat(),
             "labelled_acts": len(labels), "selected_ids": list(labels),
             "truth_column": "Label", "mapping": {"DIRECT": "RELEVANT", "INDIRECT": "RELEVANT", "IGNORE": "IGNORE"},
             "original_labels_file": str(labels_path), "frozen_labels_file": str(frozen_labels),
             "labels_sha256": initial_hash, "input": str(input_path),
+            "extracted_input": str(selected_input),
             "assessment_date": args.as_of.isoformat(), "classification_command": command,
             "decision_prompt_sha256": prompt_hash,
             "review_prompt_sha256": file_hash(prompt_dir / review_prompt_path.name),
