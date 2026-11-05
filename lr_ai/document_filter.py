@@ -22,6 +22,7 @@ SCHEMA = {
 DECISION_PROMPT = (Path(__file__).resolve().parents[1] / "prompts" / "document_relevance.txt").read_text(encoding="utf-8").strip()
 
 SECOND_PASS_PROMPT = (Path(__file__).resolve().parents[1] / "prompts" / "second_pass.txt").read_text(encoding="utf-8").strip()
+REVIEW_IGNORE_PROMPT = (Path(__file__).resolve().parents[1] / "prompts" / "review_ignore.txt").read_text(encoding="utf-8").strip()
 
 STOP = set("the and for with from this that shall must article regulation directive "
            "which have has are its into under such their der die das und von mit "
@@ -229,7 +230,7 @@ class RequestError(RuntimeError):
 
 
 def request(client, prompt, payload, context_limit, *, thinking, output_tokens,
-            input_budget, diagnostics):
+            input_budget, diagnostics, fit_prompts=()):
     payload = dict(payload)
     payload['excerpts'] = list(payload['excerpts'])
     while True:
@@ -238,7 +239,13 @@ def request(client, prompt, payload, context_limit, *, thinking, output_tokens,
         count = client.tokenize(messages=messages)
         if count is None:
             raise RequestError('Server tokenizer unavailable')
-        if count <= min(input_budget, context_limit-output_tokens-512):
+        counts = [count]
+        for other in fit_prompts:
+            other_count = client.tokenize(messages=[{'role': 'system', 'content': other}, messages[1]])
+            if other_count is None:
+                raise RequestError('Server tokenizer unavailable for review budget')
+            counts.append(other_count)
+        if max(counts) <= min(input_budget, context_limit-output_tokens-512):
             break
         if len(payload['excerpts']) <= 1:
             raise RequestError('Request exceeds context budget')
@@ -246,6 +253,8 @@ def request(client, prompt, payload, context_limit, *, thinking, output_tokens,
     diagnostics.update(input_tokens=count, output_token_limit=output_tokens,
                        thinking_enabled=thinking,
                        selected_source_ids=[b['source_id'] for b in payload['excerpts']])
+    if fit_prompts:
+        diagnostics['reserved_prompt_input_tokens'] = counts[1:]
     schema = json.loads(json.dumps(SCHEMA))
     business = payload.get('business_profile') or {}
     ids = business.get('valid_anchor_ids') or list(business.get('anchors') or {})
@@ -262,18 +271,43 @@ def request(client, prompt, payload, context_limit, *, thinking, output_tokens,
     diagnostics.update(details)
     if not getattr(response, 'ok', True):
         raise RequestError(client.clean(str(getattr(response, 'error', 'Request failed'))), details, payload['excerpts'])
+    if details['finish_reason'] == 'length':
+        raise RequestError('Model answer was cut off', details, payload['excerpts'])
     value, error = response.parse_json()
     if error:
         raise RequestError(client.clean(str(error)), details, payload['excerpts'])
+    # Response-format check only. Never judge relevance, roles, quotes or anchors.
+    if not isinstance(value, dict) or set(value) != {'reason', 'anchor_ids', 'level'}:
+        raise RequestError('Model returned an invalid decision object', details, payload['excerpts'])
+    if value.get('level') not in LEVELS or not isinstance(value.get('reason'), str) or not isinstance(value.get('anchor_ids'), list):
+        raise RequestError('Model returned an invalid decision format', details, payload['excerpts'])
     return value, payload['excerpts']
 
 
-def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_budget=34000):
+def legal_status_metadata(act):
+    """Forward stored lifecycle fields, without guessing or assigning relevance."""
+    keys = ('legal_status', 'in_force', 'is_in_force', 'valid_until',
+            'date_end_validity', 'date_of_end_of_validity', 'end_of_validity',
+            'repealed_by', 'repealed_by_celex')
+    fields = {}
+    for source, container in [('act', act)] + [(key, act.get(key)) for key in ('document', 'instrument', 'version')]:
+        if not isinstance(container, dict):
+            continue
+        for key in keys:
+            if key in container and container[key] is not None:
+                fields[f'{source}.{key}'] = container[key]
+    return {'available': bool(fields), 'source': 'stored_input_metadata',
+            'independently_verified': False, 'fields': fields}
+
+
+def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_budget=34000,
+            review_ignore=True):
     blocks, outline, issues = prepare(act, as_of)
     version = assess_version(act, as_of)
     selected = initial_selection(blocks, profile)[:max_chunks]
     by_id = {b['source_id']: b for b in blocks}
-    entry = {'round': 1}
+    entry = {'round': 1, 'purpose': 'initial_screening'}
+    rounds = [entry]
     payload = {
         'celex': act['celex'],
         'title': act['document'].get('title_en') or act['document'].get('title_de') or act['instrument'].get('title'),
@@ -281,23 +315,48 @@ def run_act(client, act, profile, as_of, context_limit, max_chunks=24, input_bud
         'outline': compact_outline(outline),
         'excerpts': [by_id[s] for s in selected],
         'version_assessment': version,
+        'legal_status_metadata': legal_status_metadata(act),
         'input_warnings': act.get('input_warnings', []),
         'data_issues': issues,
         'evidence_note': 'Selected passages sampled across the stored text, not the entire act unless all passages fit. Headings and numbering may be unreliable.',
     }
     shown = []
+    first_decision = None
+    verification = {'enabled': review_ignore, 'required': False, 'completed': False}
+    review_prompt = DECISION_PROMPT + '\n\nIGNORE REVIEW\n' + REVIEW_IGNORE_PROMPT
     try:
         decision, shown = request(client, DECISION_PROMPT, payload, context_limit,
                                   thinking=True, output_tokens=FIRST_OUTPUT_TOKENS,
-                                  input_budget=input_budget, diagnostics=entry)
+                                  input_budget=input_budget, diagnostics=entry,
+                                  fit_prompts=(review_prompt,) if review_ignore else ())
         entry['candidate'] = decision
-        return {'status': 'ok', 'decision': decision, 'rounds': [entry], 'evidence': shown,
+        first_decision = decision
+        if review_ignore and decision['level'] == 'IGNORE':
+            verification['required'] = True
+            entry = {'round': 2, 'purpose': 'independent_ignore_review'}
+            rounds.append(entry)
+            # Re-send the actual first-pass evidence and full profile, not its
+            # reason or hidden thinking. Reserve above keeps both packs identical.
+            review_payload = dict(payload, excerpts=shown)
+            decision, review_shown = request(client, review_prompt, review_payload, context_limit,
+                                             thinking=True, output_tokens=RETRY_OUTPUT_TOKENS,
+                                             input_budget=input_budget, diagnostics=entry)
+            entry['candidate'] = decision
+            entry['same_evidence_as_first_pass'] = [b['source_id'] for b in review_shown] == [b['source_id'] for b in shown]
+            verification['completed'] = True
+        return {'status': 'ok', 'decision': decision, 'first_pass_decision': first_decision,
+                'verification': verification, 'rounds': rounds, 'evidence': shown,
                 'data_warnings': act.get('input_warnings', []), 'data_issues': issues,
-                'version_assessment': version}
+                'version_assessment': version, 'legal_status_metadata': payload['legal_status_metadata']}
     except Exception as exc:
         entry['request_error'] = client.clean(str(exc))
         if isinstance(exc, RequestError):
-            shown = exc.shown or shown
-        return {'status': 'failed', 'error': client.clean(str(exc)), 'rounds': [entry],
+            if not shown:
+                shown = exc.shown
+        # A failed review is unresolved. Never silently use the first IGNORE as
+        # a completed verified decision or turn an HTTP error into irrelevance.
+        return {'status': 'failed', 'error': client.clean(str(exc)), 'rounds': rounds,
+                'first_pass_decision': first_decision, 'verification': verification,
                 'evidence': shown, 'data_warnings': act.get('input_warnings', []),
-                'data_issues': issues, 'version_assessment': version}
+                'data_issues': issues, 'version_assessment': version,
+                'legal_status_metadata': payload['legal_status_metadata']}

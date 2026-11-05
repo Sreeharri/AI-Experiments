@@ -16,7 +16,8 @@ import subprocess
 import sys
 from uuid import uuid4
 
-from evaluate_document_screening import main as evaluate_main, read_labels
+from evaluate_document_screening import read_labels
+from compare_screening_passes import evaluate_both_passes
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,13 +57,16 @@ def locate_input(explicit, diagnostic, root):
 def classifier_command(args, identifiers, input_path, run_dir, root):
     # Only IDs are read from the labelling table for inference. The workbook,
     # ground-truth labels and previous model decisions are never model inputs.
-    return [sys.executable, "-u", str(root / "tools/document_relevance.py"),
+    command = [sys.executable, "-u", str(root / "tools/document_relevance.py"),
             "--input", str(input_path), "--celex", ",".join(identifiers),
             "--as-of", args.as_of.isoformat(), "--anchors", str(args.anchors.resolve()),
             "--domains", str(args.domains.resolve()), "--env", str(args.env.resolve()),
             "--input-budget", str(args.input_budget), "--context-limit", str(args.context_limit),
             "--max-chunks", str(args.max_chunks), "--workers", str(args.workers),
             "--out", str(run_dir)]
+    if args.no_ignore_review:
+        command.append('--no-ignore-review')
+    return command
 
 
 def run_classifier(command, root, log_path):
@@ -93,6 +97,7 @@ def main(argv=None):
     parser.add_argument("--context-limit", type=int, default=40960)
     parser.add_argument("--workers", type=int, default=4, choices=range(1, 9))
     parser.add_argument("--max-chunks", type=int, default=24, choices=range(12, 33))
+    parser.add_argument("--no-ignore-review", action="store_true", help="Ablation: first pass only")
     parser.add_argument("--out", type=Path, help="New output folder; defaults to a unique runs/relevance_eval_* folder")
     args = parser.parse_args(argv)
     state_path = None
@@ -106,8 +111,10 @@ def main(argv=None):
             if not path.is_file():
                 raise ValueError(f"Required project file not found: {path}")
         prompt_path = ROOT / "prompts/document_relevance.txt"
-        if not prompt_path.is_file():
-            raise ValueError(f"Classifier prompt not found: {prompt_path}")
+        review_prompt_path = ROOT / "prompts/review_ignore.txt"
+        for path in (prompt_path, review_prompt_path):
+            if not path.is_file():
+                raise ValueError(f"Classifier prompt not found: {path}")
         labels_path = args.labels.resolve()
         # Validate everything before contacting Qwen or creating run output.
         labels = read_labels(labels_path, sheet=args.sheet)
@@ -130,6 +137,7 @@ def main(argv=None):
         prompt_dir = output / "prompts_used"
         prompt_dir.mkdir()
         shutil.copy2(prompt_path, prompt_dir / prompt_path.name)
+        shutil.copy2(review_prompt_path, prompt_dir / review_prompt_path.name)
         prompt_hash = file_hash(prompt_dir / prompt_path.name)
         if prompt_hash != file_hash(prompt_path):
             raise ValueError("Prompt changed while being copied. Rerun after finishing the edit.")
@@ -142,6 +150,8 @@ def main(argv=None):
             "labels_sha256": initial_hash, "input": str(input_path),
             "assessment_date": args.as_of.isoformat(), "classification_command": command,
             "decision_prompt_sha256": prompt_hash,
+            "review_prompt_sha256": file_hash(prompt_dir / review_prompt_path.name),
+            "ignore_review": not args.no_ignore_review,
             "decision_prompt_snapshot": str(prompt_dir / prompt_path.name),
             "note": "No labels or review columns are sent to Qwen. Uses installed classifier and prompt.",
         }
@@ -156,8 +166,7 @@ def main(argv=None):
         # failed/partial run. Evaluator exposes failures instead of making IGNOREs.
         print("\nQwen finished. Evaluating the new predictions against Label...", flush=True)
         eval_dir = output / "evaluation"
-        evaluation_code = evaluate_main(["--labels", str(frozen_labels), "--sheet", args.sheet,
-                                         "--run", str(run_dir), "--out", str(eval_dir)])
+        evaluation_code = evaluate_both_passes(frozen_labels, args.sheet, run_dir, output)
         state["evaluation_exit_code"] = evaluation_code
         state["finished_at"] = datetime.now(timezone.utc).isoformat()
         state["original_labels_unchanged"] = file_hash(labels_path) == initial_hash

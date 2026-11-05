@@ -86,6 +86,8 @@ def profile(path, domains_path):
             "Max Bögl's supplied profile covers construction and infrastructure; "
             "construction materials and precast products; wind/solar electricity generation "
             "and storage; own plants and installations; fleet, employees and IT. "
+            "It also acts within its supplied scopes as purchaser, employer, taxpayer, "
+            "contract party and electricity customer. "
             "Use the detailed role/anchor scopes below; this summary does not create new roles."
         ),
         "valid_anchor_ids": list(parsed["anchors"]),
@@ -100,6 +102,28 @@ def profile(path, domains_path):
     compact["unconfirmed_assumptions"] = comments[-1].split("version:", 1)[0] if len(comments) > 1 else ""
     # Full caveats are retained: an 8k-token target may not fit every profile.
     compact["fact_policy"] = "Explicit unconfirmed assumptions override general role descriptions; roles apply only within supplied scopes."
+    # Clarify existing business connections, without editing the source YAML,
+    # inventing company facts or extending any excluded activity.
+    notes = {
+        'finance_tax': ('Corporate taxes, capital contributions and cross-border mergers or reorganisations '
+                        'within the supplied company-law scope may be relevant conditionally; '
+                        'do not require proof that a transaction is currently happening.'),
+        'fleet_commercial_vehicles': ('Manufacturer rules can affect purchased vehicles within this fleet scope. '
+                                     'Consider owner/end-of-life rights and phased application too. '
+                                     'Do not extend this to excluded vehicle categories.'),
+        'energy_efficiency_operations': ('Consider access to electricity consumption/metering data for covered '
+                                         'plants and sites as a customer, not only duties of energy suppliers.'),
+    }
+    for key, note in notes.items():
+        if key in compact['anchors']:
+            item = compact['anchors'][key]
+            item['note'] = (str(item.get('note') or '') + ' ' + note).strip()
+    if 'suppliers_prices' in compact['indirect_paths']:
+        compact['indirect_paths']['suppliers_prices'] = (
+            str(compact['indirect_paths']['suppliers_prices']) +
+            ' EU import restrictions or phase-outs affecting energy, fuel or covered materials '
+            'can have a supply/cost connection without Max Bögl being a direct importer. '
+            'Name the affected resource; do not assume a specific supplier or predict a price change.')
     return compact, digest(raw)
 
 
@@ -121,6 +145,7 @@ def main():
     parser.add_argument("--limit", type=int)
     parser.add_argument("--celex", help="Comma-separated CELEX IDs")
     parser.add_argument("--prepare-only", action="store_true", help="Inspect source selection without Qwen")
+    parser.add_argument("--no-ignore-review", action="store_true", help="Ablation: disable the default one-time LLM review of IGNORE")
     args = parser.parse_args()
     if args.input_budget < 2048:
         parser.error("--input-budget must be at least 2048")
@@ -182,9 +207,11 @@ def main():
             "input_sha256": source_hash, "anchor_sha256": anchor_hash,
             "domain_sha256": digest(args.domains.read_bytes()),
             "as_of": args.as_of.isoformat(), "selected_celex": ids,
-            "input_budget": args.input_budget, "mode": "document_screening_v7",
-            "max_rounds": 1, "max_chunks": args.max_chunks,
-            "prompt_sha256": digest((engine.DECISION_PROMPT + engine.SECOND_PASS_PROMPT).encode()),
+            "input_budget": args.input_budget, "mode": "document_screening_v8",
+            "max_rounds": 1 if args.no_ignore_review else 2, "max_chunks": args.max_chunks,
+            "ignore_review": not args.no_ignore_review,
+            "prompt_sha256": digest((engine.DECISION_PROMPT + engine.REVIEW_IGNORE_PROMPT).encode()),
+            "effective_profile_sha256": digest(json.dumps(business, sort_keys=True, ensure_ascii=False).encode()),
             "prepare_only": args.prepare_only, "context_limit": context,
             "model": client.model if client else None,
             "endpoint_sha256": digest(client.api_base.encode()) if client else None,
@@ -227,7 +254,8 @@ def main():
                     }
                 else:
                     result = engine.run_act(client, act, business, args.as_of, context,
-                                            max_chunks=args.max_chunks, input_budget=args.input_budget)
+                                            max_chunks=args.max_chunks, input_budget=args.input_budget,
+                                            review_ignore=not args.no_ignore_review)
             except Exception as exc:
                 result = {"status": "failed", "error": client.clean(str(exc)) if client else str(exc)}
             result.update(elapsed_seconds=round(time.perf_counter() - clock_start, 3), celex=act["celex"],

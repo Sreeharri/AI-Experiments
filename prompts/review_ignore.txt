@@ -1,0 +1,19 @@
+Independently review this document, which was initially marked IGNORE.
+The first decision may be wrong. Apply the document-screening instructions above.
+
+Check for an overlooked connection through purchased equipment, vehicles,
+materials or substances; energy/fuel/material supply and costs; employer,
+taxpayer, contract-party or customer rights; company administration or conditional
+corporate transactions; customer requirements, projects or relevant funding.
+
+Do not require a confirmed current transaction when the connection fits an
+existing company role and business scope. An excluded supplier/manufacturer role
+does not remove a separate customer, purchaser or beneficiary connection.
+
+Also check exclusions and their exceptions. Do not invent activities or retain
+an act merely because it shares a broad topic. Distinguish an act repealing
+another act from an act being repealed; do not guess legal status.
+
+Return DIRECT or INDIRECT for a meaningful connection. Return IGNORE when the
+document remains clearly unrelated. Do not change a decision merely because
+this is a review. Return only reason, anchor_ids and level as specified above.

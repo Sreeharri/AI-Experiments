@@ -29,8 +29,10 @@ for act in data:
  if act['celex'] not in ids: continue
  bad=act.get('test_failure',False)
  failed=failed or bad
+ dec={'level':act['test_prediction'],'reason':'fixture reason','anchor_ids':[]}
  d={'celex':act['celex'],'status':'failed' if bad else 'ok',
-    'decision':{'level':act['test_prediction'],'reason':'fixture reason','anchor_ids':[]}}
+    'decision':dec,'first_pass_decision':dec,
+    'verification':{'required':False,'completed':False}}
  (out/(act['celex']+'.json')).write_text(json.dumps(d))
 (out/'manifest.json').write_text(json.dumps({'selected_celex':ids}))
 print('Fixture subprocess finished',flush=True)
@@ -44,6 +46,7 @@ class PipelineTests(unittest.TestCase):
         (root / 'config').mkdir()
         (root / 'prompts').mkdir()
         (root / 'prompts/document_relevance.txt').write_text('Explicit offline test prompt')
+        (root / 'prompts/review_ignore.txt').write_text('Explicit offline review prompt')
         (root / 'tools/document_relevance.py').write_text(FAKE_RUNNER)
         (root / 'config/business_anchors_en.yaml').write_text('anchors: {}')
         (root / 'config/domains.yaml').write_text('domains: {}')
@@ -85,6 +88,8 @@ class PipelineTests(unittest.TestCase):
             self.assertNotIn('--labels',state['classification_command'])
             self.assertFalse((output/'predictions/E.json').exists())
             self.assertTrue((output/'inference.log').is_file())
+            self.assertTrue((output/'evaluation_first_pass/metrics.json').is_file())
+            self.assertTrue((output/'comparison.json').is_file())
             self.assertEqual((output/'prompts_used/document_relevance.txt').read_text(),
                              'Explicit offline test prompt')
             self.assertEqual(state['decision_prompt_sha256'],
