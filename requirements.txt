@@ -1,2 +1,1 @@
-PyYAML>=6.0,<7
-psycopg[binary]>=3.1,<4
+lxml>=5.2,<7
