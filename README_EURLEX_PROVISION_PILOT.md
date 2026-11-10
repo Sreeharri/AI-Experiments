@@ -1,0 +1,105 @@
+# EUR-Lex provision relevance pilot
+
+Copy the contents of the ZIP into the root of `AI-Experiments`, alongside
+`enrich_eurlex.py`. Merge the `config`, `prompts`, and `tests` directories.
+The pilot uses the existing Qwen client, pinned act manifest and enrichment code.
+
+## Inputs
+
+| Path | Input |
+|---|---|
+| `output_db/*_enriched.json` | The three enriched acts from the completed PostgreSQL pilot |
+| `runs/eurlex_full_v10/relevance_export/direct.json` | Document-level DIRECT results keyed by CELEX |
+| `runs/eurlex_full_v10/relevance_export/indirect.json` | Document-level INDIRECT results keyed by CELEX |
+| `config/business_anchors_en.yaml` | Complete English anchor catalog, including role descriptions and boundaries |
+| `config/eurlex_provision_scenarios.json` | Three explicitly synthetic scenarios and the pilot assessment date |
+| `.env` | Existing Qwen settings, including `QWEN_BASE_URL` and the model ID when required |
+
+The runner looks up each pilot CELEX in both exports. A missing act is reported
+and its document context is saved as JSON null. Both files must exist. A
+document-level match can inform review but each provision has its own result.
+
+Use a separate scenario JSON with the same shape and pass `--scenarios` to
+supply real case facts. Set its `assessment_date` and mark those scenarios
+`SUPPLIED_CASE`. Keep unknowns explicit. You can also set the date with
+`--assessment-date YYYY-MM-DD`. Source versions come from `pilot_acts.json`;
+the assessment date alone gives no assurance that an original text reflects
+all later changes.
+
+## Run from the VS Code PowerShell terminal
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r .\requirements-provisions.txt
+.\.venv\Scripts\python.exe .\screen_eurlex_provisions.py samples --prepare-only
+.\.venv\Scripts\python.exe .\screen_eurlex_provisions.py samples
+```
+
+The prepare command writes the three sample inputs without calling Qwen. The
+sample run assesses Regulation Article 2, Directive Article 6(2), and Decision
+BAT 17 with the governing Article 1. The full run assesses Article 6 as a
+complete article, including both dated sentences of paragraph 2.
+
+After reviewing the sample results, run the complete three-act pilot.
+
+```powershell
+.\.venv\Scripts\python.exe .\screen_eurlex_provisions.py pilot
+```
+
+The full run plans 225 results with the bundled manifest. It produces one
+overall result per article, annex, and data table. It uses BAT units and other
+sections inside the decision's annex and assesses table rows in batches with
+their headers, merged-cell context and footnotes. Annex and table results each
+retain their own source IDs and citations.
+
+## Context requests and evidence
+
+The runner starts with target text, relevant definitions and scope, explicit
+links, governing provisions for annex material, and selected recital candidates.
+It separates precise table citations from annex-wide table candidates. The
+model can request up to three exact locators per round, for up to two retrieval
+rounds per batch. The runner uses the pinned act and any supplied supplementary
+excerpts, then sends the original target back with the extra evidence. The
+result records retrieval attempts and passages cited by the model. A material
+gap can leave the level pending. A DIRECT result can still carry an open branch
+if the evidence already establishes direct relevance for another branch.
+
+If you have verified external legal text or a transcription of a formula,
+you can provide it locally using `--supplements .\path\excerpts.json`.
+The file is a JSON array. Each entry has `instrument`, `locator`,
+`source_version_id`, `source_url`, and `text` strings. Use the exact instrument
+and locator shown by the unresolved reference. For formula transcription, use
+a source-verifiable locator, and identify its source version. For same-act
+formula IDs, see the workflow below. External passages and formula images
+remain visible as review candidates when their text is missing.
+
+For a same-act formula, put the act's CELEX in `instrument` and the image
+locator from `formula_images_requiring_pdf_check` in `locator`. The runner
+retrieves it only if its version ID matches the enriched act. It uses the
+transcription as evidence for the original target.
+
+## Outputs and resume
+
+| Run | Output directory |
+|---|---|
+| Sample inputs | `runs/eurlex_provisions_samples_prepared` |
+| Sample results | `runs/eurlex_provisions_samples` |
+| Complete pilot | `runs/eurlex_provisions_pilot` |
+
+Open `run_summary.json` first. It indexes the per-target files and reports
+completed targets, pending decisions and review counts. Each decision includes
+the target and pinned source version, level, reason, anchor IDs, evidence
+locators, review status, and branch results. The source JSON remains the audit
+record, with extra locator disambiguation where its stored labels repeat.
+
+Run the same command to resume after interruption or a Qwen error. Each
+completed target is saved atomically. If an interruption occurs within a
+target, that target restarts. When inputs, the model, or the code changes, use
+`--output-dir .\runs\new_provision_run` for a new run. If the process was
+forcibly terminated and left a `.running` lock, confirm that it stopped before
+removing the lock from that output directory.
+
+Run the bundled tests from the repository root.
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p test_eurlex_provisions.py
+```
