@@ -1,0 +1,30 @@
+{
+  "assessment_date": "2026-11-10",
+  "scenarios": {
+    "32024R3110": {
+      "id": "synthetic-precast-germany",
+      "evidence_status": "SYNTHETIC_TEST_CASE",
+      "facts": [
+        "Assume a Max Bögl entity manufactures its own new precast concrete structural elements in Germany and first supplies them commercially in Germany for permanent incorporation into construction works.",
+        "The supplied product is a finished structural element. The scenario does not cover reused products, lifts, escalators, components sold separately, drinking-water contact products, or sales in outermost EU regions.",
+        "No specific harmonised specification, product-family transition date, or conformity assessment file has been supplied."
+      ]
+    },
+    "32015L2193": {
+      "id": "synthetic-asphalt-combustion-germany",
+      "evidence_status": "SYNTHETIC_TEST_CASE",
+      "facts": [
+        "Assume a Max Bögl entity operates an asphalt plant in Germany and operates its separate 8 MW rated thermal input natural-gas boiler for heat.",
+        "Assume the boiler began operation in 2017 and is used regularly. The boiler is neither an engine nor a gas turbine. Its combustion gases are not used directly to heat or dry materials.",
+        "No operating permit, national implementing text, or evidence of an exemption has been supplied."
+      ]
+    },
+    "32013D0163": {
+      "id": "supplied-max-boegl-cement-manufacturing",
+      "evidence_status": "SUPPLIED_CASE",
+      "facts": [
+        "Max Bögl manufactures cement and other construction products."
+      ]
+    }
+  }
+}
