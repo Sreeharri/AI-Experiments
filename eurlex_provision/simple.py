@@ -6,7 +6,7 @@ from .evidence import norm
 from .screening import LEVELS, ModelError
 
 
-def build_pack(evidence, unit, document_result, scenario, anchors):
+def build_pack(evidence, unit, anchors):
     key = unit["id"]
     kind = unit["kind"]
     included, note_ids = set(), list(unit["footnote_ids"])
@@ -121,9 +121,6 @@ def build_pack(evidence, unit, document_result, scenario, anchors):
                 unavailable[identity] = reason
     return {
         "document": {field: evidence.document[field] for field in ("celex", "version_id", "title")},
-        "document_level_result": document_result,
-        "business_facts": scenario["facts"] if scenario else [],
-        "business_facts_status": scenario["evidence_status"] if scenario else None,
         "provision": provision,
         "direct_references": direct_refs,
         "essential_context": context,
@@ -137,35 +134,24 @@ def build_pack(evidence, unit, document_result, scenario, anchors):
 
 
 def score(client, prompt, pack):
-    allowed_areas = list(pack["business_anchors"])
     schema = {
-        "type": "object", "additionalProperties": False, "required": ["level", "reason", "area"],
-        "properties": {
-            "level": {"enum": [*LEVELS, "NEEDS_REVIEW"]},
-            "reason": {"type": "string", "minLength": 1, "maxLength": 600},
-            "area": {"type": "array", "items": {"enum": allowed_areas}, "maxItems": 4},
-        },
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["level"],
+        "properties": {"level": {"enum": list(LEVELS)}},
     }
     messages = [{"role": "system", "content": prompt},
                 {"role": "user", "content": json.dumps(pack, ensure_ascii=False)}]
     reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
-                        schema=schema, schema_name="provision_relevance_simple", max_tokens=768)
-    audit = {"finish_reason": reply.finish_reason, "usage": reply.usage, "raw_reply": reply.content}
+                        schema=schema, schema_name="provision_applicability", max_tokens=128)
     if not reply.ok:
-        audit["error_kind"] = reply.error_kind
-        if reply.error_kind != "context_limit":
-            raise ModelError(client.clean(reply.error or "Model request failed."))
-        return {"level": "NEEDS_REVIEW", "reason": "The complete evidence pack exceeds the model context limit.",
-                "area": []}, audit
+        if reply.error_kind == "context_limit":
+            raise ModelError("The complete evidence pack exceeds the model context limit.")
+        raise ModelError(client.clean(reply.error or "Model request failed."))
 
     decision, error = reply.parse_json()
-    if (error or not isinstance(decision, dict) or set(decision) != {"level", "reason", "area"}
-            or decision["level"] not in (*LEVELS, "NEEDS_REVIEW")
-            or not isinstance(decision["reason"], str) or not 0 < len(decision["reason"].strip()) <= 600
-            or not isinstance(decision["area"], list) or len(decision["area"]) > 4
-            or any(not isinstance(area, str) or area not in allowed_areas for area in decision["area"])
-            or len(decision["area"]) != len(set(decision["area"]))
-            or bool(decision["area"]) != (decision["level"] in ("DIRECT", "INDIRECT"))):
-        return {"level": "NEEDS_REVIEW", "reason": error or "The model returned an invalid decision.",
-                "area": []}, audit
-    return decision, audit
+    if (error or not isinstance(decision, dict) or set(decision) != {"level"}
+            or decision["level"] not in LEVELS):
+        raise ModelError(error or "Expected exactly one level: DIRECT, INDIRECT or IGNORE.")
+    audit = {"finish_reason": reply.finish_reason, "usage": reply.usage, "raw_reply": reply.content}
+    return decision["level"], audit

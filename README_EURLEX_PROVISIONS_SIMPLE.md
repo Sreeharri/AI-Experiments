@@ -1,34 +1,23 @@
-# Simple EUR-Lex provision filter
+# EUR-Lex applicability screening
 
-Copy this patch into the project root of `AI-Experiments` with v6.1 installed.
-Run from the project folder in PowerShell.
+Extract this update into the AI-Experiments project root. It uses the existing
+v6.1 dependencies, enriched JSON files and English business anchors.
+
+Run from the project root in PowerShell.
 
 ```powershell
-.\.venv\Scripts\python.exe .\screen_eurlex_provisions_simple.py samples
+& .\.venv\Scripts\python.exe .\screen_eurlex_provisions_simple.py samples
 ```
 
-This assesses all of Article 2, all of Article 6, and BAT 17. Each target
-gets a single model request with the complete provision, the parent act's
-document-level result, direct references, business facts and business anchors.
-The BAT 17 pack includes the technique table and its footnote. The annex
-scope is included so the model can assess which activities are covered.
-External references without supplied text are marked unavailable.
-The document-level result is null if the act has no match in the exports.
+The three samples are Article 2, Article 6 and BAT 17. Qwen receives one pack
+per provision with the full provision, available legal context and the
+business anchors. The only company evidence is the anchor catalog.
 
-To inspect the packs without contacting Qwen, add `--prepare-only`.
-The prepared packs are under `runs/eurlex_provisions_samples_simple_prepared/audit`.
-Live outputs are under `runs/eurlex_provisions_samples_simple`.
-Start with `audit/run_summary.json`. Completed entries are exported into
-`relevance_export/direct.json`, `indirect.json` and `ignore.json`. Each entry
-contains level, reason and area. Unresolved evidence or a model context limit
-leaves the result in the audit with NEEDS_REVIEW.
+Open `runs/eurlex_provisions_samples_three_way/relevance_export/results.json`.
+Each CELEX ID maps its provision locators to `DIRECT`, `INDIRECT` or `IGNORE`.
+The labels report matches against the supplied anchors.
 
-BAT 17 uses the supplied fact that Max Bögl manufactures cement and other
-construction products. The scenario leaves company clinker-kiln operation
-and capacity unspecified. Article 2 and Article 6 retain their synthetic
-scenarios. Edit the scenario file or use `--scenarios` to supply different
-case facts.
-
-To assess the full set of articles, annexes and tables from the pilot
-manifest, replace `samples` with `pilot`. Rerun the same command to resume
-an interrupted run. Use a new `--output-dir` when inputs or the model change.
+Add `--prepare-only` to generate packs offline. Replace `samples` with `pilot`
+to run the full article, annex and table inventory in the manifest.
+If a request fails, the run stops with the target named in the error.
+Rerun the same command to resume. Use a fresh `--output-dir` if inputs change.

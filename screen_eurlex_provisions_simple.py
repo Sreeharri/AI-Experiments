@@ -9,9 +9,10 @@ import yaml
 from enrich_eurlex import write_json
 from eurlex_enrichment.inputs import read_json
 from eurlex_provision.evidence import Evidence, TARGET_KINDS
-from eurlex_provision.simple import ModelError, build_pack, score
+from eurlex_provision.screening import LEVELS, ModelError
+from eurlex_provision.simple import build_pack, score
 from lr_ai.qwen_client import QwenClient
-from screen_eurlex_provisions import ROOT, check_scenario, load_exports, load_supplements, sha, write_relevance_export
+from screen_eurlex_provisions import ROOT, load_supplements, sha
 
 SAMPLES = {"32024R3110": "Article 2", "32015L2193": "Article 6", "32013D0163": "BAT 17"}
 
@@ -22,30 +23,11 @@ def arguments():
     parser.add_argument("--prepare-only", action="store_true", help="Save evidence without calling the model")
     parser.add_argument("--enriched-dir", type=Path, default=ROOT / "output_db")
     parser.add_argument("--manifest", type=Path, default=ROOT / "pilot_acts.json")
-    parser.add_argument("--relevance-dir", type=Path,
-                        default=ROOT / "runs/eurlex_full_v10/relevance_export")
     parser.add_argument("--anchors", type=Path, default=ROOT / "config/business_anchors_en.yaml")
-    parser.add_argument("--scenarios", type=Path, default=ROOT / "config/eurlex_provision_scenarios_simple.json")
     parser.add_argument("--supplements", type=Path)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
-
-
-def load_document_results(folder, selected):
-    matches = load_exports(folder, selected)
-    ignored_file = folder / "ignore.json"
-    if ignored_file.is_file():
-        ignored = read_json(ignored_file)
-        if not isinstance(ignored, dict):
-            raise ValueError(f"{ignored_file} must be keyed by CELEX.")
-        for celex in selected.keys() & ignored.keys():
-            row = ignored[celex]
-            if (celex in matches or not isinstance(row, dict) or row.get("level") != "IGNORE"
-                    or not isinstance(row.get("reason"), str) or row.get("area") != []):
-                raise ValueError(f"{ignored_file}: inconsistent or duplicate document result for {celex}.")
-            matches[celex] = {"level": "IGNORE", "reason": row["reason"], "area": []}
-    return matches
 
 
 def configure(args):
@@ -53,8 +35,6 @@ def configure(args):
     if not isinstance(manifest, dict) or not manifest:
         raise ValueError("The manifest must map CELEX IDs to pinned version IDs.")
     selected = {celex: manifest[celex] for celex in SAMPLES} if args.mode == "samples" else manifest
-    matches = load_document_results(args.relevance_dir, selected)
-    scenarios = read_json(args.scenarios)["scenarios"]
     anchors = yaml.safe_load(args.anchors.read_text(encoding="utf-8-sig"))["anchors"]
     if not isinstance(anchors, dict) or not anchors or not all(isinstance(k, str) for k in anchors):
         raise ValueError("The business anchor catalog must map anchor IDs to definitions.")
@@ -66,9 +46,6 @@ def configure(args):
         if data["schema_version"] != 1 or (document["celex"], document["version_id"]) != (celex, version):
             raise ValueError(f"{celex}: enriched text does not match the pinned source version.")
         evidence = Evidence(data, supplements)
-        scenario = scenarios.get(celex)
-        if scenario is not None:
-            check_scenario(celex, scenario)
         if args.mode == "samples":
             units = [evidence.find_unit(SAMPLES[celex])]
         else:
@@ -80,7 +57,7 @@ def configure(args):
                 raise ValueError(f"{celex}: target inventory disagrees with enriched summary.")
         locators = set()
         for unit in units:
-            pack = build_pack(evidence, unit, matches.get(celex), scenario, anchors)
+            pack = build_pack(evidence, unit, anchors)
             locator = pack["provision"]["locator"]
             if locator in locators:
                 raise ValueError(f"{celex}: duplicate provision locator {locator}.")
@@ -93,7 +70,7 @@ def run(args):
     packs = configure(args)
     prompt = (ROOT / "prompts/eurlex_provision_simple.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_simple" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_three_way" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -141,13 +118,14 @@ def run_packs(args, out, packs, prompt):
             else:
                 saved = {**item, "fingerprint": fingerprint, "evidence_pack": pack}
                 if client:
-                    decision, attempt = score(client, prompt, pack)
-                    held = decision["level"] == "NEEDS_REVIEW"
-                    saved.update(**decision, review_status="NEEDS_REVIEW" if held else "COMPLETE",
-                                 model_attempt=attempt)
+                    try:
+                        level, attempt = score(client, prompt, pack)
+                    except ModelError as exc:
+                        raise ModelError(f"{celex} {target}: {exc}") from exc
+                    saved.update(level=level, model_attempt=attempt)
                 write_json(path, saved)
             if client:
-                item.update({k: saved[k] for k in ("level", "reason", "area", "review_status")})
+                item["level"] = saved["level"]
             completed.append(item)
     except ModelError as exc:
         error = str(exc)
@@ -155,11 +133,14 @@ def run_packs(args, out, packs, prompt):
     finally:
         counts = Counter(row.get("level", "PREPARED") for row in completed)
         if client:
-            write_relevance_export(out / "relevance_export", completed)
+            results = {}
+            for item in completed:
+                results.setdefault(item["celex"], {})[item["target"]] = item["level"]
+            write_json(out / "relevance_export/results.json", results)
         write_json(audit / "run_summary.json", {
             "targets_planned": len(packs), "targets_saved": len(completed),
-            "targets_exported": sum(counts[level] for level in ("DIRECT", "INDIRECT", "IGNORE")),
-            "needs_review": counts["NEEDS_REVIEW"], "counts": dict(counts), "error": error,
+            "targets_exported": sum(counts[level] for level in LEVELS),
+            "counts": dict(counts), "error": error,
             "results": completed,
         })
     print(f"Saved {len(completed)} targets to {out}", flush=True)
