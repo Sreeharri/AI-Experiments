@@ -64,6 +64,9 @@ audit records retrieval attempts and passages cited by the model. A separate
 Qwen check looks for errors about the actor, scenario facts, branches and scope
 of the target. The runner allows one correction and withholds an assessment
 with unresolved review issues from the relevance export.
+If Qwen returns an invalid decision twice, the affected target is saved for
+review and the run continues. The audit record contains the validation error.
+API failures still stop the run so it can resume after the connection recovers.
 
 If you have verified external legal text or a transcription of a formula,
 you can provide it locally using `--supplements .\path\excerpts.json`.
@@ -83,9 +86,9 @@ transcription as evidence for the original target.
 
 | Run | Output directory |
 |---|---|
-| Sample inputs | `runs/eurlex_provisions_samples_v2_prepared` |
-| Sample results | `runs/eurlex_provisions_samples_v2` |
-| Complete pilot | `runs/eurlex_provisions_pilot_v2` |
+| Sample inputs | `runs/eurlex_provisions_samples_v3_prepared` |
+| Sample results | `runs/eurlex_provisions_samples_v3` |
+| Complete pilot | `runs/eurlex_provisions_pilot_v3` |
 
 For a live run, open `relevance_export/direct.json`, `indirect.json`, and
 `ignore.json`. Each file groups the records by CELEX and provision locator.

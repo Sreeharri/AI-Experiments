@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import Mock
 
 from eurlex_provision.evidence import branch_batches
-from eurlex_provision.screening import combine, score_batch, score_verified_batch, validate_answer
+from eurlex_provision.screening import ModelError, combine, score_batch, score_verified_batch, validate_answer
 from screen_eurlex_provisions import load_exports, write_relevance_export
 
 
@@ -31,6 +31,41 @@ def decision():
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_invalid_branch_reply_retries_and_is_held(self):
+        inputs = payload()
+        inputs["branches"].append({"locator": "Annex table, row 2"})
+        reply = Mock(ok=True)
+        reply.parse_json.return_value = {"result": decision(), "context_requests": []}, None
+        client = Mock()
+        client.chat.return_value = reply
+        result, _, review = score_verified_batch(client, "score", "review", Mock(), inputs)
+        self.assertEqual(client.chat.call_count, 2)
+        self.assertIsNone(result["level"])
+        self.assertEqual(result["review_status"], "NEEDS_REVIEW")
+        self.assertIn("Missing branch results for Annex table, row 2", review["validation_error"])
+        feedback = json.loads(client.chat.call_args.args[0][1]["content"])
+        self.assertIn("Annex table, row 2", feedback["response_validation_feedback"])
+        self.assertEqual(len(result["branch_results"]), 2)
+        branch_schema = client.chat.call_args.kwargs["schema"]["properties"]["result"]["anyOf"][0]
+        branches = branch_schema["properties"]["branch_results"]
+        self.assertEqual((branches["minItems"], branches["maxItems"]), (2, 2))
+        self.assertEqual(branches["items"]["properties"]["locator"]["enum"],
+                         ["Article 2(1)", "Annex table, row 2"])
+
+    def test_branch_and_overall_review_status_mismatch_is_identified(self):
+        result = decision()
+        result["branch_results"][0]["status"] = "NEEDS_REVIEW"
+        with self.assertRaisesRegex(ValueError, "Set overall review_status to NEEDS_REVIEW"):
+            validate_answer({"result": result, "context_requests": []}, payload())
+
+    def test_api_failure_still_stops_for_resume(self):
+        client = Mock()
+        reply = Mock(ok=False, error_kind="timeout", error="Timed out")
+        reply.parse_json.return_value = None, "Timed out"
+        client.chat.return_value = reply
+        with self.assertRaisesRegex(ModelError, "Qwen request failed"):
+            score_verified_batch(client, "score", "review", Mock(), payload())
+
     def test_exports_have_only_three_fields_and_exclude_review(self):
         with TemporaryDirectory() as directory:
             path = Path(directory)

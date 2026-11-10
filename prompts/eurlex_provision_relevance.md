@@ -30,7 +30,10 @@ INDIRECT: It affects another actor and there is a concrete dependency for the
 supplied Max Bögl activity. Explain the path.
 IGNORE: The evidence supports no direct or indirect relevance in this scenario.
 
-For each listed branch return exactly one branch result. ASSESSED means its
+For each listed branch return exactly one branch result. Copy its locator
+verbatim. Include every listed table row, even if its status is OUTSIDE_SCENARIO.
+If any branch is NEEDS_REVIEW, set the overall review_status to NEEDS_REVIEW
+and list the material gaps in missing_evidence. ASSESSED means its
 scenario relevance can be assessed. Use OUTSIDE_SCENARIO when evidence shows
 it concerns a different product, activity or location. OUTSIDE_SCENARIO is
 scenario-specific. Also use it when a numeric threshold excludes a supplied

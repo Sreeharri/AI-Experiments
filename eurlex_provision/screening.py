@@ -18,12 +18,16 @@ class ModelError(RuntimeError):
     """A model or endpoint failure that can be retried by resuming the run."""
 
 
+class DecisionValidationError(ModelError):
+    """Both successful API responses failed the decision format checks."""
+
+
 def object_schema(fields):
     return {"type": "object", "properties": fields, "required": list(fields),
             "additionalProperties": False}
 
 
-def response_schema(anchors):
+def response_schema(anchors, branches):
     string = {"type": "string"}
     strings = {"type": "array", "items": string}
     def enum(values):
@@ -34,8 +38,9 @@ def response_schema(anchors):
         "level": enum((*LEVELS, None)), "reason": string,
         "area": {"type": "array", "items": enum(anchors)}, "evidence_refs": strings,
         "review_status": enum(REVIEW), "missing_evidence": strings,
-        "branch_results": {"type": "array", "items": object_schema({
-            "locator": string, "status": enum(BRANCH_STATUSES),
+        "branch_results": {"type": "array", "minItems": len(branches), "maxItems": len(branches),
+                           "items": object_schema({
+            "locator": enum(branches), "status": enum(BRANCH_STATUSES),
             "reason": string, "evidence_refs": strings,
         })},
     })
@@ -150,20 +155,27 @@ def validate_answer(value, payload):
         if not isinstance(branch, dict) or set(branch) != {"locator", "status", "reason", "evidence_refs"}:
             raise ValueError("Invalid branch result fields.")
         locator, refs = branch["locator"], branch["evidence_refs"]
-        if (not text(locator) or locator not in expected or locator in seen or branch["status"] not in BRANCH_STATUSES
-                or not text(branch["reason"]) or not strings(refs) or locator not in refs
-                or not set(refs) <= available):
-            raise ValueError("Each branch must appear once and cite its own supplied locator.")
+        if not text(locator) or locator not in expected:
+            raise ValueError("A branch used an unexpected locator. Copy the exact locators from branches.")
+        if locator in seen:
+            raise ValueError(f"Duplicate branch result for {locator}. Return each locator once.")
+        if (branch["status"] not in BRANCH_STATUSES or not text(branch["reason"])
+                or not strings(refs) or locator not in refs or not set(refs) <= available):
+            raise ValueError(f"Branch {locator} must have a valid status, reason and exact evidence citations.")
         branch_pending |= branch["status"] == "NEEDS_REVIEW"
         seen.add(locator)
-    if seen != expected or (branch_pending and not pending):
-        raise ValueError("Return all listed branches and propagate NEEDS_REVIEW.")
+    if missing_branches := expected - seen:
+        raise ValueError(f"Missing branch results for {'; '.join(sorted(missing_branches))}.")
+    if branch_pending and not pending:
+        raise ValueError("A branch is NEEDS_REVIEW. Set overall review_status to NEEDS_REVIEW "
+                         "and list the material gaps in missing_evidence.")
     if all(b["status"] == "OUTSIDE_SCENARIO" for b in result["branch_results"]) and result["level"] not in ("IGNORE", None):
         raise ValueError("Outside-scenario branches cannot establish DIRECT or INDIRECT.")
 
 
 def request(client, prompt, payload):
-    schema = response_schema(payload["candidate_anchors"])
+    branch_labels = [branch["locator"] for branch in payload["branches"]]
+    schema = response_schema(payload["candidate_anchors"], branch_labels)
     messages = [{"role": "system", "content": prompt},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
     for attempt in range(2):
@@ -180,7 +192,7 @@ def request(client, prompt, payload):
             return value
         except ValueError as exc:
             if attempt:
-                raise ModelError(f"Qwen response failed validation twice: {exc}") from exc
+                raise DecisionValidationError(f"Qwen response failed validation twice: {exc}") from exc
             messages[1]["content"] = json.dumps({
                 **payload, "response_validation_feedback": str(exc),
             }, ensure_ascii=False)
@@ -275,21 +287,35 @@ def review_draft(client, prompt, payload, draft):
 
 
 def score_verified_batch(client, prompt, review_prompt, evidence, payload):
-    draft, trace = score_batch(client, prompt, evidence, payload)
+    review = {}
+    try:
+        draft, trace = score_batch(client, prompt, evidence, payload)
+    except DecisionValidationError as exc:
+        return hold_invalid_decision(payload, review, exc)
     issues = review_draft(client, review_prompt, payload, draft)
-    review = {"initial_issues": issues}
+    review["initial_issues"] = issues
     if not issues:
         return draft, trace, review
 
     # Reassess the same scenario and evidence once using the review feedback.
     payload["scenario_review_feedback"] = issues
     payload["can_request_context"] = False
-    draft, trace = score_batch(client, prompt, evidence, payload)
+    try:
+        draft, trace = score_batch(client, prompt, evidence, payload)
+    except DecisionValidationError as exc:
+        return hold_invalid_decision(payload, review, exc)
     remaining = review_draft(client, review_prompt, payload, draft)
     review["remaining_issues"] = remaining
     if remaining:
         draft = pending_result(payload, "The scenario check could not verify the relevance decision.", remaining)
     return draft, trace, review
+
+
+def hold_invalid_decision(payload, review, error):
+    reason = "No valid assessment was returned for all branches."
+    review["validation_error"] = str(error)
+    decision = pending_result(payload, reason, [str(error)])
+    return decision, payload["retrieval_log"], review
 
 
 def combine(results, payload_heading):

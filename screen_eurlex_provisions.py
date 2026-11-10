@@ -176,7 +176,7 @@ def execute(args):
     prompt = (ROOT / "prompts/eurlex_provision_relevance.md").read_text(encoding="utf-8")
     review_prompt = (ROOT / "prompts/eurlex_provision_review.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_v2" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_v3" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -262,6 +262,8 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                         )
                         results.append(decision)
                         reviews.append({"batch": batch_no, **review})
+                        if "validation_error" in review:
+                            print(f"  Held for review, batch {batch_no}: {review['validation_error']}", flush=True)
                         retrieval_log.extend({"batch": batch_no, **entry} for entry in trace)
                         cited = set(decision["evidence_refs"])
                         cited.update(r for b in decision["branch_results"] for r in b["evidence_refs"])
