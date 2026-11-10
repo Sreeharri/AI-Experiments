@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import Mock
 
 from eurlex_provision.evidence import branch_batches
+from eurlex_provision.scenario_checks import check_bindings
 from eurlex_provision.screening import ModelError, combine, score_batch, score_verified_batch, validate_answer
 from eurlex_provision.thresholds import numeric_checks
 from lr_ai.qwen_client import ChatResult
@@ -34,6 +35,32 @@ def decision():
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_supplier_only_batch_rejects_direct_and_ignore(self):
+        inputs = payload()
+        inputs["branch_checks"] = [{"locator": "Article 2(1)", "relationship": "SUPPLIER_DEPENDENCY",
+                                    "basis": "The company buys cement from the kiln operator."}]
+        for level in ("DIRECT", "IGNORE"):
+            with self.subTest(level=level), self.assertRaisesRegex(ValueError, "supplier-only batch"):
+                draft = {**decision(), "level": level, "area": [] if level == "IGNORE" else ["precast"]}
+                validate_answer({"result": draft, "context_requests": []}, inputs)
+        validate_answer({"result": {**decision(), "level": "INDIRECT"}, "context_requests": []}, inputs)
+
+    def test_checked_exclusion_cannot_be_assessed_as_applicable(self):
+        inputs = payload()
+        inputs["branch_checks"] = [{"locator": "Article 2(1)", "relationship": "OUTSIDE_SCENARIO",
+                                    "basis": "The supplied case excludes this product."}]
+        with self.assertRaisesRegex(ValueError, "use OUTSIDE_SCENARIO"):
+            validate_answer({"result": decision(), "context_requests": []}, inputs)
+
+    def test_branch_binding_requires_pinned_locator(self):
+        scenario = {"facts": ["The company buys cement."],
+                    "branch_bindings": {"Article 2": {"Article 2(9)": {
+                        "relationship": "SUPPLIER_DEPENDENCY", "fact_numbers": [1],
+                        "basis": "Purchased material."
+                    }}}}
+        with self.assertRaisesRegex(ValueError, "exact locators"):
+            check_bindings(scenario, "Article 2", ["Article 2(1)"])
+
     def test_truncation_splits_and_scores_each_branch_without_repeating(self):
         inputs = payload()
         other = "Article 2(2)"

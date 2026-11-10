@@ -14,6 +14,7 @@ import yaml
 from enrich_eurlex import write_json
 from eurlex_enrichment.inputs import read_json
 from eurlex_provision.evidence import Evidence, TARGET_KINDS, branch_batches, instrument_key, norm, size
+from eurlex_provision.scenario_checks import check_bindings
 from eurlex_provision.screening import LEVELS, ModelError, combine, prepare, score_verified_batch
 from lr_ai.qwen_client import QwenClient
 
@@ -130,6 +131,8 @@ def configure(args):
                 or not isinstance(scenario.get("facts"), list) or not scenario["facts"]
                 or not all(isinstance(fact, str) and fact.strip() for fact in scenario["facts"])):
             raise ValueError(f"{celex}: supply a scenario ID, evidence status and nonempty facts list.")
+        if scenario.get("branch_bindings") and scenario.get("branch_bindings_version") != version:
+            raise ValueError(f"{celex}: the scenario branch bindings were reviewed for a different source version.")
         context = {
             "assessment_date": as_of,
             "scenario": scenario,
@@ -164,6 +167,7 @@ def configure(args):
             names = [b["locator"] for batch in batches for b in batch]
             if not names or len(names) != len(set(names)):
                 raise ValueError(f"{celex} {target}: target branches are empty or ambiguous.")
+            check_bindings(scenario, target, names)
             tasks.append((celex, unit, target, batches))
     targets = {(celex, target) for celex, _, target, _ in tasks}
     if len(targets) != len(tasks):
@@ -176,7 +180,7 @@ def execute(args):
     prompt = (ROOT / "prompts/eurlex_provision_relevance.md").read_text(encoding="utf-8")
     review_prompt = (ROOT / "prompts/eurlex_provision_review.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_v4" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_v5" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -255,10 +259,11 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                     item.update(payloads=payloads, max_payload_chars=max(map(size, payloads)))
                 else:
                     results, retrieval_log, reviews, evidence_index = [], [], [], {}
-                    model_attempts, checks = [], []
+                    model_attempts, checks, scenario_checks = [], [], []
                     for batch_no, batch in enumerate(batches, 1):
                         payload = prepare(evidence, unit, target, batch, common)
                         checks.extend(payload["numeric_checks"])
+                        scenario_checks.extend(payload["branch_checks"])
                         try:
                             decision, trace, review = score_verified_batch(
                                 client, prompt, review_prompt, evidence, payload
@@ -285,7 +290,7 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                     item.update(combine(results, payload["target_heading"]), batch_results=results,
                                 retrieval_log=retrieval_log, scenario_reviews=reviews,
                                 evidence_index=evidence_index, numeric_checks=checks,
-                                model_attempts=model_attempts)
+                                branch_checks=scenario_checks, model_attempts=model_attempts)
                 write_json(path, item)
             completed.append({
                 "celex": celex, "target_id": unit["id"], "target": target, "kind": unit["kind"],

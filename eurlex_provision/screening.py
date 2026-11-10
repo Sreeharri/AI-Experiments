@@ -3,6 +3,7 @@
 import json
 
 from .evidence import CONTEXT_CHAR_BUDGET, norm, size
+from .scenario_checks import branch_checks, validate_grounding
 from .thresholds import numeric_checks
 
 LEVELS = ("IGNORE", "INDIRECT", "DIRECT")
@@ -83,11 +84,15 @@ def response_schema(anchors, branches):
 def prepare(evidence, unit, target, batch, common):
     context = evidence.initial(unit, batch)
     branches = [{k: v for k, v in branch.items() if k != "source_ids"} for branch in batch]
+    scenario = common["scenario"]
     notes = gather_notes(evidence, branches + context["passages"])
     return {
-        **common, "document": evidence.document, "target": target, "target_kind": unit["kind"],
+        **common, "scenario": {k: v for k, v in scenario.items()
+                               if k not in {"branch_bindings", "branch_bindings_version"}},
+        "document": evidence.document, "target": target, "target_kind": unit["kind"],
         "target_heading": evidence.elements.get(unit["id"], {}).get("heading"),
-        "branches": branches, "numeric_checks": numeric_checks(branches, common["scenario"]["facts"]),
+        "branches": branches, "numeric_checks": numeric_checks(branches, scenario["facts"]),
+        "branch_checks": branch_checks(scenario, target, branches),
         "context": context, "footnotes": notes["available"],
         "missing_footnotes": notes["missing"], "retrieved_context": [],
         "retrieval_log": [], "can_request_context": True,
@@ -208,6 +213,7 @@ def validate_answer(value, payload):
                          "and list the material gaps in missing_evidence.")
     if all(b["status"] == "OUTSIDE_SCENARIO" for b in result["branch_results"]) and result["level"] not in ("IGNORE", None):
         raise ValueError("Outside-scenario branches cannot establish DIRECT or INDIRECT.")
+    validate_grounding(result, payload)
 
 
 def model_input(payload):
@@ -325,6 +331,16 @@ def review_draft(client, prompt, payload, draft):
     })
     review_input = {k: v for k, v in model_input(payload).items()
                     if k not in {"scenario_review_feedback", "previous_draft"}}
+    if payload.get("branch_checks"):
+        # Keep the supplied facts and legal evidence in focus during scenario review.
+        review_input = {
+            key: payload[key] for key in (
+                "scenario", "document", "target", "target_kind", "target_heading",
+                "branches", "branch_checks", "numeric_checks", "context",
+                "footnotes", "retrieved_context",
+            ) if key in payload
+        }
+        review_input["selected_anchors"] = {area: payload["candidate_anchors"][area] for area in draft["area"]}
     review_input["draft"] = draft
     messages = [
         {"role": "system", "content": prompt},
@@ -378,7 +394,8 @@ def score_verified_batch(client, prompt, review_prompt, evidence, payload):
             sub = {k: v for k, v in payload.items()
                    if k not in {"scenario_review_feedback", "previous_draft"}}
             sub.update(branches=subset, can_request_context=True,
-                       numeric_checks=[c for c in payload.get("numeric_checks", []) if c["locator"] in keys])
+                       numeric_checks=[c for c in payload.get("numeric_checks", []) if c["locator"] in keys],
+                       branch_checks=[c for c in payload.get("branch_checks", []) if c["locator"] in keys])
             decision, _, subreview = score_verified_batch(client, prompt, review_prompt, evidence, sub)
             results.append(decision)
             subreviews.append(subreview)

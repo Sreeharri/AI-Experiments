@@ -35,6 +35,17 @@ INDIRECT: It affects another actor and there is a concrete dependency for the
 supplied Max Bögl activity. Explain the path.
 IGNORE: The evidence supports no direct or indirect relevance in this scenario.
 
+When branch_checks are supplied, use their fact_numbers (1-based indexes
+into scenario.facts) and basis to ground each listed branch. Facts stipulated
+in the scenario are available evidence. OWN_ACTIVITY identifies the
+company's own activity and supports DIRECT for a completed assessment.
+SUPPLIER_DEPENDENCY identifies the supplier as the regulated actor and the
+company as dependent on its supply. A completed supplier-only assessment
+is INDIRECT. Actual costs, installed techniques and permit conditions are
+separate verification questions unless they could change relevance.
+Use OUTSIDE_SCENARIO for a checked exclusion and ASSESSED for CONTEXT_ONLY.
+Context-only text, including a table header, supplies no independent duty.
+
 For each listed branch return exactly one branch result. Copy its locator
 verbatim. Include every listed table row, even if its status is OUTSIDE_SCENARIO.
 If any branch is NEEDS_REVIEW, set the overall review_status to NEEDS_REVIEW

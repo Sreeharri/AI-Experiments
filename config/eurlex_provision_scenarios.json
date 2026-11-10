@@ -8,7 +8,61 @@
         "Assume a Max Bögl entity manufactures its own new precast concrete structural elements in Germany and first supplies them commercially in Germany for permanent incorporation into construction works.",
         "The supplied product is a finished structural element. The scenario does not cover reused products, lifts, escalators, components sold separately, drinking-water contact products, or sales in outermost EU regions.",
         "No specific harmonised specification, product-family transition date, or conformity assessment file has been supplied."
-      ]
+      ],
+      "branch_bindings": {
+        "Article 2": {
+          "Article 2(1)": {
+            "relationship": "OWN_ACTIVITY",
+            "fact_numbers": [
+              1,
+              2
+            ],
+            "basis": "The company manufactures and first supplies the finished precast product for permanent incorporation."
+          },
+          "Article 2(1)(a)": {
+            "relationship": "OUTSIDE_SCENARIO",
+            "fact_numbers": [
+              2
+            ],
+            "basis": "The supplied item is the finished structural element rather than a separately supplied key part."
+          },
+          "Article 2(1)(b)": {
+            "relationship": "OUTSIDE_SCENARIO",
+            "fact_numbers": [
+              2
+            ],
+            "basis": "The supplied item is a finished product. No separately supplied component or input material is being assessed."
+          },
+          "Article 2(2)": {
+            "relationship": "CONTEXT_ONLY",
+            "fact_numbers": [],
+            "basis": "This introductory line announces the exclusions that are assessed in the following branches."
+          },
+          "Article 2(2)(a)": {
+            "relationship": "OUTSIDE_SCENARIO",
+            "fact_numbers": [
+              2
+            ],
+            "basis": "Lifts, escalators and their components are outside this case."
+          },
+          "Article 2(2)(b)": {
+            "relationship": "OUTSIDE_SCENARIO",
+            "fact_numbers": [
+              2
+            ],
+            "basis": "Drinking-water contact products are outside this case."
+          },
+          "Article 2(3)": {
+            "relationship": "OUTSIDE_SCENARIO",
+            "fact_numbers": [
+              1,
+              2
+            ],
+            "basis": "The first commercial supply is in Germany and the scenario excludes sales in outermost EU regions."
+          }
+        }
+      },
+      "branch_bindings_version": "2c6c22d9-ae73-4325-a9e2-666fcc11d444"
     },
     "32015L2193": {
       "id": "synthetic-asphalt-combustion-germany",
@@ -26,7 +80,49 @@
         "Assume a Max Bögl entity buys cement for its German precast concrete production from an independent German supplier that manufactures that cement in a clinker kiln.",
         "Assume the Max Bögl entity neither operates the supplier's kiln nor manufactures cement, lime or magnesium oxide in this scenario. It depends on this supplier for the specified cement input.",
         "No supplier permit, plant configuration beyond the clinker kiln, or evidence about cost, contract or availability effects has been supplied."
-      ]
+      ],
+      "branch_bindings": {
+        "Annex 1, BAT 17 [section 47]": {
+          "Annex 1, BAT 17 [section 47]": {
+            "relationship": "SUPPLIER_DEPENDENCY",
+            "fact_numbers": [
+              1,
+              2
+            ],
+            "basis": "The independent supplier operates the clinker kiln. The company buys and depends on its cement."
+          },
+          "Annex 1, BAT 17 [section 47], unnumbered table 18, row 1": {
+            "relationship": "CONTEXT_ONLY",
+            "fact_numbers": [],
+            "basis": "This is a header identifying technique and applicability columns, with no separate duty."
+          },
+          "Annex 1, BAT 17 [section 47], unnumbered table 18, row 2": {
+            "relationship": "SUPPLIER_DEPENDENCY",
+            "fact_numbers": [
+              1,
+              2
+            ],
+            "basis": "This is a technique option for the supplier's kiln activity. The installed technique and commercial impact are unspecified."
+          },
+          "Annex 1, BAT 17 [section 47], unnumbered table 18, row 3": {
+            "relationship": "SUPPLIER_DEPENDENCY",
+            "fact_numbers": [
+              1,
+              2
+            ],
+            "basis": "This is a technique option for the supplier's kiln activity. The installed technique and commercial impact are unspecified."
+          },
+          "Annex 1, BAT 17 [section 47], unnumbered table 18, row 4": {
+            "relationship": "SUPPLIER_DEPENDENCY",
+            "fact_numbers": [
+              1,
+              2
+            ],
+            "basis": "This is a technique option for the supplier's kiln activity. The installed technique and commercial impact are unspecified."
+          }
+        }
+      },
+      "branch_bindings_version": "3bd3c551-2820-4409-bf0b-50dd744a825f"
     }
   }
 }

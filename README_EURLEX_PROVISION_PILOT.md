@@ -1,6 +1,6 @@
 # EUR-Lex provision relevance pilot
 
-Apply this v4 update over the v3 pilot in the root of `AI-Experiments`,
+Apply this v5 update over the v4 pilot in the root of `AI-Experiments`,
 alongside `enrich_eurlex.py`. Merge the directories and replace the files
 provided in this ZIP. The pilot uses the existing Qwen client, configuration,
 pinned act manifest and enrichment code.
@@ -92,9 +92,9 @@ transcription as evidence for the original target.
 
 | Run | Output directory |
 |---|---|
-| Sample inputs | `runs/eurlex_provisions_samples_v4_prepared` |
-| Sample results | `runs/eurlex_provisions_samples_v4` |
-| Complete pilot | `runs/eurlex_provisions_pilot_v4` |
+| Sample inputs | `runs/eurlex_provisions_samples_v5_prepared` |
+| Sample results | `runs/eurlex_provisions_samples_v5` |
+| Complete pilot | `runs/eurlex_provisions_pilot_v5` |
 
 For a live run, open `relevance_export/direct.json`, `indirect.json`, and
 `ignore.json`. Each file groups the records by CELEX and provision locator.
@@ -116,3 +116,10 @@ Run the bundled tests from the repository root.
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p test_eurlex_provisions.py
 ```
+
+The two synthetic cases for Article 2 and BAT 17 have reviewed branch bindings
+in the scenario configuration. Each binding links an exact branch to the
+supplied fact or identifies introductory text or a header. The scorer still
+returns the result. Validation rejects a result that contradicts those
+bindings and keeps unresolved results in the audit. The binding is only
+used for its configured target and scenario.
