@@ -15,9 +15,10 @@ The pilot uses the existing Qwen client, pinned act manifest and enrichment code
 | `config/eurlex_provision_scenarios.json` | Three explicitly synthetic scenarios and the pilot assessment date |
 | `.env` | Existing Qwen settings, including `QWEN_BASE_URL` and the model ID when required |
 
-The runner looks up each pilot CELEX in both exports. A missing act is reported
-and its document context is saved as JSON null. Both files must exist. A
-document-level match can inform review but each provision has its own result.
+The runner looks up each pilot CELEX in both exports and keeps these matches
+in the audit files. A missing act is reported and recorded as JSON null.
+Both input files must exist. Qwen receives the scenario, provision evidence,
+and anchor catalog for each provision assessment.
 
 Use a separate scenario JSON with the same shape and pass `--scenarios` to
 supply real case facts. Set its `assessment_date` and mark those scenarios
@@ -48,7 +49,7 @@ After reviewing the sample results, run the complete three-act pilot.
 The full run plans 225 results with the bundled manifest. It produces one
 overall result per article, annex, and data table. It uses BAT units and other
 sections inside the decision's annex and assesses table rows in batches with
-their headers, merged-cell context and footnotes. Annex and table results each
+their headers, merged-cell context and footnotes. Annex and table audit records
 retain their own source IDs and citations.
 
 ## Context requests and evidence
@@ -59,9 +60,10 @@ It separates precise table citations from annex-wide table candidates. The
 model can request up to three exact locators per round, for up to two retrieval
 rounds per batch. The runner uses the pinned act and any supplied supplementary
 excerpts, then sends the original target back with the extra evidence. The
-result records retrieval attempts and passages cited by the model. A material
-gap can leave the level pending. A DIRECT result can still carry an open branch
-if the evidence already establishes direct relevance for another branch.
+audit records retrieval attempts and passages cited by the model. A separate
+Qwen check looks for errors about the actor, scenario facts, branches and scope
+of the target. The runner allows one correction and withholds an assessment
+with unresolved review issues from the relevance export.
 
 If you have verified external legal text or a transcription of a formula,
 you can provide it locally using `--supplements .\path\excerpts.json`.
@@ -81,15 +83,17 @@ transcription as evidence for the original target.
 
 | Run | Output directory |
 |---|---|
-| Sample inputs | `runs/eurlex_provisions_samples_prepared` |
-| Sample results | `runs/eurlex_provisions_samples` |
-| Complete pilot | `runs/eurlex_provisions_pilot` |
+| Sample inputs | `runs/eurlex_provisions_samples_v2_prepared` |
+| Sample results | `runs/eurlex_provisions_samples_v2` |
+| Complete pilot | `runs/eurlex_provisions_pilot_v2` |
 
-Open `run_summary.json` first. It indexes the per-target files and reports
-completed targets, pending decisions and review counts. Each decision includes
-the target and pinned source version, level, reason, anchor IDs, evidence
-locators, review status, and branch results. The source JSON remains the audit
-record, with extra locator disambiguation where its stored labels repeat.
+For a live run, open `relevance_export/direct.json`, `indirect.json`, and
+`ignore.json`. Each file groups the records by CELEX and provision locator.
+Each provision record contains exactly `level`, `reason`, and `area`.
+`area` is a list of anchor IDs and is empty for IGNORE. The exports only
+include assessments with review status COMPLETE. Open `audit/run_summary.json`
+for counts and paths to the full per-target audit files, including pending
+assessments. Listed paths are relative to the run directory.
 
 Run the same command to resume after interruption or a Qwen error. Each
 completed target is saved atomically. If an interruption occurs within a

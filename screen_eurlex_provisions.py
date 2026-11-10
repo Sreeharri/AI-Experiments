@@ -14,7 +14,7 @@ import yaml
 from enrich_eurlex import write_json
 from eurlex_enrichment.inputs import read_json
 from eurlex_provision.evidence import Evidence, TARGET_KINDS, branch_batches, instrument_key, norm, size
-from eurlex_provision.screening import ModelError, combine, prepare, score_batch
+from eurlex_provision.screening import LEVELS, ModelError, combine, prepare, score_verified_batch
 from lr_ai.qwen_client import QwenClient
 
 
@@ -71,6 +71,20 @@ def sha(value):
     return hashlib.sha256(encoded).hexdigest()
 
 
+def write_relevance_export(folder, decisions):
+    grouped = {level: {} for level in LEVELS}
+    for item in decisions:
+        level = item["level"]
+        if item["review_status"] != "COMPLETE" or level is None:
+            continue
+        targets = grouped[level].setdefault(item["celex"], {})
+        if item["target"] in targets:
+            raise ValueError(f"Duplicate export target {item['celex']} {item['target']}")
+        targets[item["target"]] = {field: item[field] for field in ("level", "reason", "area")}
+    for level, records in grouped.items():
+        write_json(folder / f"{level.lower()}.json", records)
+
+
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("samples", "pilot"))
@@ -125,7 +139,6 @@ def configure(args):
             "indirect_paths": profile.get("indirect_paths", {}),
             "business_boundaries": profile.get("not_roles", {}),
             "negative_anchors": profile.get("negative_anchors", {}),
-            "document_level_relevance": matches.get(celex),
         }
         if args.mode == "samples":
             label, focus_label = SAMPLES[celex]
@@ -152,14 +165,18 @@ def configure(args):
             if not names or len(names) != len(set(names)):
                 raise ValueError(f"{celex} {target}: target branches are empty or ambiguous.")
             tasks.append((celex, unit, target, batches))
+    targets = {(celex, target) for celex, _, target, _ in tasks}
+    if len(targets) != len(tasks):
+        raise ValueError("Provision locators must be unique within each act for export.")
     return sources, tasks, matches, supplements
 
 
 def execute(args):
     sources, tasks, matches, supplements = configure(args)
     prompt = (ROOT / "prompts/eurlex_provision_relevance.md").read_text(encoding="utf-8")
+    review_prompt = (ROOT / "prompts/eurlex_provision_review.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_v2" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -168,12 +185,12 @@ def execute(args):
     except FileExistsError as exc:
         raise ValueError(f"Output directory is locked: {out}. Remove .running only after confirming no run is active.") from exc
     try:
-        run(args, sources, tasks, matches, supplements, prompt, out)
+        run(args, sources, tasks, matches, supplements, prompt, review_prompt, out)
     finally:
         lock.unlink()
 
 
-def run(args, sources, tasks, matches, supplements, prompt, out):
+def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
     client = None
     if not args.prepare_only:
         client = QwenClient.from_env(args.env_file, retries=1)
@@ -187,9 +204,11 @@ def run(args, sources, tasks, matches, supplements, prompt, out):
     fingerprint = sha({
         "model": model, "mode": args.mode, "prepare_only": args.prepare_only,
         "inputs": {celex: (context, hash_) for celex, (_, context, hash_) in sources.items()},
-        "supplements": list(supplements.values()), "prompt": prompt, "runner": tool_code,
+        "supplements": list(supplements.values()), "prompts": [prompt, review_prompt],
+        "document_audit": matches, "runner": tool_code,
     })
-    run_file = out / "run_config.json"
+    audit = out / "audit"
+    run_file = audit / "run_config.json"
     if run_file.exists() and read_json(run_file).get("fingerprint") != fingerprint:
         raise ValueError(f"Inputs or code changed for {out}. Set --output-dir to a fresh path.")
     if not run_file.exists():
@@ -205,7 +224,7 @@ def run(args, sources, tasks, matches, supplements, prompt, out):
                               } for celex, (evidence, context, _) in sources.items()}})
     if missing := sorted(sources.keys() - matches.keys()):
         print("No DIRECT/INDIRECT document result for: " + ", ".join(missing)
-              + ". Their document-level context will be null.", flush=True)
+              + ". Their audit record will show null.", flush=True)
 
     completed = []
     pending_error = None
@@ -213,7 +232,7 @@ def run(args, sources, tasks, matches, supplements, prompt, out):
         for index, (celex, unit, target, batches) in enumerate(tasks, 1):
             evidence, common, _ = sources[celex]
             key = sha((unit["id"], target))[:18]
-            path = out / celex / f"{unit['kind'].lower()}_{key}.json"
+            path = audit / celex / f"{unit['kind'].lower()}_{key}.json"
             print(f"[{index}/{len(tasks)}] {celex} {target} ({len(batches)} batch(es))", flush=True)
             if path.exists():
                 item = read_json(path)
@@ -228,18 +247,21 @@ def run(args, sources, tasks, matches, supplements, prompt, out):
                     "assessment_date": common["assessment_date"], "scenario_id": common["scenario"]["id"],
                     "evidence_status": common["scenario"]["evidence_status"], "model": model,
                     "anchor_catalog_version": common["anchor_catalog_version"],
-                    "document_level_relevance": common["document_level_relevance"],
+                    "document_level_relevance": matches.get(celex),
                     "run_fingerprint": fingerprint,
                 }
                 if args.prepare_only:
                     payloads = [prepare(evidence, unit, target, batch, common) for batch in batches]
                     item.update(payloads=payloads, max_payload_chars=max(map(size, payloads)))
                 else:
-                    results, retrieval_log, evidence_index = [], [], {}
+                    results, retrieval_log, reviews, evidence_index = [], [], [], {}
                     for batch_no, batch in enumerate(batches, 1):
                         payload = prepare(evidence, unit, target, batch, common)
-                        decision, trace = score_batch(client, prompt, evidence, payload)
+                        decision, trace, review = score_verified_batch(
+                            client, prompt, review_prompt, evidence, payload
+                        )
                         results.append(decision)
+                        reviews.append({"batch": batch_no, **review})
                         retrieval_log.extend({"batch": batch_no, **entry} for entry in trace)
                         cited = set(decision["evidence_refs"])
                         cited.update(r for b in decision["branch_results"] for r in b["evidence_refs"])
@@ -253,13 +275,14 @@ def run(args, sources, tasks, matches, supplements, prompt, out):
                                             "rows", "header_and_spanning_rows", "source_ids"}
                                     }
                     item.update(combine(results, payload["target_heading"]), batch_results=results,
-                                retrieval_log=retrieval_log, evidence_index=evidence_index)
+                                retrieval_log=retrieval_log, scenario_reviews=reviews,
+                                evidence_index=evidence_index)
                 write_json(path, item)
             completed.append({
                 "celex": celex, "target_id": unit["id"], "target": target, "kind": unit["kind"],
                 "file": path.relative_to(out).as_posix(),
                 **({"max_payload_chars": item["max_payload_chars"]} if args.prepare_only else
-                   {k: item[k] for k in ("level", "review_status", "area")}),
+                   {k: item[k] for k in ("level", "review_status", "reason", "area")}),
             })
     except ModelError as exc:
         pending_error = exc
@@ -267,10 +290,14 @@ def run(args, sources, tasks, matches, supplements, prompt, out):
     finally:
         counts = Counter(("PREPARED" if args.prepare_only else row["level"] or "PENDING")
                          for row in completed)
-        write_json(out / "run_summary.json", {
+        if not args.prepare_only:
+            write_relevance_export(out / "relevance_export", completed)
+        write_json(audit / "run_summary.json", {
             "run_fingerprint": fingerprint, "targets_planned": len(tasks),
             "targets_saved": len(completed), "targets_remaining": len(tasks) - len(completed),
             "counts": dict(counts), "needs_review": sum(row.get("review_status") == "NEEDS_REVIEW" for row in completed),
+            "targets_exported": sum(row.get("review_status") == "COMPLETE" and row.get("level") in LEVELS
+                                    for row in completed),
             "error": str(pending_error) if pending_error else None, "results": completed,
         })
     print(f"Saved {len(completed)} targets to {out}", flush=True)

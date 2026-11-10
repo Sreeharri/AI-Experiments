@@ -212,21 +212,20 @@ def add_requested_context(evidence, payload, requests):
     return added
 
 
-def unresolved_result(payload, requests):
+def pending_result(payload, reason, issues):
     document = payload["document"]
-    missing = [f"{r['instrument']} {r['locator']}: {r['why']}".strip() for r in requests]
     branches = [
         {"locator": b["locator"], "status": "NEEDS_REVIEW",
-         "reason": "The model requested material context and did not finish assessing this batch.",
+         "reason": reason,
          "evidence_refs": [b["locator"]]}
         for b in payload["branches"]
     ]
     return {
         "celex": document["celex"], "source_version_id": document["version_id"],
         "target": payload["target"], "provision_function": "OTHER", "level": None,
-        "reason": "The requested context remained open when the retrieval budget was reached.",
+        "reason": reason,
         "area": [], "evidence_refs": [b["locator"] for b in branches],
-        "review_status": "NEEDS_REVIEW", "missing_evidence": missing, "branch_results": branches,
+        "review_status": "NEEDS_REVIEW", "missing_evidence": issues, "branch_results": branches,
     }
 
 
@@ -238,13 +237,59 @@ def score_batch(client, prompt, evidence, payload):
         requests = answer["context_requests"]
         if not payload["can_request_context"]:
             payload["retrieval_log"].extend({**r, "status": "BUDGET_REACHED"} for r in requests)
-            return unresolved_result(payload, requests), payload["retrieval_log"]
+            missing = [f"{r['instrument']} {r['locator']}: {r['why']}".strip() for r in requests]
+            reason = "The requested context remained open when the retrieval budget was reached."
+            return pending_result(payload, reason, missing), payload["retrieval_log"]
         added = add_requested_context(evidence, payload, requests)
         # Allow a final decision after the last round, even when retrieval did not succeed.
         payload["can_request_context"] = round_index + 1 < MAX_CONTEXT_ROUNDS and (
             added > 0 or any("too large" in r.get("detail", "") for r in payload["retrieval_log"])
         )
     raise AssertionError("Context loop did not reach a final decision.")
+
+
+def review_draft(client, prompt, payload, draft):
+    schema = object_schema({
+        "issues": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
+    })
+    review_input = {k: v for k, v in payload.items() if k != "scenario_review_feedback"}
+    review_input["draft"] = draft
+    messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": json.dumps(review_input, ensure_ascii=False)},
+    ]
+    response = client.chat(
+        messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
+        schema=schema, schema_name="provision_scenario_review", max_tokens=600,
+    )
+    value, error = response.parse_json()
+    if not response.ok:
+        raise ModelError(f"Qwen scenario check failed ({response.error_kind}): "
+                         f"{client.clean(response.error or error or '')}")
+    if error or not isinstance(value, dict) or set(value) != {"issues"}:
+        raise ModelError(f"Invalid Qwen scenario check: {error or 'expected an issues array'}")
+    issues = value["issues"]
+    if not strings(issues) or len(issues) > 4:
+        raise ModelError("Invalid Qwen scenario check: expected up to four nonempty issues.")
+    return issues
+
+
+def score_verified_batch(client, prompt, review_prompt, evidence, payload):
+    draft, trace = score_batch(client, prompt, evidence, payload)
+    issues = review_draft(client, review_prompt, payload, draft)
+    review = {"initial_issues": issues}
+    if not issues:
+        return draft, trace, review
+
+    # Reassess the same scenario and evidence once using the review feedback.
+    payload["scenario_review_feedback"] = issues
+    payload["can_request_context"] = False
+    draft, trace = score_batch(client, prompt, evidence, payload)
+    remaining = review_draft(client, review_prompt, payload, draft)
+    review["remaining_issues"] = remaining
+    if remaining:
+        draft = pending_result(payload, "The scenario check could not verify the relevance decision.", remaining)
+    return draft, trace, review
 
 
 def combine(results, payload_heading):

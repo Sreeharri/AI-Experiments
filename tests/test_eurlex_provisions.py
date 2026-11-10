@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import Mock
 
 from eurlex_provision.evidence import branch_batches
-from eurlex_provision.screening import combine, score_batch, validate_answer
-from screen_eurlex_provisions import load_exports
+from eurlex_provision.screening import combine, score_batch, score_verified_batch, validate_answer
+from screen_eurlex_provisions import load_exports, write_relevance_export
 
 
 def payload():
@@ -31,6 +31,41 @@ def decision():
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_exports_have_only_three_fields_and_exclude_review(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory)
+            direct = decision()
+            indirect = {**direct, "target": "Article 3", "level": "INDIRECT"}
+            ignored = {**direct, "target": "Article 4", "level": "IGNORE", "area": []}
+            unverified = {**direct, "target": "Article 5", "review_status": "NEEDS_REVIEW"}
+            pending = {**unverified, "target": "Article 6", "level": None}
+            write_relevance_export(path, [direct, indirect, ignored, unverified, pending])
+            for item in (direct, indirect, ignored):
+                data = json.loads((path / f"{item['level'].lower()}.json").read_text(encoding="utf-8"))
+                self.assertEqual(data, {item["celex"]: {item["target"]: {
+                    key: item[key] for key in ("level", "reason", "area")
+                }}})
+
+    def test_scenario_reviewer_retries_and_withholds_unresolved_draft(self):
+        draft = {"result": decision(), "context_requests": []}
+        corrected = {"result": {**decision(), "level": "INDIRECT",
+                                "reason": "The obligation affects the stated supplier."},
+                     "context_requests": []}
+        issue = {"issues": ["The scenario says an independent supplier operates the kiln."]}
+        for final, expected in (({"issues": []}, "INDIRECT"), (issue, None)):
+            with self.subTest(expected=expected):
+                client = Mock()
+                replies = [Mock(ok=True) for _ in range(4)]
+                for reply, data in zip(replies, (draft, issue, corrected, final)):
+                    reply.parse_json.return_value = data, None
+                client.chat.side_effect = replies
+                result, _, review = score_verified_batch(client, "score", "review", Mock(), payload())
+                self.assertEqual(result["level"], expected)
+                self.assertEqual(result["review_status"], "COMPLETE" if expected else "NEEDS_REVIEW")
+                self.assertEqual(review["remaining_issues"], final["issues"])
+                correction = json.loads(client.chat.call_args_list[2].args[0][1]["content"])
+                self.assertEqual(correction["scenario_review_feedback"], issue["issues"])
+
     def test_document_results_join_by_celex_and_allow_missing(self):
         with TemporaryDirectory() as directory:
             path = Path(directory)
