@@ -170,6 +170,11 @@ def choices(value, allowed, maximum, minimum=0):
             and len(set(value)) == len(value) and all(item in allowed for item in value))
 
 
+def threshold_exclusions(payload):
+    return {check["locator"] for check in payload.get("numeric_checks", [])
+            if check["status"] == "NOT_MET"}
+
+
 def validate_answer(value, payload):
     """Check a raw reply. A result is accepted even if context requests were also sent."""
     if not isinstance(value, dict) or set(value) != {"result", "context_requests"}:
@@ -207,8 +212,7 @@ def validate_answer(value, payload):
     expected = [branch["locator"] for branch in payload["branches"]]
     legal_refs = locators(payload)
     facts = payload["scenario"]["facts"].keys()
-    excluded = {check["locator"] for check in payload.get("numeric_checks", [])
-                if check["status"] == "NOT_MET"}
+    excluded = threshold_exclusions(payload)
     if not isinstance(result["branch_results"], list):
         raise ValueError("branch_results must be a list.")
     seen = set()
@@ -232,7 +236,7 @@ def validate_answer(value, payload):
         if not choices(branch["evidence_refs"], legal_refs, MAX_EXTRA_REFS):
             raise ValueError(f"{locator}: evidence_refs may list up to {MAX_EXTRA_REFS} supplied legal "
                              "locators. Cite scenario facts in fact_refs.")
-        if locator in excluded and status in (COMPANY, OTHER_ACTOR):
+        if locator in excluded and status not in (OUTSIDE, OPEN):
             raise ValueError(f"{locator}: the supplied rating does not meet the threshold. "
                              "Use OUTSIDE_SCENARIO, or NEEDS_REVIEW with the specific gap.")
     if missing := [locator for locator in expected if locator not in seen]:
@@ -435,21 +439,15 @@ def review_draft(client, prompt, payload, draft, thinking=True):
     return {"issues": issues, "notes": notes}
 
 
-def blocking_issues(draft, issues):
-    """Return the issues that would change the derived level or review status."""
+def blocking_issues(draft, issues, payload):
+    """Return branch-status disputes consistent with deterministic threshold checks."""
     current = {branch["locator"]: branch["status"] for branch in draft["branch_results"]}
-    outcome = (draft["level"], draft["review_status"])
-    disputes = [issue for issue in issues if issue["proposed_status"] != current[issue["locator"]]]
-
-    def outcome_with(selected):
-        proposed = dict(current)
-        proposed.update((issue["locator"], issue["proposed_status"]) for issue in selected)
-        return derive(proposed.values())
-
-    if not disputes or outcome_with(disputes) == outcome:
-        return []
-    # Prefer the disputes that change the result on their own; otherwise they only matter together.
-    return [issue for issue in disputes if outcome_with([issue]) != outcome] or disputes
+    excluded = threshold_exclusions(payload)
+    return [
+        issue for issue in issues
+        if issue["proposed_status"] != current[issue["locator"]]
+        and (issue["locator"] not in excluded or issue["proposed_status"] in (OUTSIDE, OPEN))
+    ]
 
 
 def hold_disputed(draft, disputes):
@@ -477,7 +475,7 @@ def score_verified_batch(client, prompt, review_prompt, evidence, payload, revie
     try:
         draft, trace = score_batch(client, prompt, evidence, payload)
         checked = review_draft(client, review_prompt, payload, draft, review_thinking)
-        disputes = blocking_issues(draft, checked["issues"])
+        disputes = blocking_issues(draft, checked["issues"], payload)
         review.update(initial_issues=checked["issues"], initial_notes=checked["notes"],
                       initial_blocking=disputes)
         if not disputes:
@@ -488,7 +486,7 @@ def score_verified_batch(client, prompt, review_prompt, evidence, payload, revie
         payload["can_request_context"] = False
         draft, trace = score_batch(client, prompt, evidence, payload)
         checked = review_draft(client, review_prompt, payload, draft, review_thinking)
-        remaining = blocking_issues(draft, checked["issues"])
+        remaining = blocking_issues(draft, checked["issues"], payload)
         review.update(remaining_issues=checked["issues"], remaining_notes=checked["notes"],
                       remaining_blocking=remaining)
         if remaining:

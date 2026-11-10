@@ -170,9 +170,9 @@ def configure(args):
                 focus = None
         else:
             units = [u for u in evidence.units.values() if u["kind"] in TARGET_KINDS]
-            expected = {"ARTICLE": data["summary"]["articles"], "ANNEX": data["summary"]["annexes"],
-                        "TABLE": data["summary"]["xhtml_data_tables"]}
-            if Counter(u["kind"] for u in units) != Counter({k: v for k, v in expected.items() if v}):
+            expected_counts = {"ARTICLE": data["summary"]["articles"], "ANNEX": data["summary"]["annexes"],
+                               "TABLE": data["summary"]["xhtml_data_tables"]}
+            if Counter(u["kind"] for u in units) != Counter({k: v for k, v in expected_counts.items() if v}):
                 raise ValueError(f"{celex}: target inventory disagrees with enriched summary.")
             focus = None
         sources[celex] = (evidence, context, sha(data))
@@ -195,7 +195,7 @@ def execute(args):
     prompt = (ROOT / "prompts/eurlex_provision_relevance.md").read_text(encoding="utf-8")
     review_prompt = (ROOT / "prompts/eurlex_provision_review.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_v6" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_v6_1" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"

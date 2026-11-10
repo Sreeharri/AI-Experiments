@@ -1,11 +1,9 @@
 # EUR-Lex provision relevance pilot
 
-Apply this v6 update over the v5 pilot in the root of `AI-Experiments`,
-alongside `enrich_eurlex.py`. Merge the directories and replace the files
-provided in this ZIP. Then delete `eurlex_provision/scenario_checks.py`;
-nothing uses it any more. The pilot uses the existing Qwen client,
-configuration, pinned act manifest, enrichment code and the v4
-`eurlex_provision/thresholds.py`.
+Apply this v6.1 update over v6 in the root of `AI-Experiments`, alongside
+`enrich_eurlex.py`. Merge the directories and replace the files in this ZIP.
+The pilot uses the existing Qwen client, configuration, pinned act manifest,
+enrichment code and the v4 `eurlex_provision/thresholds.py`.
 
 ## Inputs
 
@@ -46,6 +44,18 @@ The prepare command writes the three sample inputs without calling Qwen. The
 sample run assesses Regulation Article 2, Directive Article 6(2), and Decision
 BAT 17 with the governing Article 1. The full run assesses Article 6 as a
 complete article, including both dated sentences of paragraph 2.
+
+The default benchmark expects Article 2 and Article 6(2) to export as DIRECT.
+BAT 17 should remain in NEEDS_REVIEW because the synthetic supplier scenario
+does not supply kiln type and capacity. A result can pass the benchmark while
+remaining outside the export.
+
+To test a completed INDIRECT result for BAT 17, run the alternate synthetic
+scenario and its matching expected-label file in a separate output folder.
+
+```powershell
+.\.venv\Scripts\python.exe .\screen_eurlex_provisions.py samples --scenarios .\config\eurlex_provision_scenarios_bat_in_scope.json --expected .\config\eurlex_provision_expected_bat_in_scope.json --output-dir .\runs\eurlex_provisions_samples_v6_1_bat_in_scope
+```
 
 After reviewing the sample results, run the complete three-act pilot.
 
@@ -92,10 +102,11 @@ audit records retrieval attempts and passages cited by the model.
 
 A separate Qwen scenario check runs with thinking on (use
 `--review-thinking off` to compare). Each issue it raises names a branch, the
-fact ID or legal locator it relies on, and the status it proposes. An issue
-blocks the draft only if applying the proposed status would change the level
-or review status. Other issues and all notes are kept in the audit. A blocked
-draft gets one correction round with the issues and the previous draft. If the
+fact ID or legal locator it relies on, and the status it proposes. A change
+to any branch status triggers one correction round with the previous draft,
+even when the overall relevance level stays the same. Wording notes,
+unchanged statuses and proposals that contradict a failed threshold remain
+in the audit. If the
 second check still blocks, only the disputed branches become NEEDS_REVIEW; the
 audit keeps Qwen's original status as `draft_status`.
 If Qwen returns an invalid decision twice, the affected target is saved for
@@ -125,9 +136,9 @@ transcription as evidence for the original target.
 
 | Run | Output directory |
 |---|---|
-| Sample inputs | `runs/eurlex_provisions_samples_v6_prepared` |
-| Sample results | `runs/eurlex_provisions_samples_v6` |
-| Complete pilot | `runs/eurlex_provisions_pilot_v6` |
+| Sample inputs | `runs/eurlex_provisions_samples_v6_1_prepared` |
+| Sample results | `runs/eurlex_provisions_samples_v6_1` |
+| Complete pilot | `runs/eurlex_provisions_pilot_v6_1` |
 
 For a live run, open `relevance_export/direct.json`, `indirect.json`, and
 `ignore.json`. Each file groups the records by CELEX and provision locator.

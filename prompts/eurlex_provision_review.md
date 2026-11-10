@@ -22,7 +22,8 @@ branch statuses. For each branch, check:
   states the dependency, even if costs, contracts or current compliance are
   not yet verified.
 - The conditions: product, location, capacity, fuel and similar. Compare
-  numeric_checks with the statuses.
+  numeric_checks with the statuses. For a NOT_MET branch, propose only
+  OUTSIDE_SCENARIO or NEEDS_REVIEW with a specific material gap.
 - The structure: points listed under an introductory sentence can add items,
   set conditions or list exclusions. Read the introductory sentence before
   treating a point as a condition of it.

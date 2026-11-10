@@ -1,9 +1,10 @@
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import json
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from eurlex_provision.evidence import branch_batches
 from eurlex_provision.grading import check_planned, grade, load_expected
@@ -14,7 +15,7 @@ from eurlex_provision.screening import (
 )
 from eurlex_provision.thresholds import numeric_checks
 from lr_ai.qwen_client import ChatResult
-from screen_eurlex_provisions import check_scenario, load_exports, write_relevance_export
+from screen_eurlex_provisions import check_scenario, configure, load_exports, write_relevance_export
 
 FACTS = ["The company makes finished precast elements in Germany.",
          "The scenario covers only the finished product.",
@@ -164,14 +165,16 @@ class CitationTests(unittest.TestCase):
                 validate_answer(answer(branch("Article 2(1)", status, facts=[])), payload())
         validate_answer(answer(branch("Article 2(1)", CONTEXT_ONLY, facts=[])), payload())
 
-    def test_threshold_conflict_rejects_an_applies_status(self):
+    def test_failed_threshold_permits_only_outside_or_review(self):
         inputs = payload()
         inputs["branches"][0]["text"] = "Rated thermal input of less than or equal to 5 MW."
         inputs["numeric_checks"] = numeric_checks(inputs["branches"], ["A boiler with 8 MW rated thermal input."])
         self.assertEqual(inputs["numeric_checks"][0]["status"], "NOT_MET")
-        with self.assertRaisesRegex(ValueError, "does not meet the threshold"):
-            validate_answer(answer(branch("Article 2(1)", COMPANY)), inputs)
-        validate_answer(answer(branch("Article 2(1)", OUTSIDE)), inputs)
+        for status in (COMPANY, OTHER_ACTOR, CONTEXT_ONLY):
+            with self.subTest(status=status), self.assertRaisesRegex(ValueError, "does not meet the threshold"):
+                validate_answer(answer(branch("Article 2(1)", status)), inputs)
+        for status in (OUTSIDE, OPEN):
+            validate_answer(answer(branch("Article 2(1)", status)), inputs)
 
     def test_invalid_anchor_identity_and_missing_branch_rejected(self):
         good = answer(branch("Article 2(1)", COMPANY))
@@ -182,17 +185,51 @@ class CitationTests(unittest.TestCase):
 
 
 class ReviewTests(unittest.TestCase):
-    def test_issue_that_leaves_the_result_unchanged_is_only_a_note(self):
-        # v5 Article 2: the check objected to the introductory line; the level was right.
-        inputs = payload("Article 2(1)", "Article 2(2)")
-        draft = answer(branch("Article 2(1)", COMPANY), branch("Article 2(2)", CONTEXT_ONLY, facts=[]))
-        client = client_with(draft, review(issue("Article 2(2)", OUTSIDE), issue("Article 2(1)", COMPANY),
-                                           notes=["Reason could cite Article 3(1)."]))
+    def test_branch_status_error_gets_corrected_even_with_same_target_level(self):
+        inputs = payload("Article 2(1)", "Article 2(1)(a)")
+        own = branch("Article 2(1)", COMPANY)
+        draft = answer(own, branch("Article 2(1)(a)", COMPANY))
+        fixed = answer(own, branch("Article 2(1)(a)", OUTSIDE))
+        dispute = issue("Article 2(1)(a)", OUTSIDE)
+        client = client_with(draft, review(dispute), fixed, review())
         result, _, checks = score_verified_batch(client, "score", "review", Mock(), inputs)
         self.assertEqual((result["level"], result["review_status"]), ("DIRECT", "COMPLETE"))
+        self.assertEqual(result["branch_results"][1]["status"], OUTSIDE)
+        self.assertEqual(checks["initial_blocking"], [dispute])
+        self.assertEqual(client.chat.call_count, 4)
+
+    def test_persistent_branch_error_holds_a_target_with_same_level(self):
+        inputs = payload("Article 2(1)", "Article 2(1)(a)")
+        draft = answer(branch("Article 2(1)", COMPANY), branch("Article 2(1)(a)", COMPANY))
+        dispute = issue("Article 2(1)(a)", OUTSIDE)
+        client = client_with(draft, review(dispute), draft, review(dispute))
+        result, _, checks = score_verified_batch(client, "score", "review", Mock(), inputs)
+        self.assertEqual((result["level"], result["review_status"]), ("DIRECT", "NEEDS_REVIEW"))
+        self.assertEqual(result["branch_results"][0]["status"], COMPANY)
+        self.assertEqual(result["branch_results"][1]["draft_status"], COMPANY)
+        self.assertEqual(checks["remaining_blocking"], [dispute])
+
+    def test_wording_notes_and_unchanged_status_do_not_trigger_retry(self):
+        inputs = payload()
+        draft = answer(branch("Article 2(1)", COMPANY))
+        client = client_with(draft, review(issue("Article 2(1)", COMPANY),
+                                           notes=["Reason could cite Article 3(1)."]))
+        result, _, checks = score_verified_batch(client, "score", "review", Mock(), inputs)
+        self.assertEqual(result["review_status"], "COMPLETE")
         self.assertEqual(checks["initial_blocking"], [])
-        self.assertEqual(len(checks["initial_issues"]), 2)
+        self.assertEqual(len(checks["initial_notes"]), 1)
         self.assertEqual(client.chat.call_count, 2)
+
+    def test_reviewer_cannot_block_with_status_that_fails_threshold_validation(self):
+        inputs = payload()
+        inputs["numeric_checks"] = [{"locator": "Article 2(1)", "status": "NOT_MET"}]
+        draft = answer(branch("Article 2(1)", OUTSIDE))
+        dispute = issue("Article 2(1)", CONTEXT_ONLY)
+        client = client_with(draft, review(dispute))
+        result, _, checks = score_verified_batch(client, "score", "review", Mock(), inputs)
+        self.assertEqual((result["level"], result["review_status"]), ("IGNORE", "COMPLETE"))
+        self.assertEqual(checks["initial_issues"], [dispute])
+        self.assertEqual(checks["initial_blocking"], [])
 
     def test_level_changing_issue_gets_one_correction_with_the_draft(self):
         inputs = payload("BAT 17")
@@ -328,6 +365,38 @@ class FlowTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_pilot_keeps_expected_labels_separate_from_inventory(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            celex = "32024R3110"
+            sources = {
+                "manifest.json": {celex: "pinned"},
+                "scenarios.json": {"assessment_date": "2026-11-10", "scenarios": {
+                    celex: {"id": "fixture", "evidence_status": "SYNTHETIC_TEST_CASE", "facts": FACTS}}},
+                "expected.json": {"acts": {celex: {"source_version_id": "pinned", "targets": {
+                    "Article 2": {"level": "DIRECT", "branches": {"Article 2(1)": COMPANY}}}}}},
+                f"{celex}_enriched.json": {
+                    "schema_version": 1, "document": {"celex": celex, "version_id": "pinned"},
+                    "summary": {"articles": 1, "annexes": 0, "xhtml_data_tables": 0}},
+            }
+            for name, value in sources.items():
+                (root / name).write_text(json.dumps(value), encoding="utf-8")
+            anchors = root / "anchors.yaml"
+            anchors.write_text("anchors: {precast: {}}", encoding="utf-8")
+            args = SimpleNamespace(mode="pilot", manifest=root / "manifest.json", relevance_dir=root,
+                                   scenarios=root / "scenarios.json", assessment_date=None, anchors=anchors,
+                                   supplements=None, expected=root / "expected.json", enriched_dir=root)
+            evidence = Mock(units={"a2": {"kind": "ARTICLE", "id": "a2"}})
+            evidence.locator.return_value = "Article 2"
+            evidence.branches.return_value = [{"locator": "Article 2(1)"}]
+            with patch("screen_eurlex_provisions.Evidence", return_value=evidence), patch(
+                "screen_eurlex_provisions.load_exports", return_value={}
+            ):
+                _, tasks, _, _, expected = configure(args)
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(list(expected), [(celex, "Article 2")])
+            self.assertEqual(grade(expected, {(celex, "Article 2"): stored()})["result_matches"], 1)
+
     def test_exports_have_only_three_fields_and_exclude_review(self):
         with TemporaryDirectory() as directory:
             path = Path(directory)

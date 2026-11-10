@@ -1,5 +1,5 @@
 {
-  "description": "Expected results for the three synthetic sample cases. Used only to grade a finished run; never sent to Qwen.",
+  "description": "Expected results for the default synthetic samples. BAT 17 is held for missing kiln type and capacity. Used only for grading.",
   "acts": {
     "32024R3110": {
       "source_version_id": "2c6c22d9-ae73-4325-a9e2-666fcc11d444",
@@ -36,14 +36,14 @@
       "source_version_id": "3bd3c551-2820-4409-bf0b-50dd744a825f",
       "targets": {
         "Annex 1, BAT 17 [section 47]": {
-          "level": "INDIRECT",
-          "review_status": "COMPLETE",
+          "level": null,
+          "review_status": "NEEDS_REVIEW",
           "branches": {
-            "Annex 1, BAT 17 [section 47]": "APPLIES_TO_OTHER_ACTOR",
+            "Annex 1, BAT 17 [section 47]": "NEEDS_REVIEW",
             "Annex 1, BAT 17 [section 47], unnumbered table 18, row 1": "CONTEXT_ONLY",
-            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 2": "APPLIES_TO_OTHER_ACTOR",
-            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 3": "APPLIES_TO_OTHER_ACTOR",
-            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 4": "APPLIES_TO_OTHER_ACTOR"
+            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 2": "NEEDS_REVIEW",
+            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 3": "NEEDS_REVIEW",
+            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 4": "NEEDS_REVIEW"
           }
         }
       }
