@@ -1,6 +1,7 @@
 """Screen an exported database corpus with v9 evidence policy; resumable."""
 from __future__ import annotations
 import argparse
+from collections import Counter
 import csv
 from datetime import date,datetime,timezone
 import hashlib
@@ -30,6 +31,71 @@ def exclusions(path,known):
     return rows
 
 
+def summarize_predictions(out, selected, stored_acts, excluded_count, inference_exit_code):
+    counts = Counter()
+    missing = []
+    unresolved = []
+    failure_reasons = {}
+    reviewed = 0
+    for key in selected:
+        path = out / 'predictions' / f'{key}.json'
+        try:
+            data = json.loads(path.read_text(encoding='utf-8-sig'))
+        except FileNotFoundError:
+            missing.append(key)
+            continue
+        except (OSError, ValueError):
+            data = {'error': 'Saved result could not be read as JSON'}
+        if not isinstance(data, dict) or data.get('celex', key) != key:
+            data = {'error': 'Saved result does not match the selected act'}
+        decision = data.get('decision')
+        level = decision.get('level') if isinstance(decision, dict) else None
+        status = data.get('status')
+        if status == 'ok' and level in ('DIRECT', 'INDIRECT', 'IGNORE'):
+            label = level
+        elif status == 'prepared':
+            label = 'PREPARED'
+        else:
+            label = 'UNRESOLVED'
+            unresolved.append(key)
+            reason = str(data.get('error') or 'Saved result has no valid screening decision')
+            failure_reasons[key] = reason
+        counts[label] += 1
+        verification = data.get('verification')
+        if isinstance(verification, dict) and verification.get('completed'):
+            reviewed += 1
+    return {
+        'stored_acts': stored_acts, 'prefilter_excluded': excluded_count,
+        'selected': len(selected), 'counts': dict(counts),
+        'missing_ids': missing, 'unresolved_ids': unresolved,
+        'failure_reasons': failure_reasons, 'reviews_completed': reviewed,
+        'inference_exit_code': inference_exit_code,
+        'note': 'No whole-corpus precision/recall without independent labels. Inspect unresolved data and the excluded-act audit.',
+    }
+
+
+def report_saved_results(corpus, out):
+    state = json.loads((out / 'corpus_run.json').read_text(encoding='utf-8-sig'))
+    signature = state['signature']
+    if signature['corpus_sha256'] != corpus.sha256:
+        raise ValueError('Run belongs to a different corpus snapshot')
+    selected = [validate_celex(key) for key in signature['selected_ids']]
+    if not selected or len(set(selected)) != len(selected) or set(selected) - set(corpus.ids()):
+        raise ValueError('Run state contains an invalid act selection')
+    report = summarize_predictions(out, selected, len(corpus.ids()), len(signature['exclusions']), None)
+    report_path = out / 'corpus_recovery_report.json'
+    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding='utf-8')
+    print(f"Selected: {report['selected']}; missing: {len(report['missing_ids'])}; "
+          f"unresolved: {len(report['unresolved_ids'])}")
+    print(f"Saved counts: {report['counts']}")
+    reasons = Counter(report['failure_reasons'].values())
+    for reason, count in reasons.most_common(5):
+        example = next(key for key, value in report['failure_reasons'].items() if value == reason)
+        print(f'{count} failure(s), example {example}: {reason[:500]}')
+    print(f'Recovery report: {report_path}', flush=True)
+    return 2 if report['missing_ids'] or report['unresolved_ids'] else 0
+
+
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input',type=Path,required=True)
@@ -40,12 +106,19 @@ def main(argv=None):
     p.add_argument('--input-budget',type=int,default=34000)
     p.add_argument('--context-limit',type=int,default=40960)
     p.add_argument('--max-chunks',type=int,default=0)
-    p.add_argument('--resume',action='store_true')
+    run_mode = p.add_mutually_exclusive_group()
+    run_mode.add_argument('--resume', action='store_true')
+    run_mode.add_argument('--report-only', action='store_true',
+                          help='Inspect existing results without contacting Qwen')
     p.add_argument('--prepare-only',action='store_true',help='No Qwen discovery or inference')
     p.add_argument('--labels',type=Path,help='Optional evaluation of the labelled subset after corpus inference')
     args=p.parse_args(argv)
     try:
         corpus=StoredCorpus(args.input)
+        if args.report_only:
+            if args.labels or args.prepare_only or args.exclude_approved:
+                raise ValueError('--report-only uses the original run state and saved results')
+            return report_saved_results(corpus, args.out)
         approved=exclusions(args.exclude_approved,set(corpus.ids()))
         excluded={r['celex'] for r in approved}
         selected=[x for x in corpus.ids() if x not in excluded]
@@ -80,23 +153,7 @@ def main(argv=None):
         print(f'{len(corpus.ids())} stored acts; {len(approved)} explicitly excluded; {len(selected)} selected.',flush=True)
         print('Preparation only; no AI calls.' if args.prepare_only else 'Qwen screening and one review of initial IGNOREs.',flush=True)
         code=subprocess.call(command,cwd=ROOT)
-        counts={};failed=[];missing=[];reviewed=0
-        for key in selected:
-            path=args.out/'predictions'/f'{key}.json'
-            if not path.exists():missing.append(key);continue
-            try:
-                data=json.loads(path.read_text(encoding='utf-8-sig'))
-                status=data.get('status')
-                if status=='ok':label=data['decision']['level']
-                elif status=='prepared':label='PREPARED'
-                else:label='UNRESOLVED';failed.append(key)
-                counts[label]=counts.get(label,0)+1
-                reviewed+=bool((data.get('verification') or {}).get('completed'))
-            except (ValueError,KeyError,TypeError):failed.append(key)
-        summary={'stored_acts':len(corpus.ids()),'prefilter_excluded':len(approved),
-                 'selected':len(selected),'counts':counts,'missing_ids':missing,'unresolved_ids':failed,
-                 'reviews_completed':reviewed,'inference_exit_code':code,
-                 'note':'No whole-corpus precision/recall without independent labels. Inspect unresolved data and the excluded-act audit.'}
+        summary = summarize_predictions(args.out, selected, len(corpus.ids()), len(approved), code)
         (args.out/'corpus_summary.json').write_text(json.dumps(summary,indent=2),encoding='utf-8')
         if args.labels and not args.prepare_only:
             from compare_screening_passes import evaluate_both_passes
@@ -104,7 +161,8 @@ def main(argv=None):
             evaluation_out.mkdir()
             eval_code=evaluate_both_passes(args.labels,'Labels',args.out/'predictions',evaluation_out)
             if eval_code:code=code or eval_code
-        state['status']='completed' if not code and not failed and not missing else 'incomplete'
+        state['status'] = ('completed' if not code and not summary['unresolved_ids']
+                           and not summary['missing_ids'] else 'incomplete')
         state_path.write_text(json.dumps(state,indent=2),encoding='utf-8')
         print(json.dumps(summary,indent=2),flush=True)
         return 0 if state['status']=='completed' else 2
