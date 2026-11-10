@@ -13,11 +13,11 @@ offline with the exported source snapshot.
 
 ## Folder layout
 
-Extract the zip. Open the `eurlex_enrichment_pilot` folder in VS Code and
-run the commands below in its PowerShell terminal.
+Extract the zip inside `AI-Experiments` for PostgreSQL mode. For JSON mode,
+open the extracted `eurlex_enrichment_pilot_env` folder in VS Code.
 
 ```text
-eurlex_enrichment_pilot/
+eurlex_enrichment_pilot_env/
   enrich_eurlex.py
   verify_pilot.py
   pilot_acts.json
@@ -52,7 +52,6 @@ Copy the three exports into `input`. Then run:
 ```powershell
 & $py .\enrich_eurlex.py run --source json --input-dir .\input --output-dir .\output
 & $py .\verify_pilot.py --output-dir .\output
-& $py -m unittest discover -s tests
 ```
 
 Expected coverage is 117 articles, 15 annexes and 93 data tables. The
@@ -63,35 +62,27 @@ external Article 11(8) reference.
 
 ## 2. Read directly from PostgreSQL
 
-The PostgreSQL route uses the same pinned versions and does not require
-input JSON. Use the host, port, database, username and SSL settings from
-your working pgAdmin connection. If your PostgreSQL password is already
-available through the local password file, use that configuration.
-Otherwise the example below prompts for your credentials.
+Run these commands from the `AI-Experiments` folder where your existing
+`.env` and `.venv` are located. The pilot reads the same pinned versions
+directly from PostgreSQL. Keep `.env` in the project folder.
 
 ```powershell
-& $py -m pip install -r .\requirements-postgres.txt
-$env:PGHOST = Read-Host "PostgreSQL host"
-$env:PGPORT = Read-Host "PostgreSQL port"
-$env:PGDATABASE = Read-Host "Legal Radar database name"
-$env:PGUSER = Read-Host "PostgreSQL username"
-$cred = Get-Credential -UserName $env:PGUSER -Message "Legal Radar PostgreSQL"
-if (-not $cred) { throw "PostgreSQL login was cancelled." }
-$env:PGPASSWORD = $cred.GetNetworkCredential().Password
-try {
-    & $py .\enrich_eurlex.py run --source postgres --output-dir .\output_db
-    if ($LASTEXITCODE -ne 0) { throw "PostgreSQL enrichment failed." }
-    & $py .\verify_pilot.py --output-dir .\output_db
-    if ($LASTEXITCODE -ne 0) { throw "Pilot verification failed." }
-} finally {
-    Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
-}
+$py = ".\.venv\Scripts\python.exe"
+$pilot = ".\eurlex_enrichment_pilot_env"
+& $py -m pip install -r "$pilot\requirements-postgres.txt"
+if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
+& $py "$pilot\enrich_eurlex.py" run --source postgres --env-file .\.env --output-dir .\output_db
+if ($LASTEXITCODE -ne 0) { throw "PostgreSQL enrichment failed." }
+& $py "$pilot\verify_pilot.py" --output-dir .\output_db
 ```
 
-If you already have a configured connection URL, you can instead set
-`LEGAL_RADAR_DATABASE_URL` in the process environment. It takes precedence
-over using the PostgreSQL variables alone. A stored XHTML snapshot is the
-default source. If it is missing, provide a byte-identical local
+With `--env-file`, the pilot uses `DATABASE_URL` or
+`LEGAL_RADAR_DATABASE_URL` from that file. If both are present,
+`LEGAL_RADAR_DATABASE_URL` takes precedence. After installing the PostgreSQL
+dependencies, run the unit tests from the pilot folder with
+`python -m unittest discover -s tests`.
+
+A stored XHTML snapshot is the default source. If it is missing, provide a byte-identical local
 `<CELEX>.xhtml` using `--xhtml-dir .\xhtml`, or enable
 `--fetch-xhtml` to try the version's official XHTML URL. Every source must
 match the selected version's SHA-256. Live URL fallback only accepts the

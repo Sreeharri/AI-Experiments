@@ -44,18 +44,33 @@ def from_json(directory, celex, version_id):
     raise ValueError(f"No {celex}_structured.json or {celex}.json in {directory}")
 
 
-def from_postgres(celex, version_id):
+def postgres_dsn(env_file=None):
+    if env_file is None:
+        dsn = os.environ.get("LEGAL_RADAR_DATABASE_URL", "")
+    else:
+        from dotenv import dotenv_values
+
+        if not env_file.is_file():
+            raise ValueError(f"Database environment file not found: {env_file}")
+        values = dotenv_values(env_file, encoding="utf-8-sig")
+        dsn = values.get("LEGAL_RADAR_DATABASE_URL") or values.get("DATABASE_URL")
+        if not dsn or not dsn.strip():
+            raise ValueError(f"Set DATABASE_URL or LEGAL_RADAR_DATABASE_URL in {env_file}")
+        dsn = dsn.strip()
+
+    # Accept the SQLAlchemy driver suffix used in some backend configurations.
+    for prefix in ("postgresql+psycopg://", "postgresql+psycopg2://"):
+        if dsn.startswith(prefix):
+            return "postgresql://" + dsn[len(prefix):]
+    return dsn
+
+
+def from_postgres(celex, version_id, dsn):
     try:
         import psycopg
     except ImportError as exc:
         raise ValueError("Install requirements-postgres.txt for PostgreSQL mode") from exc
 
-    dsn = os.environ.get("LEGAL_RADAR_DATABASE_URL", "")
-    # Support a URL copied from the backend's SQLAlchemy configuration.
-    for prefix in ("postgresql+psycopg://", "postgresql+psycopg2://"):
-        if dsn.startswith(prefix):
-            dsn = "postgresql://" + dsn[len(prefix):]
-            break
     with psycopg.connect(dsn, connect_timeout=15) as connection:
         connection.read_only = True
         connection.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ

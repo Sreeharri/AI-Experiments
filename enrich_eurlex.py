@@ -11,7 +11,7 @@ from uuid import UUID
 from lxml.etree import XMLSyntaxError
 
 from eurlex_enrichment.enrichment import build, evidence_for
-from eurlex_enrichment.inputs import from_json, from_postgres, read_json, source_bytes
+from eurlex_enrichment.inputs import from_json, from_postgres, postgres_dsn, read_json, source_bytes
 
 ROOT = Path(__file__).resolve().parent
 
@@ -35,6 +35,7 @@ def main():
     modes = parser.add_subparsers(dest="command", required=True)
     run = modes.add_parser("run", help="Read source data and produce enriched JSON")
     run.add_argument("--source", choices=("json", "postgres"), default="json")
+    run.add_argument("--env-file", type=Path, help="Use DATABASE_URL from this .env file in PostgreSQL mode")
     run.add_argument("--input-dir", type=Path, default=ROOT / "input")
     run.add_argument("--output-dir", type=Path, default=ROOT / "output")
     run.add_argument("--manifest", type=Path, default=ROOT / "pilot_acts.json")
@@ -52,6 +53,9 @@ def main():
             print(f"Wrote {args.output}")
             return 0
 
+        if args.env_file is not None and args.source != "postgres":
+            raise ValueError("--env-file requires --source postgres")
+        dsn = postgres_dsn(args.env_file) if args.source == "postgres" else None
         manifest = read_json(args.manifest)
         celex_ids = args.celex or list(manifest)
         if not celex_ids or len(set(celex_ids)) != len(celex_ids):
@@ -64,7 +68,7 @@ def main():
         for celex in celex_ids:
             version_id = manifest[celex]
             data = (from_json(args.input_dir, celex, version_id) if args.source == "json"
-                    else from_postgres(celex, version_id))
+                    else from_postgres(celex, version_id, dsn))
             if data["version"]["language"] != "EN":
                 raise ValueError(f"{celex}: this pilot requires the English version")
             raw, origin = source_bytes(data, args.xhtml_dir, args.fetch_xhtml)
