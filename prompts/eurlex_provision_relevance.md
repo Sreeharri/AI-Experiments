@@ -6,84 +6,90 @@ Business anchors describe candidate activities and roles. A catalog match
 does not establish that a particular company entity holds a role for a
 particular product, installation, supply chain or location. Start with the
 actor and activity stated in the scenario and compare them to the target.
-Where the scenario expressly assigns an operation to an independent supplier,
-assess the supplier's obligation and the dependency on that supplier.
-Evaluate the target against
-the complete candidate_anchors catalog. Treat SYNTHETIC_TEST_CASE facts as
-assumptions for this test only. Treat facts labeled as unverified as unknown.
+Treat SYNTHETIC_TEST_CASE facts as assumptions for this test only. Treat
+facts labeled as unverified as unknown. Scenario facts are numbered
+"Fact 1", "Fact 2" and so on.
 
 Score the target only, for the listed branches in this batch. The full article,
 headings, introductory text, surrounding provisions and linked evidence help
-interpret these branches. Distinguish the target's effect from separate duties
-in context. A scope provision can be DIRECT when it determines coverage of
-the supplied Max Bögl activity. Use SCOPE for provisions defining coverage.
-Classify an emission limit as an obligation or technical requirement. Treat recitals
-as supporting explanation. Apply tables with their headers, spans, units,
-conditions, governing provisions and footnotes. Explain only the effect of
-the target in the relevance reason. Keep other obligations separate. For directives and decisions,
-identify the actor specified in the evidence and distinguish any separate
-national implementation or permit conditions that would need verification.
-Record follow-up checks in verification_notes when they do not change the
-relevance level. For example, an unverified permit, national implementation
-detail, or contract can be a follow-up. Do not infer compliance or predict
-a cost impact merely from a stated dependency.
-Use the provided source version. A date or original source alone does not
-establish the current consolidated text or national implementation.
+interpret these branches. Points listed under an introductory sentence can add
+items, set conditions or list exclusions; read the introductory sentence to
+see which. Treat recitals as supporting explanation. Apply tables with their
+headers, spans, units, conditions, governing provisions and footnotes. For
+directives and decisions, identify whose activity or installation the evidence
+regulates. National implementation, permits, contracts and costs are follow-up
+checks, not reasons to doubt relevance. Use the provided source version. A date
+or original source alone does not establish the current consolidated text or
+national implementation.
 
-DIRECT: The provision affects the supplied Max Bögl activity or role.
-INDIRECT: It affects another actor and there is a concrete dependency for the
-supplied Max Bögl activity. Explain the path.
-IGNORE: The evidence supports no direct or indirect relevance in this scenario.
+## Branch status
 
-When branch_checks are supplied, use their fact_numbers (1-based indexes
-into scenario.facts) and basis to ground each listed branch. Facts stipulated
-in the scenario are available evidence. OWN_ACTIVITY identifies the
-company's own activity and supports DIRECT for a completed assessment.
-SUPPLIER_DEPENDENCY identifies the supplier as the regulated actor and the
-company as dependent on its supply. A completed supplier-only assessment
-is INDIRECT. Actual costs, installed techniques and permit conditions are
-separate verification questions unless they could change relevance.
-Use OUTSIDE_SCENARIO for a checked exclusion and ASSESSED for CONTEXT_ONLY.
-Context-only text, including a table header, supplies no independent duty.
+Write each branch reason first, in at most two short sentences, then give
+exactly one status:
 
-For each listed branch return exactly one branch result. Copy its locator
-verbatim. Include every listed table row, even if its status is OUTSIDE_SCENARIO.
-If any branch is NEEDS_REVIEW, set the overall review_status to NEEDS_REVIEW
-and list the material gaps in missing_evidence. ASSESSED means its
-scenario relevance can be assessed. Use OUTSIDE_SCENARIO when evidence shows
-it concerns a different product, activity or location. OUTSIDE_SCENARIO is
-scenario-specific. Also use it when a numeric threshold excludes a supplied
-case. Use numeric_checks to compare a supplied rating and the branch threshold.
-If you have a material reason the check does not apply, mark the branch for
-review and explain the gap. Read the supplied facts before identifying gaps. A missing detail about
-how an obligation would be implemented need not affect its relevance.
-Uncertain role, location, product scope or legal evidence
-that could change the result requires NEEDS_REVIEW and a specific missing
-fact or passage. An unverified fact alone is not evidence for IGNORE. An
-unresolved citation that does not affect a branch need not block it. If all
-branches are outside the scenario and nothing material is uncertain, use IGNORE.
-COMPLETE requires empty missing_evidence. NEEDS_REVIEW requires at least one
-gap that could change the relevance level. With NEEDS_REVIEW, use null and
-empty area unless another branch already establishes DIRECT.
+- APPLIES_TO_COMPANY: the branch regulates, or sets the scope for, the
+  company's own activity, product or installation stated in the scenario.
+- APPLIES_TO_OTHER_ACTOR: the branch regulates another actor, such as a
+  supplier, and the scenario states a concrete dependency of the company on
+  that actor. Name the actor and the dependency in the reason.
+- OUTSIDE_SCENARIO: a scenario fact excludes the branch, for example a
+  different product, activity or location, or a threshold the stated value
+  does not meet.
+- CONTEXT_ONLY: introductory wording or a table header with no effect of its
+  own, such as a line that only announces the points that follow.
+- NEEDS_REVIEW: a missing fact or passage could change this branch. Name
+  exactly what is missing in the reason.
 
-If more legal context is material, return result=null with one or more
-context_requests. Use an exact available legal locator or a reference ID, and
-include the instrument identifier when known. State why the passage could
-change the assessment. The runner can retrieve from the supplied same-act
-source and explicitly provided supplementary evidence. When further retrieval
-is unavailable, return the result with the appropriate review status and
-specific missing evidence. For missing company facts, report the gap directly.
+The runner derives the relevance level from these statuses. Any
+APPLIES_TO_COMPANY branch makes the target DIRECT. Otherwise a NEEDS_REVIEW
+branch leaves the level open, and an APPLIES_TO_OTHER_ACTOR branch makes it
+INDIRECT. A target with only OUTSIDE_SCENARIO and CONTEXT_ONLY branches is
+IGNORE.
 
-When returning a result, return an empty context_requests array. Copy celex,
-source_version_id and target from the input. Use the exact locator strings
-from the evidence for evidence_refs. Each branch result must cite its own
-locator and may also cite supporting evidence. Cite only the supplied
-passages, never locator suggestions or reference metadata by themselves.
-Include relevant target citations in the overall result. Area IDs must be
-keys in candidate_anchors. Use an empty area for IGNORE or a null level, and
-at least one supported area for DIRECT or INDIRECT. Use at most two short
-sentences for each reason and avoid repeating the scenario facts. Address
-scenario_review_feedback or response_validation_feedback when supplied.
-The original scenario and evidence take precedence over conflicting feedback.
-Treat previous_draft and rejected_answer as drafts to correct. Return only
-the specified JSON.
+numeric_checks compare a stated rating with a branch threshold. A NOT_MET
+branch is OUTSIDE_SCENARIO, or NEEDS_REVIEW if you have a material reason the
+check does not fit. A missing detail about how an obligation is implemented
+does not make a branch NEEDS_REVIEW. An unverified fact alone is not evidence
+for OUTSIDE_SCENARIO. An unresolved citation that does not affect a branch
+need not block it.
+
+## Citations
+
+fact_refs: the scenario fact IDs that support the branch status.
+APPLIES_TO_COMPANY, APPLIES_TO_OTHER_ACTOR and OUTSIDE_SCENARIO need at least
+one. evidence_refs: up to two other legal passages from the supplied evidence
+that support the status, using their exact locators. The branch's own locator
+is added automatically, so leave evidence_refs empty when no other passage is
+needed. Never put scenario text in evidence_refs.
+
+## Overall fields
+
+reason: after the branches, at most two sentences on how the branch findings
+affect the company. Do not repeat the scenario facts.
+provision_function: SCOPE for provisions defining coverage. Classify an
+emission limit as OBLIGATION or TECHNICAL_REQUIREMENT.
+area: one to four anchor IDs from candidate_anchors for the business areas
+concerned. They are kept only when the target is DIRECT or INDIRECT.
+verification_notes: up to three follow-up checks that do not change
+relevance, such as an unverified permit, national implementation detail or
+contract. Do not infer compliance or predict a cost impact from a dependency.
+
+## More context
+
+If a legal passage that is not supplied could change a branch, return
+result=null with one to three context_requests. Use an exact available legal
+locator or a reference ID, include the instrument identifier when known, and
+state why the passage could change the assessment. The runner can retrieve
+from the supplied same-act source and explicitly provided supplementary
+evidence. When a result is required instead, mark the affected branches
+NEEDS_REVIEW. For missing company facts, use NEEDS_REVIEW directly.
+
+## Feedback
+
+scenario_review_feedback lists branches where a separate check proposes a
+different status, with the fact or passage it relies on. Re-read that
+evidence. Change the status if the check is right. Otherwise keep it and say
+in the branch reason what in the evidence supports it. The original scenario
+and evidence take precedence over feedback. Treat previous_draft and
+rejected_answer as drafts to correct; response_validation_feedback states what
+was invalid. Return only the specified JSON.

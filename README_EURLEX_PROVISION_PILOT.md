@@ -1,9 +1,11 @@
 # EUR-Lex provision relevance pilot
 
-Apply this v5 update over the v4 pilot in the root of `AI-Experiments`,
+Apply this v6 update over the v5 pilot in the root of `AI-Experiments`,
 alongside `enrich_eurlex.py`. Merge the directories and replace the files
-provided in this ZIP. The pilot uses the existing Qwen client, configuration,
-pinned act manifest and enrichment code.
+provided in this ZIP. Then delete `eurlex_provision/scenario_checks.py`;
+nothing uses it any more. The pilot uses the existing Qwen client,
+configuration, pinned act manifest, enrichment code and the v4
+`eurlex_provision/thresholds.py`.
 
 ## Inputs
 
@@ -14,6 +16,7 @@ pinned act manifest and enrichment code.
 | `runs/eurlex_full_v10/relevance_export/indirect.json` | Document-level INDIRECT results keyed by CELEX |
 | `config/business_anchors_en.yaml` | Complete English anchor catalog, including role descriptions and boundaries |
 | `config/eurlex_provision_scenarios.json` | Three explicitly synthetic scenarios and the pilot assessment date |
+| `config/eurlex_provision_expected.json` | Expected results for the three samples, used only to grade a run |
 | `.env` | Existing Qwen settings, including `QWEN_BASE_URL` and the model ID when required |
 
 The runner looks up each pilot CELEX in both exports and keeps these matches
@@ -23,7 +26,10 @@ and anchor catalog for each provision assessment.
 
 Use a separate scenario JSON with the same shape and pass `--scenarios` to
 supply real case facts. Set its `assessment_date` and mark those scenarios
-`SUPPLIED_CASE`. Keep unknowns explicit. You can also set the date with
+`SUPPLIED_CASE`. Keep unknowns explicit. Each scenario holds exactly `id`,
+`evidence_status` and `facts`, because the whole scenario is sent to Qwen.
+The runner stops if a scenario contains anything else, such as expected
+labels. You can also set the date with
 `--assessment-date YYYY-MM-DD`. Source versions come from `pilot_acts.json`;
 the assessment date alone gives no assurance that an original text reflects
 all later changes.
@@ -53,6 +59,27 @@ sections inside the decision's annex and assesses table rows in batches with
 their headers, merged-cell context and footnotes. Annex and table audit records
 retain their own source IDs and citations.
 
+## Branch statuses and the relevance level
+
+Qwen gives every branch one status, after writing its reason:
+
+| Status | Meaning |
+|---|---|
+| `APPLIES_TO_COMPANY` | Regulates, or sets the scope for, the company's own stated activity, product or installation |
+| `APPLIES_TO_OTHER_ACTOR` | Regulates another actor, such as a supplier, on whom the company concretely depends |
+| `OUTSIDE_SCENARIO` | Excluded by a scenario fact: product, activity, location or threshold |
+| `CONTEXT_ONLY` | Introductory wording or a table header with no effect of its own |
+| `NEEDS_REVIEW` | A missing fact or passage could change the branch |
+
+The runner, not Qwen, works out the level and review status from these
+statuses. Any company branch gives DIRECT. Otherwise an open branch gives no
+level, a branch on another actor gives INDIRECT, and anything else gives
+IGNORE. `missing_evidence` lists the open branches and their reasons.
+
+Qwen picks legal citations from the locators in the evidence and scenario
+facts by ID (`Fact 1`, `Fact 2`, …). The response format only allows those
+values. Each branch's own locator is added to its citations automatically.
+
 ## Context requests and evidence
 
 The runner starts with target text, relevant definitions and scope, explicit
@@ -61,10 +88,16 @@ It separates precise table citations from annex-wide table candidates. The
 model can request up to three exact locators per round, for up to two retrieval
 rounds per batch. The runner uses the pinned act and any supplied supplementary
 excerpts, then sends the original target back with the extra evidence. The
-audit records retrieval attempts and passages cited by the model. A separate
-Qwen check looks for errors about the actor, scenario facts, branches and scope
-of the target. The runner allows one correction and withholds an assessment
-with unresolved review issues from the relevance export.
+audit records retrieval attempts and passages cited by the model.
+
+A separate Qwen scenario check runs with thinking on (use
+`--review-thinking off` to compare). Each issue it raises names a branch, the
+fact ID or legal locator it relies on, and the status it proposes. An issue
+blocks the draft only if applying the proposed status would change the level
+or review status. Other issues and all notes are kept in the audit. A blocked
+draft gets one correction round with the issues and the previous draft. If the
+second check still blocks, only the disputed branches become NEEDS_REVIEW; the
+audit keeps Qwen's original status as `draft_status`.
 If Qwen returns an invalid decision twice, the affected target is saved for
 review and the run continues. A scoring reply cut off by the output limit
 is retried with smaller branch groups. A single branch that still truncates
@@ -92,9 +125,9 @@ transcription as evidence for the original target.
 
 | Run | Output directory |
 |---|---|
-| Sample inputs | `runs/eurlex_provisions_samples_v5_prepared` |
-| Sample results | `runs/eurlex_provisions_samples_v5` |
-| Complete pilot | `runs/eurlex_provisions_pilot_v5` |
+| Sample inputs | `runs/eurlex_provisions_samples_v6_prepared` |
+| Sample results | `runs/eurlex_provisions_samples_v6` |
+| Complete pilot | `runs/eurlex_provisions_pilot_v6` |
 
 For a live run, open `relevance_export/direct.json`, `indirect.json`, and
 `ignore.json`. Each file groups the records by CELEX and provision locator.
@@ -102,7 +135,10 @@ Each provision record contains exactly `level`, `reason`, and `area`.
 `area` is a list of anchor IDs and is empty for IGNORE. The exports only
 include assessments with review status COMPLETE. Open `audit/run_summary.json`
 for counts and paths to the full per-target audit files, including pending
-assessments. Listed paths are relative to the run directory.
+assessments. Listed paths are relative to the run directory. Each held target
+has a `held_reason`: `OPEN_BRANCH` (Qwen marked a branch NEEDS_REVIEW),
+`SCENARIO_CHECK` (the check still disagreed after the correction round) or
+`INVALID_REPLY`.
 
 Run the same command to resume after interruption or a Qwen error. Each
 completed target is saved atomically. If an interruption occurs within a
@@ -117,9 +153,15 @@ Run the bundled tests from the repository root.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p test_eurlex_provisions.py
 ```
 
-The two synthetic cases for Article 2 and BAT 17 have reviewed branch bindings
-in the scenario configuration. Each binding links an exact branch to the
-supplied fact or identifies introductory text or a header. The scorer still
-returns the result. Validation rejects a result that contradicts those
-bindings and keeps unresolved results in the audit. The binding is only
-used for its configured target and scenario.
+## Grading against expected results
+
+`config/eurlex_provision_expected.json` holds the expected level, review
+status and branch statuses for the three samples. These labels are never sent
+to Qwen and never change a result. After each run, `run_summary.json` gets a
+`grading` section: how many targets and branches match, and every mismatch
+with the expected status, the saved status and the scorer's original status.
+The labels and the grading code are not part of the run fingerprint, so you
+can correct a label and rerun the same command to regrade without new Qwen
+calls. The runner stops if a label names a branch that is not in the pinned
+text. Labels for targets the run does not plan (for example Article 6(2) in
+the pilot, which assesses all of Article 6) are listed as not run.

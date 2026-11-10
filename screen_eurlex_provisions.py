@@ -14,8 +14,9 @@ import yaml
 from enrich_eurlex import write_json
 from eurlex_enrichment.inputs import read_json
 from eurlex_provision.evidence import Evidence, TARGET_KINDS, branch_batches, instrument_key, norm, size
-from eurlex_provision.scenario_checks import check_bindings
-from eurlex_provision.screening import LEVELS, ModelError, combine, prepare, score_verified_batch
+from eurlex_provision.grading import check_planned, grade, load_expected
+from eurlex_provision.screening import (LEVELS, ModelError, combine, held_reason, prepare,
+                                        score_verified_batch)
 from lr_ai.qwen_client import QwenClient
 
 
@@ -67,6 +68,21 @@ def load_supplements(path):
     return items
 
 
+SCENARIO_KEYS = {"id", "evidence_status", "facts"}
+
+
+def check_scenario(celex, scenario):
+    """The whole scenario is sent to Qwen, so it may hold case facts only."""
+    if not isinstance(scenario, dict) or set(scenario) != SCENARIO_KEYS:
+        raise ValueError(f"{celex}: a scenario holds exactly id, evidence_status and facts. "
+                         "Keep expected labels in the expected-results file.")
+    if (not isinstance(scenario["id"], str) or not scenario["id"].strip()
+            or scenario["evidence_status"] not in {"SYNTHETIC_TEST_CASE", "SUPPLIED_CASE"}
+            or not isinstance(scenario["facts"], list) or not scenario["facts"]
+            or not all(isinstance(fact, str) and fact.strip() for fact in scenario["facts"])):
+        raise ValueError(f"{celex}: supply a scenario ID, evidence status and nonempty facts list.")
+
+
 def sha(value):
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -99,6 +115,10 @@ def arguments():
     parser.add_argument("--scenarios", type=Path, default=ROOT / "config/eurlex_provision_scenarios.json")
     parser.add_argument("--assessment-date", type=date.fromisoformat)
     parser.add_argument("--supplements", type=Path, help="Reviewed external legal passages as JSON")
+    parser.add_argument("--expected", type=Path, default=ROOT / "config/eurlex_provision_expected.json",
+                        help="Expected labels used only to grade the run (never sent to Qwen)")
+    parser.add_argument("--review-thinking", choices=("on", "off"), default="on",
+                        help="Run the scenario check with Qwen thinking on (default) or off")
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     parser.add_argument("--output-dir", type=Path)
     return parser.parse_args()
@@ -117,6 +137,7 @@ def configure(args):
     if not isinstance(anchors, dict) or not anchors or not all(isinstance(key, str) for key in anchors):
         raise ValueError("The anchor catalog must have a nonempty mapping of anchor IDs.")
     supplements = load_supplements(args.supplements)
+    expected = load_expected(read_json(args.expected) if args.expected.is_file() else None, selected)
     sources, tasks = {}, []
     for celex, version in selected.items():
         path = args.enriched_dir / f"{celex}_enriched.json"
@@ -126,13 +147,7 @@ def configure(args):
             raise ValueError(f"{path}: expected enriched schema 1 and the manifest's exact source version.")
         evidence = Evidence(data, supplements)
         scenario = scenarios["scenarios"].get(celex)
-        if (not isinstance(scenario, dict) or not isinstance(scenario.get("id"), str)
-                or scenario.get("evidence_status") not in {"SYNTHETIC_TEST_CASE", "SUPPLIED_CASE"}
-                or not isinstance(scenario.get("facts"), list) or not scenario["facts"]
-                or not all(isinstance(fact, str) and fact.strip() for fact in scenario["facts"])):
-            raise ValueError(f"{celex}: supply a scenario ID, evidence status and nonempty facts list.")
-        if scenario.get("branch_bindings") and scenario.get("branch_bindings_version") != version:
-            raise ValueError(f"{celex}: the scenario branch bindings were reviewed for a different source version.")
+        check_scenario(celex, scenario)
         context = {
             "assessment_date": as_of,
             "scenario": scenario,
@@ -167,20 +182,20 @@ def configure(args):
             names = [b["locator"] for batch in batches for b in batch]
             if not names or len(names) != len(set(names)):
                 raise ValueError(f"{celex} {target}: target branches are empty or ambiguous.")
-            check_bindings(scenario, target, names)
+            check_planned(expected, celex, target, names)
             tasks.append((celex, unit, target, batches))
     targets = {(celex, target) for celex, _, target, _ in tasks}
     if len(targets) != len(tasks):
         raise ValueError("Provision locators must be unique within each act for export.")
-    return sources, tasks, matches, supplements
+    return sources, tasks, matches, supplements, expected
 
 
 def execute(args):
-    sources, tasks, matches, supplements = configure(args)
+    sources, tasks, matches, supplements, expected = configure(args)
     prompt = (ROOT / "prompts/eurlex_provision_relevance.md").read_text(encoding="utf-8")
     review_prompt = (ROOT / "prompts/eurlex_provision_review.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_v5" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_v6" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -189,12 +204,13 @@ def execute(args):
     except FileExistsError as exc:
         raise ValueError(f"Output directory is locked: {out}. Remove .running only after confirming no run is active.") from exc
     try:
-        run(args, sources, tasks, matches, supplements, prompt, review_prompt, out)
+        run(args, sources, tasks, matches, supplements, prompt, review_prompt, out, expected)
     finally:
         lock.unlink()
 
 
-def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
+def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out, expected=None):
+    review_thinking = args.review_thinking == "on"
     client = None
     if not args.prepare_only:
         client = QwenClient.from_env(args.env_file, retries=1)
@@ -202,11 +218,14 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
         if not discovered["ok"]:
             raise ModelError(discovered["error"])
     model = client.model if client else None
+    # Grading code and expected labels never affect model calls, so they stay out of the fingerprint.
     tool_code = [p.read_text(encoding="utf-8") for p in sorted(
-        [Path(__file__), ROOT / "lr_ai/qwen_client.py", *(ROOT / "eurlex_provision").glob("*.py")]
+        [Path(__file__), ROOT / "lr_ai/qwen_client.py",
+         *(p for p in (ROOT / "eurlex_provision").glob("*.py") if p.name != "grading.py")]
     )]
     fingerprint = sha({
         "model": model, "mode": args.mode, "prepare_only": args.prepare_only,
+        "review_thinking": review_thinking,
         "inputs": {celex: (context, hash_) for celex, (_, context, hash_) in sources.items()},
         "supplements": list(supplements.values()), "prompts": [prompt, review_prompt],
         "document_audit": matches, "runner": tool_code,
@@ -217,7 +236,8 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
         raise ValueError(f"Inputs or code changed for {out}. Set --output-dir to a fresh path.")
     if not run_file.exists():
         write_json(run_file, {"fingerprint": fingerprint, "model": model, "mode": args.mode,
-                              "prepare_only": args.prepare_only, "target_count": len(tasks),
+                              "prepare_only": args.prepare_only, "review_thinking": review_thinking,
+                              "target_count": len(tasks),
                               "assessment_date": next(iter(sources.values()))[1]["assessment_date"],
                               "anchor_count": len(next(iter(sources.values()))[1]["candidate_anchors"]),
                               "anchor_catalog_version": next(iter(sources.values()))[1]["anchor_catalog_version"],
@@ -230,11 +250,12 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
         print("No DIRECT/INDIRECT document result for: " + ", ".join(missing)
               + ". Their audit record will show null.", flush=True)
 
-    completed = []
+    completed, saved_items = [], {}
     pending_error = None
     try:
         for index, (celex, unit, target, batches) in enumerate(tasks, 1):
             evidence, common, _ = sources[celex]
+            model_attempts = []
             key = sha((unit["id"], target))[:18]
             path = audit / celex / f"{unit['kind'].lower()}_{key}.json"
             print(f"[{index}/{len(tasks)}] {celex} {target} ({len(batches)} batch(es))", flush=True)
@@ -259,14 +280,13 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                     item.update(payloads=payloads, max_payload_chars=max(map(size, payloads)))
                 else:
                     results, retrieval_log, reviews, evidence_index = [], [], [], {}
-                    model_attempts, checks, scenario_checks = [], [], []
+                    checks = []
                     for batch_no, batch in enumerate(batches, 1):
                         payload = prepare(evidence, unit, target, batch, common)
                         checks.extend(payload["numeric_checks"])
-                        scenario_checks.extend(payload["branch_checks"])
                         try:
                             decision, trace, review = score_verified_batch(
-                                client, prompt, review_prompt, evidence, payload
+                                client, prompt, review_prompt, evidence, payload, review_thinking
                             )
                         finally:
                             model_attempts.extend({"batch": batch_no, **attempt}
@@ -290,13 +310,16 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                     item.update(combine(results, payload["target_heading"]), batch_results=results,
                                 retrieval_log=retrieval_log, scenario_reviews=reviews,
                                 evidence_index=evidence_index, numeric_checks=checks,
-                                branch_checks=scenario_checks, model_attempts=model_attempts)
+                                model_attempts=model_attempts)
                 write_json(path, item)
+            if not args.prepare_only:
+                saved_items[(celex, target)] = item
             completed.append({
                 "celex": celex, "target_id": unit["id"], "target": target, "kind": unit["kind"],
                 "file": path.relative_to(out).as_posix(),
                 **({"max_payload_chars": item["max_payload_chars"]} if args.prepare_only else
-                   {k: item[k] for k in ("level", "review_status", "reason", "area")}),
+                   {**{k: item[k] for k in ("level", "review_status", "reason", "area")},
+                    "held_reason": held_reason(item)}),
             })
     except ModelError as exc:
         pending_error = exc
@@ -312,14 +335,18 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                          for row in completed)
         if not args.prepare_only:
             write_relevance_export(out / "relevance_export", completed)
-        write_json(audit / "run_summary.json", {
+        summary = {
             "run_fingerprint": fingerprint, "targets_planned": len(tasks),
             "targets_saved": len(completed), "targets_remaining": len(tasks) - len(completed),
             "counts": dict(counts), "needs_review": sum(row.get("review_status") == "NEEDS_REVIEW" for row in completed),
+            "held_reasons": dict(Counter(row["held_reason"] for row in completed if row.get("held_reason"))),
             "targets_exported": sum(row.get("review_status") == "COMPLETE" and row.get("level") in LEVELS
                                     for row in completed),
-            "error": str(pending_error) if pending_error else None, "results": completed,
-        })
+            "error": str(pending_error) if pending_error else None,
+        }
+        if expected and not args.prepare_only:
+            summary["grading"] = grade(expected, saved_items, sha(read_json(args.expected)))
+        write_json(audit / "run_summary.json", {**summary, "results": completed})
     print(f"Saved {len(completed)} targets to {out}", flush=True)
 
 

@@ -1,0 +1,52 @@
+{
+  "description": "Expected results for the three synthetic sample cases. Used only to grade a finished run; never sent to Qwen.",
+  "acts": {
+    "32024R3110": {
+      "source_version_id": "2c6c22d9-ae73-4325-a9e2-666fcc11d444",
+      "targets": {
+        "Article 2": {
+          "level": "DIRECT",
+          "review_status": "COMPLETE",
+          "branches": {
+            "Article 2(1)": "APPLIES_TO_COMPANY",
+            "Article 2(1)(a)": "OUTSIDE_SCENARIO",
+            "Article 2(1)(b)": "OUTSIDE_SCENARIO",
+            "Article 2(2)": "CONTEXT_ONLY",
+            "Article 2(2)(a)": "OUTSIDE_SCENARIO",
+            "Article 2(2)(b)": "OUTSIDE_SCENARIO",
+            "Article 2(3)": "OUTSIDE_SCENARIO"
+          }
+        }
+      }
+    },
+    "32015L2193": {
+      "source_version_id": "11c7ff24-4d1b-40a5-ad98-0f13b62d708d",
+      "targets": {
+        "Article 6(2)": {
+          "level": "DIRECT",
+          "review_status": "COMPLETE",
+          "branches": {
+            "Article 6(2), sentence 1": "APPLIES_TO_COMPANY",
+            "Article 6(2), sentence 2": "OUTSIDE_SCENARIO"
+          }
+        }
+      }
+    },
+    "32013D0163": {
+      "source_version_id": "3bd3c551-2820-4409-bf0b-50dd744a825f",
+      "targets": {
+        "Annex 1, BAT 17 [section 47]": {
+          "level": "INDIRECT",
+          "review_status": "COMPLETE",
+          "branches": {
+            "Annex 1, BAT 17 [section 47]": "APPLIES_TO_OTHER_ACTOR",
+            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 1": "CONTEXT_ONLY",
+            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 2": "APPLIES_TO_OTHER_ACTOR",
+            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 3": "APPLIES_TO_OTHER_ACTOR",
+            "Annex 1, BAT 17 [section 47], unnumbered table 18, row 4": "APPLIES_TO_OTHER_ACTOR"
+          }
+        }
+      }
+    }
+  }
+}
