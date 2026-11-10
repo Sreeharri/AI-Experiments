@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 from eurlex_provision.evidence import branch_batches
 from eurlex_provision.screening import ModelError, combine, score_batch, score_verified_batch, validate_answer
+from eurlex_provision.thresholds import numeric_checks
+from lr_ai.qwen_client import ChatResult
 from screen_eurlex_provisions import load_exports, write_relevance_export
 
 
@@ -24,6 +26,7 @@ def decision():
         "provision_function": "SCOPE", "level": "DIRECT",
         "reason": "The supplied activity is within the target scope.", "area": ["precast"],
         "evidence_refs": ["Article 2(1)"], "review_status": "COMPLETE", "missing_evidence": [],
+        "verification_notes": [],
         "branch_results": [{"locator": "Article 2(1)", "status": "ASSESSED",
                             "reason": "Applies to the supplied scenario.",
                             "evidence_refs": ["Article 2(1)"]}],
@@ -31,10 +34,55 @@ def decision():
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_truncation_splits_and_scores_each_branch_without_repeating(self):
+        inputs = payload()
+        other = "Article 2(2)"
+        inputs["branches"].append({"locator": other})
+        final = decision()
+        second = {**final, "evidence_refs": [other], "branch_results": [
+            {**final["branch_results"][0], "locator": other, "evidence_refs": [other]}
+        ]}
+        client = Mock()
+        accepted = ChatResult(ok=True, finish_reason="stop", content='{"issues":[]}')
+        client.chat.side_effect = [
+            ChatResult(ok=True, finish_reason="length", content='{"result":', usage={"completion_tokens": 1400}),
+            ChatResult(ok=True, finish_reason="stop", content=json.dumps({"result": final, "context_requests": []})),
+            accepted,
+            ChatResult(ok=True, finish_reason="stop", content=json.dumps({"result": second, "context_requests": []})),
+            accepted,
+        ]
+        result, _, review = score_verified_batch(client, "score", "review", Mock(), inputs)
+        self.assertEqual(result["level"], "DIRECT")
+        self.assertEqual(len(review["split_after_truncation"]), 2)
+        self.assertEqual([len(a["branches"]) for a in inputs["_attempts"] if a["phase"] == "scoring"], [2, 1, 1])
+        self.assertEqual(inputs["_attempts"][0]["finish_reason"], "length")
+        self.assertEqual(inputs["_attempts"][0]["raw_reply"], '{"result":')
+
+    def test_threshold_conflict_rejects_assessed_branch(self):
+        inputs = payload()
+        inputs["branches"][0]["text"] = "Rated thermal input of less than or equal to 5 MW."
+        inputs["numeric_checks"] = numeric_checks(inputs["branches"], ["A boiler with 8 MW rated thermal input."])
+        self.assertEqual(inputs["numeric_checks"][0]["status"], "NOT_MET")
+        with self.assertRaisesRegex(ValueError, "does not meet the threshold"):
+            validate_answer({"result": decision(), "context_requests": []}, inputs)
+
+    def test_verification_note_allows_complete_indirect_and_review_can_be_held(self):
+        corrected = {**decision(), "level": "INDIRECT", "verification_notes": ["Check supplier permit."]}
+        value = {"result": corrected, "context_requests": []}
+        validate_answer(value, payload())
+        client = Mock()
+        client.chat.side_effect = [
+            ChatResult(ok=True, finish_reason="stop", content=json.dumps(value)),
+            ChatResult(ok=True, finish_reason="length", content='{"issues":'),
+        ]
+        result, _, review = score_verified_batch(client, "score", "review", Mock(), payload())
+        self.assertIsNone(result["level"])
+        self.assertIn("Invalid Qwen scenario check", review["validation_error"])
+
     def test_invalid_branch_reply_retries_and_is_held(self):
         inputs = payload()
         inputs["branches"].append({"locator": "Annex table, row 2"})
-        reply = Mock(ok=True)
+        reply = Mock(ok=True, reasoning="")
         reply.parse_json.return_value = {"result": decision(), "context_requests": []}, None
         client = Mock()
         client.chat.return_value = reply
@@ -60,7 +108,7 @@ class ProvisionTests(unittest.TestCase):
 
     def test_api_failure_still_stops_for_resume(self):
         client = Mock()
-        reply = Mock(ok=False, error_kind="timeout", error="Timed out")
+        reply = Mock(ok=False, reasoning="", error_kind="timeout", error="Timed out")
         reply.parse_json.return_value = None, "Timed out"
         client.chat.return_value = reply
         with self.assertRaisesRegex(ModelError, "Qwen request failed"):
@@ -90,7 +138,7 @@ class ProvisionTests(unittest.TestCase):
         for final, expected in (({"issues": []}, "INDIRECT"), (issue, None)):
             with self.subTest(expected=expected):
                 client = Mock()
-                replies = [Mock(ok=True) for _ in range(4)]
+                replies = [Mock(ok=True, reasoning="") for _ in range(4)]
                 for reply, data in zip(replies, (draft, issue, corrected, final)):
                     reply.parse_json.return_value = data, None
                 client.chat.side_effect = replies
@@ -124,7 +172,7 @@ class ProvisionTests(unittest.TestCase):
         passage = {"locator": "Article 17", "text": "Test fixture.", "note_ids": []}
         evidence.retrieve.return_value = passage, None
         evidence.note_evidence.return_value = []
-        first, second = Mock(ok=True), Mock(ok=True)
+        first, second = Mock(ok=True, reasoning=""), Mock(ok=True, reasoning="")
         first.parse_json.return_value = {
             "result": None, "context_requests": [
                 {"locator": "Article 17", "instrument": "", "why": "Need marking context."}
@@ -145,7 +193,7 @@ class ProvisionTests(unittest.TestCase):
         client, evidence = Mock(), Mock()
         evidence.retrieve.return_value = None, "External excerpt was not supplied."
         evidence.note_evidence.return_value = []
-        response = Mock(ok=True)
+        response = Mock(ok=True, reasoning="")
         response.parse_json.return_value = {
             "result": None, "context_requests": [
                 {"locator": "ref:26", "instrument": "32020L2184", "why": "Need exemption scope."}

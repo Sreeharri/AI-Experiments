@@ -3,6 +3,7 @@
 import json
 
 from .evidence import CONTEXT_CHAR_BUDGET, norm, size
+from .thresholds import numeric_checks
 
 LEVELS = ("IGNORE", "INDIRECT", "DIRECT")
 FUNCTIONS = ("SCOPE", "DEFINITION", "OBLIGATION", "EXEMPTION", "TECHNICAL_REQUIREMENT",
@@ -11,7 +12,6 @@ BRANCH_STATUSES = ("ASSESSED", "OUTSIDE_SCENARIO", "NEEDS_REVIEW")
 REVIEW = ("COMPLETE", "NEEDS_REVIEW")
 MAX_CONTEXT_ROUNDS = 2
 MAX_CONTEXT_REQUESTS = 3
-OUTPUT_TOKENS = 3200
 
 
 class ModelError(RuntimeError):
@@ -22,6 +22,10 @@ class DecisionValidationError(ModelError):
     """Both successful API responses failed the decision format checks."""
 
 
+class AnswerTruncated(DecisionValidationError):
+    """The scoring response reached its output limit."""
+
+
 def object_schema(fields):
     return {"type": "object", "properties": fields, "required": list(fields),
             "additionalProperties": False}
@@ -29,47 +33,62 @@ def object_schema(fields):
 
 def response_schema(anchors, branches):
     string = {"type": "string"}
-    strings = {"type": "array", "items": string}
     def enum(values):
         return {"enum": list(values)}
-    decision = object_schema({
+
+    def bounded(items, maximum, minimum=0):
+        return {"type": "array", "items": items, "minItems": minimum, "maxItems": maximum}
+
+    note = {"type": "string", "maxLength": 300}
+    decision = {
         "celex": string, "source_version_id": string, "target": string,
         "provision_function": enum(FUNCTIONS),
-        "level": enum((*LEVELS, None)), "reason": string,
-        "area": {"type": "array", "items": enum(anchors)}, "evidence_refs": strings,
-        "review_status": enum(REVIEW), "missing_evidence": strings,
-        "branch_results": {"type": "array", "minItems": len(branches), "maxItems": len(branches),
-                           "items": object_schema({
+        "level": {},
+        "reason": {"type": "string", "maxLength": 500},
+        "area": {},
+        "evidence_refs": bounded(string, 8, 1),
+        "review_status": {},
+        "missing_evidence": {},
+        "verification_notes": bounded(note, 3),
+        "branch_results": bounded(object_schema({
             "locator": enum(branches), "status": enum(BRANCH_STATUSES),
-            "reason": string, "evidence_refs": strings,
-        })},
-    })
+            "reason": {"type": "string", "maxLength": 240},
+            "evidence_refs": bounded(string, 3, 1),
+        }), len(branches), len(branches)),
+    }
+    options = [
+        object_schema({
+            **decision,
+            "level": enum(levels),
+            "review_status": enum([status]),
+            "area": bounded(enum(anchors), 4 if has_areas else 0, int(has_areas)),
+            "missing_evidence": bounded(note, 3 if status == "NEEDS_REVIEW" else 0,
+                                        int(status == "NEEDS_REVIEW")),
+        })
+        for levels, status, has_areas in (
+            (("DIRECT", "INDIRECT"), "COMPLETE", True),
+            (("IGNORE",), "COMPLETE", False),
+            (("DIRECT",), "NEEDS_REVIEW", True),
+            ((None,), "NEEDS_REVIEW", False),
+        )
+    ]
     return object_schema({
-        "result": {"anyOf": [decision, {"type": "null"}]},
-        "context_requests": {"type": "array", "maxItems": MAX_CONTEXT_REQUESTS,
-                             "items": object_schema({"locator": string, "instrument": string,
-                                                     "why": string})},
+        "result": {"anyOf": [*options, {"type": "null"}]},
+        "context_requests": bounded(object_schema({
+            "locator": string, "instrument": string, "why": note,
+        }), MAX_CONTEXT_REQUESTS),
     })
 
 
 def prepare(evidence, unit, target, batch, common):
     context = evidence.initial(unit, batch)
-    branches = []
-    full = next((p for p in context["passages"] if p["relation"] == "FULL_TARGET_ARTICLE"), {})
-    full_text = full.get("text", "")
-    for branch in batch:
-        item = {k: v for k, v in branch.items() if k != "source_ids"}
-        if item.get("text") and item["locator"] != full.get("locator"):
-            start = full_text.find(item["text"])
-            if start >= 0:
-                item["span_in_full_target_article"] = [start, start + len(item["text"])]
-                item["target_excerpt"] = item.pop("text")[:100]
-        branches.append(item)
+    branches = [{k: v for k, v in branch.items() if k != "source_ids"} for branch in batch]
     notes = gather_notes(evidence, branches + context["passages"])
     return {
         **common, "document": evidence.document, "target": target, "target_kind": unit["kind"],
         "target_heading": evidence.elements.get(unit["id"], {}).get("heading"),
-        "branches": branches, "context": context, "footnotes": notes["available"],
+        "branches": branches, "numeric_checks": numeric_checks(branches, common["scenario"]["facts"]),
+        "context": context, "footnotes": notes["available"],
         "missing_footnotes": notes["missing"], "retrieved_context": [],
         "retrieval_log": [], "can_request_context": True,
     }
@@ -120,7 +139,7 @@ def validate_answer(value, payload):
                 raise ValueError("Context requests need locator, instrument (empty if unknown), and why.")
         return
     required = {"celex", "source_version_id", "target", "provision_function", "level", "reason",
-                "area", "evidence_refs", "review_status", "missing_evidence", "branch_results"}
+                "area", "evidence_refs", "review_status", "missing_evidence", "verification_notes", "branch_results"}
     if not isinstance(result, dict) or set(result) != required:
         raise ValueError("Decision fields are missing or unexpected.")
     document = payload["document"]
@@ -129,27 +148,41 @@ def validate_answer(value, payload):
     ):
         raise ValueError("Decision identity must match the target and pinned source.")
     if (result["provision_function"] not in FUNCTIONS or result["level"] not in (*LEVELS, None)
-            or result["review_status"] not in REVIEW or not text(result["reason"])):
+            or result["review_status"] not in REVIEW or not text(result["reason"])
+            or len(result["reason"]) > 500):
         raise ValueError("Invalid function, level, review status or reason.")
     areas = result["area"]
     if (not strings(areas) or not set(areas) <= payload["candidate_anchors"].keys()
-            or len(set(areas)) != len(areas)
+            or len(set(areas)) != len(areas) or len(areas) > 4
             or bool(areas) != (result["level"] in ("DIRECT", "INDIRECT"))):
         raise ValueError("Use supported anchor IDs and include areas only for DIRECT or INDIRECT.")
     missing = result["missing_evidence"]
     pending = result["review_status"] == "NEEDS_REVIEW"
-    if (not strings(missing) or bool(missing) != pending
-            or (result["level"] is None and not pending)
-            or (pending and result["level"] not in (None, "DIRECT"))):
-        raise ValueError("Material missing evidence requires NEEDS_REVIEW; use null unless DIRECT is established.")
+    if not strings(missing) or len(missing) > 3 or any(len(item) > 300 for item in missing):
+        raise ValueError("missing_evidence must contain up to three short, nonempty strings.")
+    if not strings(notes := result["verification_notes"]) or len(notes) > 3 or any(len(item) > 300 for item in notes):
+        raise ValueError("verification_notes must contain up to three short, nonempty strings.")
+    if pending and result["level"] not in (None, "DIRECT"):
+        raise ValueError("NEEDS_REVIEW permits only null or an established DIRECT. "
+                         "Use null with empty area for an unresolved INDIRECT or IGNORE.")
+    if not pending and result["level"] is None:
+        raise ValueError("A null level requires review_status NEEDS_REVIEW.")
+    if pending and not missing:
+        raise ValueError("NEEDS_REVIEW requires at least one gap that could change the level.")
+    if not pending and missing:
+        raise ValueError("COMPLETE requires empty missing_evidence. Put follow-up checks "
+                         "that do not change relevance in verification_notes.")
 
     expected = {branch["locator"] for branch in payload["branches"]}
     available = locators(payload)
     citations = result["evidence_refs"]
-    if not strings(citations) or not set(citations) <= available or not set(citations) & expected:
+    if (not strings(citations) or len(citations) > 8 or not set(citations) <= available
+            or not set(citations) & expected):
         raise ValueError("Decision must cite an exact supplied target branch locator.")
     if not isinstance(result["branch_results"], list):
         raise ValueError("branch_results must be a list.")
+    excluded = {check["locator"] for check in payload.get("numeric_checks", [])
+                if check["status"] == "NOT_MET"}
     seen, branch_pending = set(), False
     for branch in result["branch_results"]:
         if not isinstance(branch, dict) or set(branch) != {"locator", "status", "reason", "evidence_refs"}:
@@ -160,8 +193,12 @@ def validate_answer(value, payload):
         if locator in seen:
             raise ValueError(f"Duplicate branch result for {locator}. Return each locator once.")
         if (branch["status"] not in BRANCH_STATUSES or not text(branch["reason"])
-                or not strings(refs) or locator not in refs or not set(refs) <= available):
+                or len(branch["reason"]) > 240 or not strings(refs) or len(refs) > 3
+                or locator not in refs or not set(refs) <= available):
             raise ValueError(f"Branch {locator} must have a valid status, reason and exact evidence citations.")
+        if locator in excluded and branch["status"] == "ASSESSED":
+            raise ValueError(f"{locator}: the supplied rating does not meet the threshold. "
+                             "Use OUTSIDE_SCENARIO or NEEDS_REVIEW with a material gap.")
         branch_pending |= branch["status"] == "NEEDS_REVIEW"
         seen.add(locator)
     if missing_branches := expected - seen:
@@ -173,18 +210,38 @@ def validate_answer(value, payload):
         raise ValueError("Outside-scenario branches cannot establish DIRECT or INDIRECT.")
 
 
+def model_input(payload):
+    return {key: value for key, value in payload.items() if key != "_attempts"}
+
+
+def record_attempt(payload, response, phase, budget):
+    payload.setdefault("_attempts", []).append({
+        "phase": phase,
+        "branches": [branch["locator"] for branch in payload["branches"]],
+        "max_tokens": budget,
+        "finish_reason": response.finish_reason,
+        "usage": response.usage,
+        "raw_reply": response.content,
+        "reasoning_characters": len(response.reasoning),
+    })
+
+
 def request(client, prompt, payload):
     branch_labels = [branch["locator"] for branch in payload["branches"]]
     schema = response_schema(payload["candidate_anchors"], branch_labels)
+    budget = 800 + 300 * len(branch_labels)
     messages = [{"role": "system", "content": prompt},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
+                {"role": "user", "content": json.dumps(model_input(payload), ensure_ascii=False)}]
     for attempt in range(2):
         response = client.chat(messages, thinking=False, stream=False, seed=42,
                                sampling={"temperature": 0}, schema=schema,
-                               schema_name="provision_relevance", max_tokens=OUTPUT_TOKENS)
+                               schema_name="provision_relevance", max_tokens=budget)
+        record_attempt(payload, response, "scoring", budget)
         value, error = response.parse_json()
         if not response.ok:
             raise ModelError(f"Qwen request failed ({response.error_kind}): {client.clean(response.error or error or '')}")
+        if response.finish_reason == "length":
+            raise AnswerTruncated("Qwen scoring reply reached the output limit.")
         try:
             if error:
                 raise ValueError(error)
@@ -194,7 +251,8 @@ def request(client, prompt, payload):
             if attempt:
                 raise DecisionValidationError(f"Qwen response failed validation twice: {exc}") from exc
             messages[1]["content"] = json.dumps({
-                **payload, "response_validation_feedback": str(exc),
+                **model_input(payload), "response_validation_feedback": str(exc),
+                "rejected_answer": value if value is not None else response.content[-2400:],
             }, ensure_ascii=False)
 
 
@@ -237,7 +295,8 @@ def pending_result(payload, reason, issues):
         "target": payload["target"], "provision_function": "OTHER", "level": None,
         "reason": reason,
         "area": [], "evidence_refs": [b["locator"] for b in branches],
-        "review_status": "NEEDS_REVIEW", "missing_evidence": issues, "branch_results": branches,
+        "review_status": "NEEDS_REVIEW", "missing_evidence": issues,
+        "verification_notes": [], "branch_results": branches,
     }
 
 
@@ -262,9 +321,10 @@ def score_batch(client, prompt, evidence, payload):
 
 def review_draft(client, prompt, payload, draft):
     schema = object_schema({
-        "issues": {"type": "array", "items": {"type": "string"}, "maxItems": 4},
+        "issues": {"type": "array", "items": {"type": "string", "maxLength": 300}, "maxItems": 4},
     })
-    review_input = {k: v for k, v in payload.items() if k != "scenario_review_feedback"}
+    review_input = {k: v for k, v in model_input(payload).items()
+                    if k not in {"scenario_review_feedback", "previous_draft"}}
     review_input["draft"] = draft
     messages = [
         {"role": "system", "content": prompt},
@@ -274,41 +334,60 @@ def review_draft(client, prompt, payload, draft):
         messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
         schema=schema, schema_name="provision_scenario_review", max_tokens=600,
     )
+    record_attempt(payload, response, "review", 600)
     value, error = response.parse_json()
     if not response.ok:
         raise ModelError(f"Qwen scenario check failed ({response.error_kind}): "
                          f"{client.clean(response.error or error or '')}")
     if error or not isinstance(value, dict) or set(value) != {"issues"}:
-        raise ModelError(f"Invalid Qwen scenario check: {error or 'expected an issues array'}")
+        raise DecisionValidationError(f"Invalid Qwen scenario check: {error or 'expected an issues array'}")
     issues = value["issues"]
     if not strings(issues) or len(issues) > 4:
-        raise ModelError("Invalid Qwen scenario check: expected up to four nonempty issues.")
+        raise DecisionValidationError("Invalid Qwen scenario check: expected up to four nonempty issues.")
     return issues
 
 
 def score_verified_batch(client, prompt, review_prompt, evidence, payload):
+    payload.setdefault("_attempts", [])
     review = {}
     try:
         draft, trace = score_batch(client, prompt, evidence, payload)
-    except DecisionValidationError as exc:
-        return hold_invalid_decision(payload, review, exc)
-    issues = review_draft(client, review_prompt, payload, draft)
-    review["initial_issues"] = issues
-    if not issues:
-        return draft, trace, review
+        issues = review_draft(client, review_prompt, payload, draft)
+        review["initial_issues"] = issues
+        if not issues:
+            return draft, trace, review
 
-    # Reassess the same scenario and evidence once using the review feedback.
-    payload["scenario_review_feedback"] = issues
-    payload["can_request_context"] = False
-    try:
+        payload["scenario_review_feedback"] = issues
+        payload["previous_draft"] = draft
+        payload["can_request_context"] = False
         draft, trace = score_batch(client, prompt, evidence, payload)
+        remaining = review_draft(client, review_prompt, payload, draft)
+        review["remaining_issues"] = remaining
+        if remaining:
+            draft = pending_result(payload, "The scenario check could not verify the relevance decision.", remaining)
+        return draft, trace, review
+    except AnswerTruncated as exc:
+        branches = payload["branches"]
+        if len(branches) == 1:
+            return hold_invalid_decision(payload, review, exc)
+        middle = len(branches) // 2
+        results, subreviews = [], []
+        for subset in (branches[:middle], branches[middle:]):
+            keys = {branch["locator"] for branch in subset}
+            # Retain retrieved context and its audit, but assess only this subset.
+            sub = {k: v for k, v in payload.items()
+                   if k not in {"scenario_review_feedback", "previous_draft"}}
+            sub.update(branches=subset, can_request_context=True,
+                       numeric_checks=[c for c in payload.get("numeric_checks", []) if c["locator"] in keys])
+            decision, _, subreview = score_verified_batch(client, prompt, review_prompt, evidence, sub)
+            results.append(decision)
+            subreviews.append(subreview)
+        review["split_after_truncation"] = subreviews
+        notes = gather_notes(evidence, branches + payload["context"]["passages"] + payload["retrieved_context"])
+        payload.update(footnotes=notes["available"], missing_footnotes=notes["missing"])
+        return combine(results, payload.get("target_heading")), payload["retrieval_log"], review
     except DecisionValidationError as exc:
         return hold_invalid_decision(payload, review, exc)
-    remaining = review_draft(client, review_prompt, payload, draft)
-    review["remaining_issues"] = remaining
-    if remaining:
-        draft = pending_result(payload, "The scenario check could not verify the relevance decision.", remaining)
-    return draft, trace, review
 
 
 def hold_invalid_decision(payload, review, error):
@@ -337,5 +416,6 @@ def combine(results, payload_heading):
         "evidence_refs": citations,
         "review_status": "NEEDS_REVIEW" if needs_review else "COMPLETE",
         "missing_evidence": list(dict.fromkeys(m for r in results for m in r["missing_evidence"])),
+        "verification_notes": list(dict.fromkeys(m for r in results for m in r["verification_notes"])),
         "branch_results": [b for r in results for b in r["branch_results"]],
     }

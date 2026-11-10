@@ -16,12 +16,17 @@ Score the target only, for the listed branches in this batch. The full article,
 headings, introductory text, surrounding provisions and linked evidence help
 interpret these branches. Distinguish the target's effect from separate duties
 in context. A scope provision can be DIRECT when it determines coverage of
-the supplied Max Bögl activity. Classify its function as SCOPE. Treat recitals
+the supplied Max Bögl activity. Use SCOPE for provisions defining coverage.
+Classify an emission limit as an obligation or technical requirement. Treat recitals
 as supporting explanation. Apply tables with their headers, spans, units,
 conditions, governing provisions and footnotes. Explain only the effect of
 the target in the relevance reason. Keep other obligations separate. For directives and decisions,
 identify the actor specified in the evidence and distinguish any separate
 national implementation or permit conditions that would need verification.
+Record follow-up checks in verification_notes when they do not change the
+relevance level. For example, an unverified permit, national implementation
+detail, or contract can be a follow-up. Do not infer compliance or predict
+a cost impact merely from a stated dependency.
 Use the provided source version. A date or original source alone does not
 establish the current consolidated text or national implementation.
 
@@ -37,15 +42,18 @@ and list the material gaps in missing_evidence. ASSESSED means its
 scenario relevance can be assessed. Use OUTSIDE_SCENARIO when evidence shows
 it concerns a different product, activity or location. OUTSIDE_SCENARIO is
 scenario-specific. Also use it when a numeric threshold excludes a supplied
-case. Read the supplied facts before identifying gaps. A missing detail about
+case. Use numeric_checks to compare a supplied rating and the branch threshold.
+If you have a material reason the check does not apply, mark the branch for
+review and explain the gap. Read the supplied facts before identifying gaps. A missing detail about
 how an obligation would be implemented need not affect its relevance.
 Uncertain role, location, product scope or legal evidence
 that could change the result requires NEEDS_REVIEW and a specific missing
 fact or passage. An unverified fact alone is not evidence for IGNORE. An
 unresolved citation that does not affect a branch need not block it. If all
 branches are outside the scenario and nothing material is uncertain, use IGNORE.
-An established DIRECT result can coexist with an open branch. When an open
-branch could change the overall level, leave level null.
+COMPLETE requires empty missing_evidence. NEEDS_REVIEW requires at least one
+gap that could change the relevance level. With NEEDS_REVIEW, use null and
+empty area unless another branch already establishes DIRECT.
 
 If more legal context is material, return result=null with one or more
 context_requests. Use an exact available legal locator or a reference ID, and
@@ -62,7 +70,9 @@ locator and may also cite supporting evidence. Cite only the supplied
 passages, never locator suggestions or reference metadata by themselves.
 Include relevant target citations in the overall result. Area IDs must be
 keys in candidate_anchors. Use an empty area for IGNORE or a null level, and
-at least one supported area for DIRECT or INDIRECT. Keep reasons concise
-and explain the actual scenario link. Address scenario_review_feedback when
-present by checking the original facts and passages again. Return only the
-specified JSON.
+at least one supported area for DIRECT or INDIRECT. Use at most two short
+sentences for each reason and avoid repeating the scenario facts. Address
+scenario_review_feedback or response_validation_feedback when supplied.
+The original scenario and evidence take precedence over conflicting feedback.
+Treat previous_draft and rejected_answer as drafts to correct. Return only
+the specified JSON.

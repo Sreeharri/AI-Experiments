@@ -176,7 +176,7 @@ def execute(args):
     prompt = (ROOT / "prompts/eurlex_provision_relevance.md").read_text(encoding="utf-8")
     review_prompt = (ROOT / "prompts/eurlex_provision_review.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_v3" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_v4" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -255,11 +255,17 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                     item.update(payloads=payloads, max_payload_chars=max(map(size, payloads)))
                 else:
                     results, retrieval_log, reviews, evidence_index = [], [], [], {}
+                    model_attempts, checks = [], []
                     for batch_no, batch in enumerate(batches, 1):
                         payload = prepare(evidence, unit, target, batch, common)
-                        decision, trace, review = score_verified_batch(
-                            client, prompt, review_prompt, evidence, payload
-                        )
+                        checks.extend(payload["numeric_checks"])
+                        try:
+                            decision, trace, review = score_verified_batch(
+                                client, prompt, review_prompt, evidence, payload
+                            )
+                        finally:
+                            model_attempts.extend({"batch": batch_no, **attempt}
+                                                  for attempt in payload.get("_attempts", []))
                         results.append(decision)
                         reviews.append({"batch": batch_no, **review})
                         if "validation_error" in review:
@@ -278,7 +284,8 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
                                     }
                     item.update(combine(results, payload["target_heading"]), batch_results=results,
                                 retrieval_log=retrieval_log, scenario_reviews=reviews,
-                                evidence_index=evidence_index)
+                                evidence_index=evidence_index, numeric_checks=checks,
+                                model_attempts=model_attempts)
                 write_json(path, item)
             completed.append({
                 "celex": celex, "target_id": unit["id"], "target": target, "kind": unit["kind"],
@@ -288,6 +295,12 @@ def run(args, sources, tasks, matches, supplements, prompt, review_prompt, out):
             })
     except ModelError as exc:
         pending_error = exc
+        # Preserve diagnostics without creating a completed checkpoint.
+        failure_path = path.with_name(path.stem + "_failed_attempts.json")
+        previous = read_json(failure_path) if failure_path.exists() else []
+        write_json(failure_path, [*previous, {
+            "error": str(exc), "model_attempts": model_attempts,
+        }])
         raise
     finally:
         counts = Counter(("PREPARED" if args.prepare_only else row["level"] or "PENDING")

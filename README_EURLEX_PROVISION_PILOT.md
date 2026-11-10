@@ -1,8 +1,9 @@
 # EUR-Lex provision relevance pilot
 
-Copy the contents of the ZIP into the root of `AI-Experiments`, alongside
-`enrich_eurlex.py`. Merge the `config`, `prompts`, and `tests` directories.
-The pilot uses the existing Qwen client, pinned act manifest and enrichment code.
+Apply this v4 update over the v3 pilot in the root of `AI-Experiments`,
+alongside `enrich_eurlex.py`. Merge the directories and replace the files
+provided in this ZIP. The pilot uses the existing Qwen client, configuration,
+pinned act manifest and enrichment code.
 
 ## Inputs
 
@@ -65,7 +66,12 @@ Qwen check looks for errors about the actor, scenario facts, branches and scope
 of the target. The runner allows one correction and withholds an assessment
 with unresolved review issues from the relevance export.
 If Qwen returns an invalid decision twice, the affected target is saved for
-review and the run continues. The audit record contains the validation error.
+review and the run continues. A scoring reply cut off by the output limit
+is retried with smaller branch groups. A single branch that still truncates
+or a malformed review reply is held for review. The audit records the
+model replies, finish reasons, token usage when supplied by Qwen, and explicit
+thermal input threshold checks. Follow-up verification notes are audit-only
+and do not by themselves prevent export.
 API failures still stop the run so it can resume after the connection recovers.
 
 If you have verified external legal text or a transcription of a formula,
@@ -86,9 +92,9 @@ transcription as evidence for the original target.
 
 | Run | Output directory |
 |---|---|
-| Sample inputs | `runs/eurlex_provisions_samples_v3_prepared` |
-| Sample results | `runs/eurlex_provisions_samples_v3` |
-| Complete pilot | `runs/eurlex_provisions_pilot_v3` |
+| Sample inputs | `runs/eurlex_provisions_samples_v4_prepared` |
+| Sample results | `runs/eurlex_provisions_samples_v4` |
+| Complete pilot | `runs/eurlex_provisions_pilot_v4` |
 
 For a live run, open `relevance_export/direct.json`, `indirect.json`, and
 `ignore.json`. Each file groups the records by CELEX and provision locator.
