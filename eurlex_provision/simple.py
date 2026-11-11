@@ -6,7 +6,7 @@ from .evidence import norm
 from .screening import LEVELS, ModelError
 
 
-def build_pack(evidence, unit, anchors):
+def build_pack(evidence, unit, anchors, supporting_ids=()):
     key = unit["id"]
     kind = unit["kind"]
     included, note_ids = set(), list(unit["footnote_ids"])
@@ -119,6 +119,7 @@ def build_pack(evidence, unit, anchors):
                 if item is not None:
                     direct_refs.append(item)
                 unavailable[identity] = reason
+    context.extend(record(source_id) for source_id in supporting_ids if source_id not in included)
     return {
         "document": {field: evidence.document[field] for field in ("celex", "version_id", "title")},
         "provision": provision,

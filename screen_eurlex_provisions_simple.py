@@ -15,11 +15,15 @@ from lr_ai.qwen_client import QwenClient
 from screen_eurlex_provisions import ROOT, load_supplements, sha
 
 SAMPLES = {"32024R3110": "Article 2", "32015L2193": "Article 6", "32013D0163": "BAT 17"}
+SUPPORTING_LOCATORS = {
+    ("32015L2193", "Article 6"): ("Article 2", "Article 3"),
+    ("32013D0163", "BAT 17"): ("1.5.1 Dust emissions",),
+}
 
 
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("samples", "pilot"))
+    parser.add_argument("mode", choices=("samples", "holdout50", "pilot"))
     parser.add_argument("--prepare-only", action="store_true", help="Save evidence without calling the model")
     parser.add_argument("--enriched-dir", type=Path, default=ROOT / "output_db")
     parser.add_argument("--manifest", type=Path, default=ROOT / "pilot_acts.json")
@@ -34,10 +38,19 @@ def configure(args):
     manifest = read_json(args.manifest)
     if not isinstance(manifest, dict) or not manifest:
         raise ValueError("The manifest must map CELEX IDs to pinned version IDs.")
-    selected = {celex: manifest[celex] for celex in SAMPLES} if args.mode == "samples" else manifest
+    selected = manifest if args.mode == "pilot" else {celex: manifest[celex] for celex in SAMPLES}
+    holdout = None
+    if args.mode == "holdout50":
+        holdout = read_json(ROOT / "config/eurlex_provision_holdout50.json")
+        if set(holdout) != set(selected) or sum(map(len, holdout.values())) != 50:
+            raise ValueError("The holdout must specify 50 targets from the three pilot acts.")
     anchors = yaml.safe_load(args.anchors.read_text(encoding="utf-8-sig"))["anchors"]
     if not isinstance(anchors, dict) or not anchors or not all(isinstance(k, str) for k in anchors):
         raise ValueError("The business anchor catalog must map anchor IDs to definitions.")
+    if "industrial_emissions" in anchors:
+        facts = read_json(ROOT / "config/eurlex_provision_anchor_facts.json")
+        anchor = anchors["industrial_emissions"]
+        anchors["industrial_emissions"] = {**anchor, "company_facts": facts["industrial_emissions"]}
     supplements = load_supplements(args.supplements)
     packs = []
     for celex, version in selected.items():
@@ -48,6 +61,13 @@ def configure(args):
         evidence = Evidence(data, supplements)
         if args.mode == "samples":
             units = [evidence.find_unit(SAMPLES[celex])]
+        elif holdout is not None:
+            by_locator = {evidence.locator(unit["id"]): unit for unit in evidence.units.values()
+                          if unit["kind"] in TARGET_KINDS | {"BAT"}}
+            units = [by_locator[locator] for locator in holdout[celex]]
+            sample_id = evidence.find_unit(SAMPLES[celex])["id"]
+            if any(unit["id"] == sample_id for unit in units):
+                raise ValueError(f"{celex}: the holdout includes an original sample.")
         else:
             units = [unit for unit in evidence.units.values() if unit["kind"] in TARGET_KINDS]
             summary = data["summary"]
@@ -57,7 +77,9 @@ def configure(args):
                 raise ValueError(f"{celex}: target inventory disagrees with enriched summary.")
         locators = set()
         for unit in units:
-            pack = build_pack(evidence, unit, anchors)
+            locators_for_context = SUPPORTING_LOCATORS.get((celex, unit["label"]), ())
+            supporting_ids = [evidence.find_unit(locator)["id"] for locator in locators_for_context]
+            pack = build_pack(evidence, unit, anchors, supporting_ids)
             locator = pack["provision"]["locator"]
             if locator in locators:
                 raise ValueError(f"{celex}: duplicate provision locator {locator}.")
@@ -70,7 +92,7 @@ def run(args):
     packs = configure(args)
     prompt = (ROOT / "prompts/eurlex_provision_simple.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_three_way" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_final" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
