@@ -10,6 +10,8 @@ from eurlex_provision import evidence as evidence_module
 
 
 ROOT = Path(__file__).resolve().parent
+CONTEXT_LIMIT = "The evidence pack exceeds the model context limit."
+SECTION_CONTEXT_LIMIT = "Annex section exceeds the context limit:"
 
 
 class UniqueTargetEvidence(evidence_module.Evidence):
@@ -66,6 +68,27 @@ def run_batch(args, directory, manifest, prepare_only=False):
     return subprocess.run(command, cwd=ROOT, check=False).returncode
 
 
+def skip_attempted_batch(summary, expected):
+    """Continue past fully attempted batches whose remaining requests need smaller packs."""
+    if not summary or summary.get("error"):
+        return False
+    exported = summary.get("targets_exported", 0)
+    failed = summary.get("targets_failed", 0)
+    if exported == expected and not failed:
+        return True
+    failures = summary.get("failures", [])
+    if not failed or exported + failed != expected or len(failures) != failed:
+        return False
+    oversized = all(
+        failure.get("error", "") == CONTEXT_LIMIT
+        or failure.get("error", "").startswith(SECTION_CONTEXT_LIMIT)
+        for failure in failures
+    )
+    if oversized:
+        print(f"Deferred {failed} context-limit failures from a fully attempted batch.", flush=True)
+    return oversized
+
+
 def main():
     if sys.argv[1:2] == ["--worker"]:
         del sys.argv[1]
@@ -78,6 +101,7 @@ def main():
     import run_eurlex_provision_corpus as launcher
 
     launcher.run_batch = run_batch
+    launcher.complete = skip_attempted_batch
     return launcher.main()
 
 
