@@ -6,6 +6,9 @@ from .evidence import norm
 from .screening import LEVELS, ModelError
 
 
+DECISION_FIELDS = ("level", "reason", "area")
+
+
 def build_pack(evidence, unit, anchors, supporting_ids=()):
     key = unit["id"]
     kind = unit["kind"]
@@ -138,21 +141,42 @@ def score(client, prompt, pack):
     schema = {
         "type": "object",
         "additionalProperties": False,
-        "required": ["level"],
-        "properties": {"level": {"enum": list(LEVELS)}},
+        "required": list(DECISION_FIELDS),
+        "properties": {
+            "level": {"type": "string", "enum": list(LEVELS)},
+            "reason": {"type": "string", "minLength": 1, "maxLength": 600},
+            "area": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(pack["business_anchors"])},
+                "maxItems": 4,
+            },
+        },
     }
     messages = [{"role": "system", "content": prompt},
                 {"role": "user", "content": json.dumps(pack, ensure_ascii=False)}]
     reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
-                        schema=schema, schema_name="provision_applicability", max_tokens=128)
+                        schema=schema, schema_name="provision_relevance_decision", max_tokens=512)
     if not reply.ok:
         if reply.error_kind == "context_limit":
             raise ModelError("The complete evidence pack exceeds the model context limit.")
         raise ModelError(client.clean(reply.error or "Model request failed."))
 
     decision, error = reply.parse_json()
-    if (error or not isinstance(decision, dict) or set(decision) != {"level"}
-            or decision["level"] not in LEVELS):
-        raise ModelError(error or "Expected exactly one level: DIRECT, INDIRECT or IGNORE.")
+    if error:
+        raise ModelError(error)
+    if not isinstance(decision, dict) or set(decision) != set(DECISION_FIELDS):
+        raise ModelError("Expected exactly level, reason and area.")
+    level, reason, area = (decision[field] for field in DECISION_FIELDS)
+    if level not in LEVELS:
+        raise ModelError("Expected level DIRECT, INDIRECT or IGNORE.")
+    if not isinstance(reason, str) or not 0 < len(reason.strip()) <= 600:
+        raise ModelError("Expected a non-empty reason of at most 600 characters.")
+    if (not isinstance(area, list) or len(area) > 4
+            or any(not isinstance(item, str) or item not in pack["business_anchors"] for item in area)
+            or len(area) != len(set(area))):
+        raise ModelError("Expected up to four distinct area IDs from the supplied business anchors.")
+    if bool(area) != (level != "IGNORE"):
+        raise ModelError("Expected matching area IDs for DIRECT or INDIRECT, and [] for IGNORE.")
+    decision["reason"] = reason.strip()
     audit = {"finish_reason": reply.finish_reason, "usage": reply.usage, "raw_reply": reply.content}
-    return decision["level"], audit
+    return decision, audit

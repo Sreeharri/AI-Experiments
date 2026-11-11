@@ -10,7 +10,7 @@ from enrich_eurlex import write_json
 from eurlex_enrichment.inputs import read_json
 from eurlex_provision.evidence import Evidence, TARGET_KINDS
 from eurlex_provision.screening import LEVELS, ModelError
-from eurlex_provision.simple import build_pack, score
+from eurlex_provision.simple import DECISION_FIELDS, build_pack, score
 from lr_ai.qwen_client import QwenClient
 from screen_eurlex_provisions import ROOT, load_supplements, sha
 
@@ -92,7 +92,7 @@ def run(args):
     packs = configure(args)
     prompt = (ROOT / "prompts/eurlex_provision_simple.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_final" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_detailed" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -141,13 +141,13 @@ def run_packs(args, out, packs, prompt):
                 saved = {**item, "fingerprint": fingerprint, "evidence_pack": pack}
                 if client:
                     try:
-                        level, attempt = score(client, prompt, pack)
+                        decision, attempt = score(client, prompt, pack)
                     except ModelError as exc:
                         raise ModelError(f"{celex} {target}: {exc}") from exc
-                    saved.update(level=level, model_attempt=attempt)
+                    saved.update(decision, model_attempt=attempt)
                 write_json(path, saved)
             if client:
-                item["level"] = saved["level"]
+                item.update({field: saved[field] for field in DECISION_FIELDS})
             completed.append(item)
     except ModelError as exc:
         error = str(exc)
@@ -157,7 +157,9 @@ def run_packs(args, out, packs, prompt):
         if client:
             results = {}
             for item in completed:
-                results.setdefault(item["celex"], {})[item["target"]] = item["level"]
+                results.setdefault(item["celex"], {})[item["target"]] = {
+                    field: item[field] for field in DECISION_FIELDS
+                }
             write_json(out / "relevance_export/results.json", results)
         write_json(audit / "run_summary.json", {
             "targets_planned": len(packs), "targets_saved": len(completed),

@@ -10,16 +10,18 @@ environment, anchor catalog and version-pinned enrichment files in output_db.
 & .\.venv\Scripts\python.exe .\screen_eurlex_provisions_simple.py samples
 ```
 
-Open `runs/eurlex_provisions_samples_final/relevance_export/results.json`.
+Open `runs/eurlex_provisions_samples_detailed/relevance_export/results.json`.
 Article 2 includes Article 17. Article 6 includes Annex II and the directive's
 scope and definitions. BAT 17 includes the technique table, annex scope and
 the footnote's cited Section 1.5.1. The industrial-emissions anchor includes
 the supplied company fact about cement manufacture, with kiln operation
 left unspecified.
 
-Each target receives one Qwen request and produces one label (DIRECT,
-INDIRECT or IGNORE). Use the audit JSON to see the evidence pack and the
-endpoint's token usage when returned.
+Each target receives one Qwen request. The export saves its level (DIRECT,
+INDIRECT or IGNORE), a reason tied to the target and the company evidence,
+and an area array of business anchor IDs. IGNORE uses an empty area array.
+Use the audit JSON to see the evidence pack and token usage when returned.
+The detailed run folders start a fresh set of results.
 
 ## Run the next 50 after reviewing the samples
 
@@ -27,7 +29,7 @@ endpoint's token usage when returned.
 & .\.venv\Scripts\python.exe .\screen_eurlex_provisions_simple.py holdout50
 ```
 
-Open `runs/eurlex_provisions_holdout50_final/relevance_export/results.json`.
+Open `runs/eurlex_provisions_holdout50_detailed/relevance_export/results.json`.
 The manifest selects 18 targets from the regulation, 16 from the directive
 and 16 from the decision. It mixes articles, annexes, tables and BAT items.
 Targets already supplied in full in the original three packs were excluded.

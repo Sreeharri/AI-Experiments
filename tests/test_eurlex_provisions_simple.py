@@ -13,26 +13,38 @@ class SimpleScoringTests(unittest.TestCase):
             "provision": {"locator": "BAT 17", "blocks": [{"text": "Kiln dust provision."}]},
         }
 
-    def test_one_call_and_one_label_per_provision(self):
+    def test_one_call_and_one_decision_per_provision(self):
         for label in ("DIRECT", "INDIRECT", "IGNORE"):
             with self.subTest(label=label):
                 client = Mock()
+                result = {"level": label, "reason": "Evidence for the decision.",
+                          "area": [] if label == "IGNORE" else ["cement"]}
                 client.chat.return_value = ChatResult(
-                    ok=True, finish_reason="stop", content=json.dumps({"level": label}),
+                    ok=True, finish_reason="stop", content=json.dumps(result),
                 )
                 decision, _ = score(client, "System instruction.", self.pack)
-                self.assertEqual(decision, label)
+                self.assertEqual(decision, result)
                 client.chat.assert_called_once()
                 sent = json.loads(client.chat.call_args.args[0][1]["content"])
                 self.assertEqual(sent, self.pack)
 
-    def test_other_labels_and_extra_fields_are_rejected(self):
-        for result in ({"level": "APPLIES"}, {"level": "NEEDS_REVIEW"},
-                       {"level": "DIRECT", "reason": "Extra output."}):
-            with self.subTest(result=result):
+    def test_incomplete_or_unsupported_decisions_are_rejected(self):
+        result = {"level": "DIRECT", "reason": "Evidence for the decision.", "area": ["cement"]}
+        cases = (
+            {"level": "DIRECT"},
+            {**result, "level": "APPLIES"},
+            {**result, "reason": " "},
+            {**result, "area": ["unknown"]},
+            {**result, "area": ["cement", "cement"]},
+            {**result, "area": []},
+            {**result, "level": "IGNORE"},
+            {**result, "unexpected": True},
+        )
+        for invalid in cases:
+            with self.subTest(result=invalid):
                 client = Mock()
                 client.chat.return_value = ChatResult(
-                    ok=True, finish_reason="stop", content=json.dumps(result),
+                    ok=True, finish_reason="stop", content=json.dumps(invalid),
                 )
                 with self.assertRaises(ModelError):
                     score(client, "System instruction.", self.pack)
