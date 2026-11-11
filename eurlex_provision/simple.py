@@ -1,13 +1,14 @@
 """Prepare one complete provision and its direct references for a single decision."""
 
 import json
+import re
 
 from .evidence import norm
 from .screening import LEVELS, ModelError
 
 
 DECISION_FIELDS = ("level", "reason", "area")
-EVIDENCE_FIELDS = ("target_quote", "anchor_quotes")
+EVIDENCE_FIELDS = ("target_passage", "anchor_sources")
 ANCHOR_SOURCE_FIELDS = ("company_facts", "scope", "roles", "note")
 
 
@@ -151,68 +152,77 @@ def target_text(value):
             yield from target_text(child)
 
 
-def contains_quote(quote, sources):
-    if not isinstance(quote, str):
-        return False
-    normalized = " ".join(quote.split())
-    return 0 < len(normalized) <= 240 and any(
-        normalized in " ".join(source.split()) for source in sources if isinstance(source, str)
+def target_passages(provision):
+    excerpts = dict.fromkeys(
+        match.group()
+        for text in target_text(provision)
+        for match in re.finditer(r"\S+(?:\s+\S+){0,34}", text)
     )
+    return {f"P{index}": excerpt for index, excerpt in enumerate(excerpts, 1)}
 
 
-def validate_decision(decision, pack):
+def anchor_sources(anchors):
+    sources = {}
+    for anchor_id, anchor in anchors.items():
+        for field in ANCHOR_SOURCE_FIELDS:
+            value = anchor.get(field)
+            if isinstance(value, str) and value.strip():
+                sources[f"{anchor_id}:{field}"] = (anchor_id, value)
+            elif isinstance(value, list):
+                for index, text in enumerate(value, 1):
+                    if isinstance(text, str) and text.strip():
+                        sources[f"{anchor_id}:{field}.{index}"] = (anchor_id, text)
+    return sources
+
+
+def validate_decision(decision, passages, sources, anchor_ids):
     if not isinstance(decision, dict) or set(decision) != set(DECISION_FIELDS + EVIDENCE_FIELDS):
-        raise ModelError("Expected level, reason, area, target_quote and anchor_quotes.")
+        raise ModelError("Expected level, reason, area, target_passage and anchor_sources.")
     level, reason, area = (decision[field] for field in DECISION_FIELDS)
     if level not in LEVELS:
         raise ModelError("Expected level DIRECT, INDIRECT or IGNORE.")
     if not isinstance(reason, str) or not 0 < len(reason.strip()) <= 600:
         raise ModelError("Expected a non-empty reason of at most 600 characters.")
     if (not isinstance(area, list) or len(area) > 4
-            or any(not isinstance(item, str) or item not in pack["business_anchors"] for item in area)
+            or any(not isinstance(item, str) or item not in anchor_ids for item in area)
             or len(area) != len(set(area))):
         raise ModelError("Expected up to four distinct area IDs from the supplied business anchors.")
     if bool(area) != (level != "IGNORE"):
         raise ModelError("Expected matching area IDs for DIRECT or INDIRECT, and [] for IGNORE.")
-    if not contains_quote(decision["target_quote"], target_text(pack["provision"])):
-        raise ModelError("Copy target_quote from the target provision itself, including a table cell if relevant.")
-    quotes = decision["anchor_quotes"]
-    if (not isinstance(quotes, list) or len(quotes) != len(area)
-            or any(not isinstance(item, dict) or set(item) != {"id", "quote"} for item in quotes)
-            or [item["id"] for item in quotes] != area):
-        raise ModelError("Provide one anchor quote per area ID, in the same order as area.")
-    for item in quotes:
-        anchor = pack["business_anchors"][item["id"]]
-        sources = []
-        for field in ANCHOR_SOURCE_FIELDS:
-            value = anchor.get(field)
-            sources.extend(value if isinstance(value, list) else [value])
-        if not contains_quote(item["quote"], sources):
-            raise ModelError(f"Copy the quote for {item['id']} from its company_facts, scope, roles or note.")
-    return {"level": level, "reason": reason.strip(), "area": area}
+    passage_id = decision["target_passage"]
+    if not isinstance(passage_id, str) or passage_id not in passages:
+        raise ModelError("Select a target_passage ID from the supplied passages.")
+    source_ids = decision["anchor_sources"]
+    if (not isinstance(source_ids, list) or len(source_ids) != len(area)
+            or any(not isinstance(key, str) or key not in sources for key in source_ids)
+            or [sources[key][0] for key in source_ids] != area):
+        raise ModelError("Select one source ID per area, in the same order as area.")
+    evidence = {
+        "target_passage": passage_id,
+        "target_quote": passages[passage_id],
+        "anchor_quotes": [
+            {"id": sources[key][0], "source": key, "quote": sources[key][1]} for key in source_ids
+        ],
+    }
+    return {"level": level, "reason": reason.strip(), "area": area}, evidence
 
 
 
 def score(client, prompt, pack):
     anchor_ids = list(pack["business_anchors"])
-    quote_schema = {"type": "string", "minLength": 1, "maxLength": 240}
+    passages = target_passages(pack["provision"])
+    if not passages:
+        raise ModelError("The target has no text available for a passage citation.")
+    sources = anchor_sources(pack["business_anchors"])
     schema = {
         "type": "object",
         "additionalProperties": False,
         "required": list(EVIDENCE_FIELDS + DECISION_FIELDS),
         "properties": {
-            "target_quote": quote_schema,
-            "anchor_quotes": {
+            "target_passage": {"type": "string", "enum": list(passages)},
+            "anchor_sources": {
                 "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["id", "quote"],
-                    "properties": {
-                        "id": {"type": "string", "enum": anchor_ids},
-                        "quote": quote_schema,
-                    },
-                },
+                "items": {"type": "string", "enum": list(sources)},
                 "maxItems": 4,
             },
             "level": {"type": "string", "enum": list(LEVELS)},
@@ -224,8 +234,9 @@ def score(client, prompt, pack):
             },
         },
     }
+    request_pack = {**pack, "target_passages": passages}
     messages = [{"role": "system", "content": prompt},
-                {"role": "user", "content": json.dumps(pack, ensure_ascii=False)}]
+                {"role": "user", "content": json.dumps(request_pack, ensure_ascii=False)}]
     rejected_reply = None
     for attempt in range(2):
         reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
@@ -238,7 +249,7 @@ def score(client, prompt, pack):
         try:
             if error:
                 raise ModelError(error)
-            decision = validate_decision(candidate, pack)
+            decision, evidence = validate_decision(candidate, passages, sources, anchor_ids)
         except ModelError as exc:
             if attempt:
                 raise ModelError(f"Invalid response after one correction request: {exc}") from exc
@@ -246,7 +257,7 @@ def score(client, prompt, pack):
             messages[0]["content"] = f"{prompt}\nCorrection required for the previous response: {exc}"
         else:
             audit = {"finish_reason": reply.finish_reason, "usage": reply.usage,
-                     "raw_reply": reply.content, "evidence": {key: candidate[key] for key in EVIDENCE_FIELDS}}
+                     "raw_reply": reply.content, "evidence": evidence}
             if rejected_reply is not None:
                 audit["rejected_reply"] = rejected_reply
             return decision, audit

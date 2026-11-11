@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from eurlex_provision.simple import ModelError, score, validate_decision
+from eurlex_provision.simple import ModelError, anchor_sources, score, target_passages, validate_decision
 from lr_ai.qwen_client import ChatResult
 
 
@@ -15,8 +15,8 @@ class SimpleScoringTests(unittest.TestCase):
         }
         self.result = {
             "level": "DIRECT", "reason": "Evidence for the decision.", "area": ["cement"],
-            "target_quote": "Kiln dust provision.",
-            "anchor_quotes": [{"id": "cement", "quote": "operates a cement kiln"}],
+            "target_passage": "P1",
+            "anchor_sources": ["cement:scope"],
         }
 
     def test_one_call_and_one_decision_per_provision(self):
@@ -25,40 +25,43 @@ class SimpleScoringTests(unittest.TestCase):
                 client = Mock()
                 result = {**self.result, "level": label}
                 if label == "IGNORE":
-                    result.update(area=[], anchor_quotes=[])
+                    result.update(area=[], anchor_sources=[])
                 client.chat.return_value = ChatResult(
                     ok=True, finish_reason="stop", content=json.dumps(result),
                 )
                 decision, audit = score(client, "System instruction.", self.pack)
                 self.assertEqual(decision, {k: result[k] for k in ("level", "reason", "area")})
-                self.assertEqual(audit["evidence"]["target_quote"], result["target_quote"])
+                self.assertEqual(audit["evidence"]["target_quote"], "Kiln dust provision.")
                 client.chat.assert_called_once()
                 sent = json.loads(client.chat.call_args.args[0][1]["content"])
-                self.assertEqual(sent, self.pack)
+                self.assertEqual(sent, {**self.pack, "target_passages": {"P1": "Kiln dust provision."}})
 
     def test_citations_from_wrong_target_or_anchor_are_rejected(self):
         cases = (
-            ({"target_quote": "Limits from another provision."}, "target provision itself"),
-            ({"anchor_quotes": [{"id": "cement", "quote": "operates a lime kiln"}]}, "quote for cement"),
-            ({"anchor_quotes": []}, "one anchor quote per area"),
+            ({"target_passage": "P2"}, "target_passage ID"),
+            ({"anchor_sources": ["cement:company_facts.1"]}, "one source ID per area"),
+            ({"anchor_sources": []}, "one source ID per area"),
             ({"area": ["unknown"]}, "area IDs"),
             ({"reason": " "}, "non-empty reason"),
         )
         for changes, message in cases:
             with self.subTest(changes=changes):
                 with self.assertRaisesRegex(ModelError, message):
-                    validate_decision({**self.result, **changes}, self.pack)
+                    validate_decision(
+                        {**self.result, **changes}, target_passages(self.pack["provision"]),
+                        anchor_sources(self.pack["business_anchors"]), ["cement"],
+                    )
 
-    def test_one_correction_and_audit_for_unverified_quote(self):
+    def test_one_correction_and_audit_for_unknown_passage(self):
         client = Mock()
-        bad = {**self.result, "target_quote": "Limits from another provision."}
+        bad = {**self.result, "target_passage": "P2"}
         client.chat.side_effect = [
             ChatResult(ok=True, finish_reason="stop", content=json.dumps(candidate))
             for candidate in (bad, self.result)
         ]
         _, audit = score(client, "System instruction.", self.pack)
         self.assertEqual(client.chat.call_count, 2)
-        self.assertIn("target provision itself", audit["rejected_reply"]["error"])
+        self.assertIn("target_passage ID", audit["rejected_reply"]["error"])
 
     def test_context_limit_is_an_error(self):
         client = Mock()
