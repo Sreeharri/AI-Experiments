@@ -10,11 +10,12 @@ from uuid import UUID
 from lxml.etree import XMLSyntaxError
 
 from enrich_eurlex import write_json
-from eurlex_enrichment.enrichment import build
+from eurlex_enrichment.enrichment import NoUsableProvisions, build
 from eurlex_enrichment.inputs import from_postgres, postgres_dsn, read_json, source_bytes
 from eurlex_enrichment.xhtml import AnnexLocatorError, SourceMarkupError
 
 TARGET_COUNTS = {"ARTICLE": "articles", "ANNEX": "annexes", "TABLE": "xhtml_data_tables"}
+PROVISION_METRICS = (*TARGET_COUNTS.values(), "pdf_data_tables")
 SAMPLE_LIMIT = 5
 
 
@@ -42,8 +43,14 @@ def verify_enriched(enriched, celex, version):
     if len({unit["id"] for unit in units}) != len(units):
         raise ValueError("Duplicate unit IDs.")
     counts = Counter(unit["kind"] for unit in units)
-    expected = {field: counts[kind] for kind, field in TARGET_COUNTS.items()}
-    if any(enriched["summary"][field] != count for field, count in expected.items()):
+    pdf_ids = {key for key, table in enriched["tables"].items() if table.get("origin") == "PDF_PAGE_GRID"}
+    pdf_units = {unit["id"] for unit in units if unit["kind"] == "TABLE" and unit["id"] in pdf_ids}
+    expected = {
+        "articles": counts["ARTICLE"], "annexes": counts["ANNEX"],
+        "xhtml_data_tables": counts["TABLE"] - len(pdf_units), "pdf_data_tables": len(pdf_units),
+    }
+    if pdf_ids != pdf_units or any(enriched["summary"].get(field, 0) != count
+                                  for field, count in expected.items()):
         raise ValueError("Declared provision counts disagree with the enriched units.")
     return expected
 
@@ -72,6 +79,8 @@ def failure_detail(exc, stage, data):
         group = f"SOURCE_MARKUP_{exc.payload_type}"
     elif isinstance(exc, AnnexLocatorError):
         group = "ANNEX_LOCATOR"
+    elif isinstance(exc, NoUsableProvisions):
+        group = "NO_USABLE_PROVISIONS"
     else:
         group = stage
     version = data.get("version", {})
@@ -92,7 +101,8 @@ def share_summary(summary, details, parser_counts, annex_recovery_acts, stop_rea
     return {
         "schema_version": 1,
         **{key: value for key, value in summary.items()
-           if key not in {"failures", "failure_details", "acts_without_provision_targets", "error"}},
+           if key not in {"failures", "failure_details", "acts_without_provision_targets",
+                          "partial_coverage_by_act", "error"}},
         "stop_reason": stop_reason,
         "acts_with_provision_targets": summary["acts_valid"] - len(no_targets),
         "acts_without_provision_targets": {"count": len(no_targets), "sample_celex": no_targets[:SAMPLE_LIMIT]},
@@ -123,6 +133,7 @@ def process(args, manifest, dsn):
     failures = {}
     details = {}
     parser_counts = Counter()
+    partial_coverage = {}
     annex_recovery_acts = 0
     no_targets = []
     stopped = None
@@ -149,7 +160,7 @@ def process(args, manifest, dsn):
                     stage = "SOURCE_SNAPSHOT"
                     raw, origin = source_bytes(data, args.xhtml_dir, args.fetch_xhtml)
                     stage = "ENRICHMENT_VALIDATION"
-                    enriched = build(data, raw, origin)
+                    enriched = build(data, raw, origin, recover_from_database=True)
                     metrics = verify_enriched(enriched, celex, version)
                 except (OSError, ValueError, KeyError, TypeError, XMLSyntaxError) as exc:
                     failures[celex] = str(exc)
@@ -165,6 +176,8 @@ def process(args, manifest, dsn):
             document = enriched["document"]
             parser_counts[document.get("source_parser") or "PREVIOUS_RUN"] += 1
             annex_recovery_acts += bool(document.get("annex_locator_recoveries"))
+            if coverage := document.get("source_coverage"):
+                partial_coverage[celex] = coverage
             if not any(metrics.values()):
                 no_targets.append(celex)
             if not args.verify_only and (processed % 100 == 0 or processed == len(manifest)):
@@ -185,7 +198,17 @@ def process(args, manifest, dsn):
         summary = {
             "acts_planned": len(manifest), "acts_checked": processed, "acts_valid": valid,
             "acts_written": written, "acts_failed": len(failures), "acts_pending": len(manifest) - processed,
-            "provisions": {field: counts[field] for field in TARGET_COUNTS.values()},
+            "provisions": {field: counts[field] for field in PROVISION_METRICS},
+            "acts_with_partial_source_coverage": len(partial_coverage),
+            "annexes_using_database_text": sum(len(c["database_annex_ids"]) for c in partial_coverage.values()),
+            "missing_structured_targets": sum(len(c["missing_targets"]) for c in partial_coverage.values()),
+            "pdf_table_scan": {
+                field: sum((c["pdf_table_scan"] or {}).get(field, 0) for c in partial_coverage.values())
+                for field in ("candidates", "unlinked_or_non_rectangular", "pages_without_text")
+            },
+            "acts_with_pdf_scan_errors": sum(bool((c["pdf_table_scan"] or {}).get("read_error"))
+                                             for c in partial_coverage.values()),
+            "partial_coverage_by_act": partial_coverage,
             "acts_without_provision_targets": no_targets, "failures": failures, "error": stopped,
         }
         if not args.verify_only:
@@ -212,6 +235,8 @@ def main():
     args = parser.parse_args()
     if not args.verify_only and find_spec("psycopg") is None:
         parser.exit(1, "Install requirements-postgres.txt before running PostgreSQL enrichment.\n")
+    if not args.verify_only and find_spec("pdfplumber") is None:
+        parser.exit(1, "Install pdfplumber>=0.11.7,<0.12 in the project virtual environment.\n")
     try:
         raise SystemExit(int(run(args)))
     except (OSError, ValueError, KeyError, TypeError) as exc:

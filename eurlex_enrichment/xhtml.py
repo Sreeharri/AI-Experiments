@@ -182,6 +182,7 @@ class XHTML:
         self.root, self.parser_mode = parse_document(raw)
         self.annex_locator_recoveries = []
         self.used_annex_roots = set()
+        self.used_annex_blocks = set()
         self.by_id = defaultdict(list)
         for node in self.root.xpath("//*[@id]"):
             self.by_id[node.get("id")].append(node)
@@ -255,8 +256,51 @@ class XHTML:
         self.used_annex_roots.add(root)
         return root
 
-    def annex(self, element):
-        root = self.annex_root(element)
+    def legacy_annex_blocks(self, element, body):
+        """Verify a flat annex range against the stored body of the same annex."""
+        label = " ".join(element["identifier"].upper().split())
+        expected = " ".join(body.split())
+        candidates = []
+        for heading in self.root.xpath("//h:p|//h:h1|//h:h2|//h:h3|//h:h4|//h:h5|//h:h6", namespaces=NS):
+            if text(heading).upper() != label:
+                continue
+            if any(tag(parent) in {"table", "td", "th"} for parent in heading.iterancestors()):
+                continue
+            parts, blocks = [], [heading]
+            for block in heading.itersiblings():
+                if not isinstance(block.tag, str):
+                    continue
+                content = text(block)
+                if ANNEX_LABEL.fullmatch(content) or re.fullmatch(r"Article \d+[a-z]?", content, re.I):
+                    break
+                blocks.append(block)
+                if content:
+                    parts.append(content)
+            whole = " ".join(parts)
+            if whole and expected in {whole, f"{text(heading)} {whole}"}:
+                candidates.append((heading, blocks))
+        if len(candidates) != 1:
+            raise AnnexLocatorError(f"Annex has no unique XHTML locator: {element['identifier']}")
+        root, blocks = candidates[0]
+        self.annex_locator_recoveries.append({
+            "annex_id": element["id"], "original_locator": element.get("source_locator"),
+            "source": locator(root), "last_block": locator(blocks[-1]), "match": "DATABASE_BODY",
+        })
+        return root, blocks
+
+    def annex(self, element, database_body=None):
+        try:
+            root = self.annex_root(element)
+            blocks = list(root)
+        except AnnexLocatorError:
+            if not database_body:
+                raise
+            root, blocks = self.legacy_annex_blocks(element, database_body)
+        if any(block in self.used_annex_blocks or any(
+            parent in self.used_annex_blocks for parent in block.iterancestors()
+        ) or any(child in self.used_annex_blocks for child in block.iterdescendants()) for block in blocks):
+            raise AnnexLocatorError(f"XHTML annex overlaps another annex: {element['identifier']}")
+        self.used_annex_blocks.update(blocks)
         annex_id = element["id"]
         segments, tables, images = [], [], []
         part = None
@@ -274,7 +318,7 @@ class XHTML:
             return value
 
         current = segment("SECTION", "Annex opening and scope", root)
-        for block in root:
+        for block in blocks:
             if not isinstance(block.tag, str):
                 continue
             content = text(block)

@@ -82,7 +82,7 @@ def configure(args):
             units = [unit for unit in evidence.units.values() if unit["kind"] in TARGET_KINDS]
             summary = data["summary"]
             counts = {"ARTICLE": summary["articles"], "ANNEX": summary["annexes"],
-                      "TABLE": summary["xhtml_data_tables"]}
+                      "TABLE": summary["xhtml_data_tables"] + summary.get("pdf_data_tables", 0)}
             if Counter(unit["kind"] for unit in units) != Counter({k: v for k, v in counts.items() if v}):
                 raise ValueError(f"{celex}: target inventory disagrees with enriched summary.")
         if targets:

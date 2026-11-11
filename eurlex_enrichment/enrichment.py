@@ -3,8 +3,9 @@
 from collections import Counter, defaultdict
 import re
 
+from .pdf_source import pdf_tables
 from .references import Resolver
-from .xhtml import XHTML
+from .xhtml import AnnexLocatorError, XHTML, payload_type
 
 STOP_WORDS = set("""
 a an and article as at annex be been being by can could for from in into is it its
@@ -40,8 +41,13 @@ def flatten_children(children, node_id):
         yield from flatten_children(children, child)
 
 
-def build(data, raw_xhtml, xhtml_origin):
-    xhtml = XHTML(raw_xhtml)
+class NoUsableProvisions(ValueError):
+    """The selected version has no usable structured provision text."""
+
+
+def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
+    is_pdf = recover_from_database and payload_type(raw_xhtml) == "PDF"
+    xhtml = None if is_pdf else XHTML(raw_xhtml)
     raw_elements = sorted(data["legal_elements"], key=lambda item: item["ordinal"])
     elements = {}
     children = defaultdict(list)
@@ -65,12 +71,82 @@ def build(data, raw_xhtml, xhtml_origin):
     annexes = [n for n in elements.values() if n["kind"] == "ANNEX"]
     recitals = [n for n in elements.values() if n["kind"] == "RECITAL"]
     sections, tables, images = [], [], []
+    database_annexes = []
+    missing_targets = []
+
+    def database_body(node):
+        body = node["text"].strip()
+        if body and node["aggregate_text"]:
+            return body
+        pieces = [body] if body else []
+        for key in children[node["id"]]:
+            child = database_body(elements[key])
+            if child and " ".join(child.split()) not in " ".join(body.split()):
+                pieces.append(child)
+        return "\n\n".join(pieces)
+
+    if is_pdf and not any(database_body(node) for node in articles + annexes):
+        raise NoUsableProvisions("The pinned PDF has no usable PostgreSQL article or annex text.")
+    annex_bodies = {node["id"]: database_body(node) for node in annexes} if recover_from_database else {}
+    grids, pdf_stats = pdf_tables(raw_xhtml, {
+        node["id"]: (node["label"], annex_bodies[node["id"]]) for node in annexes
+    }) if is_pdf else ({}, None)
+
+    def database_annex(row):
+        annex_id = row["id"]
+        body = annex_bodies[annex_id]
+        source = {"kind": "POSTGRESQL_LEGAL_ELEMENT", "element_id": annex_id}
+        section_id = f"{annex_id}:database:1"
+        grid_ids = []
+        for index, grid in enumerate(grids.get(annex_id, ()), 1):
+            table_id = f"{annex_id}:pdf-table:{index}"
+            grid_ids.append(table_id)
+            tables.append({
+                **grid, "id": table_id, "annex_id": annex_id, "part": None,
+                "published_number": None, "caption": [], "footnote_ids": [],
+                "section_id": section_id, "section_label": "Stored annex text",
+                "origin": "PDF_PAGE_GRID", "_source_text_keys": [],
+            })
+        sections.append({
+            "id": section_id, "kind": "SECTION", "label": "Stored annex text",
+            "annex_id": annex_id, "part": None, "headings": [], "source": source,
+            "blocks": [{"text": body, "source": source, "footnote_ids": []}]
+                      + [{"table_id": key} for key in grid_ids],
+            "table_ids": grid_ids, "image_ids": [],
+        })
+
     for row in raw_elements:
-        if row["element_type"] == "ANNEX":
-            new_sections, new_tables, new_images = xhtml.annex(row)
-            sections.extend(new_sections)
-            tables.extend(new_tables)
-            images.extend(new_images)
+        if row["element_type"] != "ANNEX":
+            continue
+        if xhtml is not None:
+            try:
+                new_sections, new_tables, new_images = xhtml.annex(
+                    row, annex_bodies.get(row["id"])
+                )
+            except AnnexLocatorError:
+                if not recover_from_database:
+                    raise
+            else:
+                sections.extend(new_sections)
+                tables.extend(new_tables)
+                images.extend(new_images)
+                continue
+        database_annexes.append(row["id"])
+        if annex_bodies[row["id"]]:
+            database_annex(row)
+        else:
+            missing_targets.append({"id": row["id"], "kind": "ANNEX", "reason": "MISSING_ANNEX_TEXT"})
+
+    partial = is_pdf or bool(database_annexes)
+    if partial:
+        for article in articles:
+            if not article["text"].strip():
+                article["text"] = database_body(article)
+            if not article["text"]:
+                missing_targets.append({
+                    "id": article["id"], "kind": "ARTICLE", "reason": "MISSING_ARTICLE_TEXT",
+                })
+    missing_ids = {item["id"] for item in missing_targets}
 
     db_tables = defaultdict(list)
     for element in elements.values():
@@ -218,16 +294,20 @@ def build(data, raw_xhtml, xhtml_origin):
         })
 
     for article in articles:
-        article["footnote_ids"] = xhtml.notes_for(article["source_locator"])
+        if article["id"] in missing_ids:
+            continue
+        article["footnote_ids"] = xhtml.notes_for(article["source_locator"]) if xhtml else []
         own = [article["id"], *flatten_children(children, article["id"])]
         add_unit("ARTICLE", article["id"], article["label"], article["text"], own,
                  note_ids=article["footnote_ids"])
 
     for annex in annexes:
+        if annex["id"] in missing_ids:
+            continue
         group = sections_by_annex[annex["id"]]
         add_unit("ANNEX", annex["id"], annex["label"], annex["text"], [annex["id"]],
                  annex_id=annex["id"], table_ids=[t for s in group for t in s["table_ids"]],
-                 note_ids=xhtml.notes_for(annex["source_locator"]))
+                 note_ids=xhtml.notes_for(annex["source_locator"]) if xhtml else [])
         for section in group:
             if not section["blocks"]:
                 continue
@@ -251,6 +331,9 @@ def build(data, raw_xhtml, xhtml_origin):
                  note_ids=table["footnote_ids"], image_ids=section["image_ids"])
 
     counts = Counter(unit["kind"] for unit in units)
+    if partial and not any(counts[kind] for kind in ("ARTICLE", "ANNEX", "TABLE")):
+        raise NoUsableProvisions("Recovery did not find a usable article, annex, or table.")
+    pdf_table_count = sum(table.get("origin") == "PDF_PAGE_GRID" for table in tables)
     version = data["version"]
     return {
         "schema_version": 1,
@@ -259,13 +342,27 @@ def build(data, raw_xhtml, xhtml_origin):
             "title": data.get("title") or (data.get("base_document") or {}).get("title_en"),
             "version_id": version["id"], "language": version["language"],
             "version_kind": version.get("version_kind"), "source_url": version.get("source_url"),
-            "source_sha256": version["content_sha256"], "xhtml_origin": xhtml_origin,
-            "source_parser": xhtml.parser_mode,
-            "annex_locator_recoveries": xhtml.annex_locator_recoveries,
+            "source_sha256": version["content_sha256"],
+            "xhtml_origin": xhtml_origin if xhtml else None,
+            "source_origin": xhtml_origin,
+            "source_parser": xhtml.parser_mode if xhtml else "PDF_DATABASE",
+            "annex_locator_recoveries": [
+                item for item in xhtml.annex_locator_recoveries if item["annex_id"] not in database_annexes
+            ] if xhtml else [],
+            **({"source_coverage": {
+                "status": "PARTIAL", "database_annex_ids": database_annexes,
+                "missing_targets": missing_targets, "pdf_table_scan": pdf_stats,
+                "limitations": [
+                    "PDF tables are page-local grids. Merged or unlinked grids, footnotes, and images are unverified."
+                    if is_pdf else
+                    "Source tables, footnotes, and images are unverified in annexes using stored text."
+                ],
+            }} if partial else {}),
         },
         "summary": {
             "articles": counts["ARTICLE"], "annexes": counts["ANNEX"],
-            "xhtml_data_tables": counts["TABLE"], "recitals": len(recitals),
+            "xhtml_data_tables": counts["TABLE"] - pdf_table_count, "pdf_data_tables": pdf_table_count,
+            "recitals": len(recitals),
             "database_table_elements": sum(item["kind"] == "TABLE" for item in elements.values()),
             "annex_section_units": counts["SECTION"], "bat_units": counts["BAT"],
             "stored_reference_rows": len(data["element_references"]),
@@ -274,9 +371,11 @@ def build(data, raw_xhtml, xhtml_origin):
             "external_text_required": sum(r["status"] == "EXTERNAL_TEXT_REQUIRED" for r in refs),
             "formula_images": sum(i["review_status"] == "VERIFY_FORMULA_AGAINST_PDF" for i in images),
         },
-        "document_context": xhtml.document_context(),
+        "document_context": xhtml.document_context() if xhtml else {
+            "preamble_before_recitals": [], "closing": [],
+        },
         "elements": elements, "sections": section_index, "tables": table_index,
-        "footnotes": xhtml.notes, "images": {image["id"]: image for image in images},
+        "footnotes": xhtml.notes if xhtml else {}, "images": {image["id"]: image for image in images},
         "stored_references_for_audit": sorted(data["element_references"], key=lambda r: r["id"]),
         "explicit_references": refs,
         "incoming_reference_index": {key: [r["id"] for r in value] for key, value in reverse.items() if value},

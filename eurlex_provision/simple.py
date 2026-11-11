@@ -46,7 +46,10 @@ def build_pack(evidence, unit, anchors, supporting_ids=()):
                     item["header"] = True
                 cells.append(item)
             rows.append(cells)
-        return {"locator": evidence.locator(table_id), "caption": table["caption"], "rows": rows}
+        item = {"locator": evidence.locator(table_id), "caption": table["caption"], "rows": rows}
+        if table.get("origin") == "PDF_PAGE_GRID":
+            item["source_page"] = table["source"]["page"]
+        return item
 
     def section_record(section_id):
         section = evidence.sections[section_id]
@@ -138,8 +141,11 @@ def build_pack(evidence, unit, anchors, supporting_ids=()):
                     direct_refs.append(item)
                 unavailable[identity] = reason
     context.extend(record(source_id) for source_id in supporting_ids if source_id not in included)
+    document = {field: evidence.document[field] for field in ("celex", "version_id", "title")}
+    if coverage := evidence.document.get("source_coverage"):
+        document["source_coverage"] = coverage["limitations"]
     return {
-        "document": {field: evidence.document[field] for field in ("celex", "version_id", "title")},
+        "document": document,
         "provision": provision,
         "direct_references": direct_refs,
         "essential_context": context,
