@@ -8,8 +8,16 @@ from .screening import LEVELS, ModelError
 
 
 DECISION_FIELDS = ("level", "reason", "area")
-EVIDENCE_FIELDS = ("target_passage", "anchor_sources")
+REPLY_FIELDS = ("target_passage", "anchor_sources", "level", "reason")
 ANCHOR_SOURCE_FIELDS = ("company_facts", "scope", "roles", "note")
+
+
+class TargetScreeningError(ModelError):
+    """A failed request or reply specific to a single provision."""
+
+    def __init__(self, message, attempts=()):
+        super().__init__(message)
+        self.attempts = list(attempts)
 
 
 def build_pack(evidence, unit, anchors, supporting_ids=()):
@@ -175,28 +183,27 @@ def anchor_sources(anchors):
     return sources
 
 
-def validate_decision(decision, passages, sources, anchor_ids):
-    if not isinstance(decision, dict) or set(decision) != set(DECISION_FIELDS + EVIDENCE_FIELDS):
-        raise ModelError("Expected level, reason, area, target_passage and anchor_sources.")
-    level, reason, area = (decision[field] for field in DECISION_FIELDS)
+def validate_decision(decision, passages, sources):
+    if not isinstance(decision, dict) or set(decision) != set(REPLY_FIELDS):
+        raise ModelError("Expected level, reason, target_passage and anchor_sources.")
+    level, reason = decision["level"], decision["reason"]
     if level not in LEVELS:
         raise ModelError("Expected level DIRECT, INDIRECT or IGNORE.")
     if not isinstance(reason, str) or not 0 < len(reason.strip()) <= 600:
         raise ModelError("Expected a non-empty reason of at most 600 characters.")
-    if (not isinstance(area, list) or len(area) > 4
-            or any(not isinstance(item, str) or item not in anchor_ids for item in area)
-            or len(area) != len(set(area))):
-        raise ModelError("Expected up to four distinct area IDs from the supplied business anchors.")
-    if bool(area) != (level != "IGNORE"):
-        raise ModelError("Expected matching area IDs for DIRECT or INDIRECT, and [] for IGNORE.")
     passage_id = decision["target_passage"]
     if not isinstance(passage_id, str) or passage_id not in passages:
         raise ModelError("Select a target_passage ID from the supplied passages.")
     source_ids = decision["anchor_sources"]
-    if (not isinstance(source_ids, list) or len(source_ids) != len(area)
-            or any(not isinstance(key, str) or key not in sources for key in source_ids)
-            or [sources[key][0] for key in source_ids] != area):
-        raise ModelError("Select one source ID per area, in the same order as area.")
+    if (not isinstance(source_ids, list) or len(source_ids) > 4
+            or any(not isinstance(key, str) or key not in sources for key in source_ids)):
+        raise ModelError("Select up to four IDs from anchor_source_options.")
+    if level == "IGNORE":
+        source_ids = []
+    elif not source_ids:
+        raise ModelError("Select at least one anchor source for DIRECT or INDIRECT.")
+    source_ids = list(dict.fromkeys(source_ids))
+    area = list(dict.fromkeys(sources[key][0] for key in source_ids))
     evidence = {
         "target_passage": passage_id,
         "target_quote": passages[passage_id],
@@ -209,15 +216,14 @@ def validate_decision(decision, passages, sources, anchor_ids):
 
 
 def score(client, prompt, pack):
-    anchor_ids = list(pack["business_anchors"])
     passages = target_passages(pack["provision"])
     if not passages:
-        raise ModelError("The target has no text available for a passage citation.")
+        raise TargetScreeningError("The target has no text available for a passage citation.")
     sources = anchor_sources(pack["business_anchors"])
     schema = {
         "type": "object",
         "additionalProperties": False,
-        "required": list(EVIDENCE_FIELDS + DECISION_FIELDS),
+        "required": list(REPLY_FIELDS),
         "properties": {
             "target_passage": {"type": "string", "enum": list(passages)},
             "anchor_sources": {
@@ -227,33 +233,35 @@ def score(client, prompt, pack):
             },
             "level": {"type": "string", "enum": list(LEVELS)},
             "reason": {"type": "string", "minLength": 1, "maxLength": 600},
-            "area": {
-                "type": "array",
-                "items": {"type": "string", "enum": anchor_ids},
-                "maxItems": 4,
-            },
         },
     }
-    request_pack = {**pack, "target_passages": passages}
+    source_options = {}
+    for source_id, (anchor_id, _) in sources.items():
+        source_options.setdefault(anchor_id, []).append(source_id)
+    request_pack = {**pack, "target_passages": passages, "anchor_source_options": source_options}
     messages = [{"role": "system", "content": prompt},
                 {"role": "user", "content": json.dumps(request_pack, ensure_ascii=False)}]
     rejected_reply = None
     for attempt in range(2):
         reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
-                            schema=schema, schema_name="provision_relevance_evidence", max_tokens=1024)
+                            schema=schema, schema_name="provision_relevance_sources", max_tokens=1024)
         if not reply.ok:
             if reply.error_kind == "context_limit":
-                raise ModelError("The complete evidence pack exceeds the model context limit.")
+                raise TargetScreeningError("The complete evidence pack exceeds the model context limit.")
             raise ModelError(client.clean(reply.error or "Model request failed."))
         candidate, error = reply.parse_json()
         try:
             if error:
                 raise ModelError(error)
-            decision, evidence = validate_decision(candidate, passages, sources, anchor_ids)
+            decision, evidence = validate_decision(candidate, passages, sources)
         except ModelError as exc:
+            rejected = {"raw_reply": reply.content, "error": str(exc), "usage": reply.usage,
+                        "finish_reason": reply.finish_reason}
             if attempt:
-                raise ModelError(f"Invalid response after one correction request: {exc}") from exc
-            rejected_reply = {"raw_reply": reply.content, "error": str(exc), "usage": reply.usage}
+                raise TargetScreeningError(
+                    f"Invalid response after one correction request: {exc}", [rejected_reply, rejected]
+                ) from exc
+            rejected_reply = rejected
             messages[0]["content"] = f"{prompt}\nCorrection required for the previous response: {exc}"
         else:
             audit = {"finish_reason": reply.finish_reason, "usage": reply.usage,

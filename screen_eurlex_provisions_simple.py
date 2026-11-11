@@ -10,7 +10,7 @@ from enrich_eurlex import write_json
 from eurlex_enrichment.inputs import read_json
 from eurlex_provision.evidence import Evidence, TARGET_KINDS
 from eurlex_provision.screening import LEVELS, ModelError
-from eurlex_provision.simple import DECISION_FIELDS, build_pack, score
+from eurlex_provision.simple import DECISION_FIELDS, TargetScreeningError, build_pack, score
 from lr_ai.qwen_client import QwenClient
 from screen_eurlex_provisions import ROOT, load_supplements, sha
 
@@ -92,7 +92,7 @@ def run(args):
     packs = configure(args)
     prompt = (ROOT / "prompts/eurlex_provision_simple.md").read_text(encoding="utf-8")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_citations" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_validated" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -101,7 +101,7 @@ def run(args):
     except FileExistsError as exc:
         raise ValueError(f"Output directory is locked: {out}. Confirm no run is active before removing .running.") from exc
     try:
-        run_packs(args, out, packs, prompt)
+        return run_packs(args, out, packs, prompt)
     finally:
         lock.unlink()
 
@@ -124,35 +124,56 @@ def run_packs(args, out, packs, prompt):
     if run_file.exists() and read_json(run_file)["fingerprint"] != fingerprint:
         raise ValueError("Run inputs changed. Choose a new --output-dir.")
     write_json(run_file, {"fingerprint": fingerprint, "model": model, "system_prompt": prompt})
-    completed = []
+    targets = []
+    checkpoints = {}
+    for celex, unit_id, kind, pack in packs:
+        target = pack["provision"]["locator"]
+        path = audit / celex / f"{kind.lower()}_{sha((unit_id, target))[:18]}.json"
+        item = {"celex": celex, "target": target, "kind": kind, "target_id": unit_id,
+                "file": path.relative_to(out).as_posix()}
+        targets.append((item, path, pack))
+        if path.exists():
+            saved = read_json(path)
+            if saved.get("fingerprint") != fingerprint:
+                raise ValueError(f"Checkpoint inputs changed for {target}. Choose a new --output-dir.")
+            checkpoints[path] = saved
+
     error = None
     try:
-        for index, (celex, unit_id, kind, pack) in enumerate(packs, 1):
-            target = pack["provision"]["locator"]
-            path = audit / celex / f"{kind.lower()}_{sha((unit_id, target))[:18]}.json"
-            print(f"[{index}/{len(packs)}] {celex} {target}", flush=True)
-            item = {"celex": celex, "target": target, "kind": kind, "target_id": unit_id,
-                    "file": path.relative_to(out).as_posix()}
-            if path.exists():
-                saved = read_json(path)
-                if saved.get("fingerprint") != fingerprint:
-                    raise ValueError(f"Checkpoint inputs changed for {target}. Choose a new --output-dir.")
-            else:
-                saved = {**item, "fingerprint": fingerprint, "evidence_pack": pack}
-                if client:
-                    try:
-                        decision, attempt = score(client, prompt, pack)
-                    except ModelError as exc:
-                        raise ModelError(f"{celex} {target}: {exc}") from exc
-                    saved.update(decision, model_attempt=attempt)
-                write_json(path, saved)
+        for index, (item, path, pack) in enumerate(targets, 1):
+            label = f"{item['celex']} {item['target']}"
+            if path in checkpoints and "failure" not in checkpoints[path]:
+                continue
+            print(f"[{index}/{len(targets)}] {label}", flush=True)
+            saved = {**item, "fingerprint": fingerprint, "evidence_pack": pack}
             if client:
-                item.update({field: saved[field] for field in DECISION_FIELDS})
-            completed.append(item)
+                try:
+                    decision, attempt = score(client, prompt, pack)
+                except TargetScreeningError as exc:
+                    saved["failure"] = {"error": str(exc), "attempts": exc.attempts}
+                    print(f"Could not classify {label}: {exc}", flush=True)
+                except ModelError as exc:
+                    raise ModelError(f"{label}: {exc}") from exc
+                else:
+                    saved.update(decision, model_attempt=attempt)
+            write_json(path, saved)
+            checkpoints[path] = saved
     except ModelError as exc:
         error = str(exc)
         raise
     finally:
+        completed = []
+        failures = []
+        for item, path, _ in targets:
+            if path not in checkpoints:
+                continue
+            saved = checkpoints[path]
+            if "failure" in saved:
+                failures.append({**item, "error": saved["failure"]["error"]})
+            elif client:
+                completed.append({**item, **{field: saved[field] for field in DECISION_FIELDS}})
+            else:
+                completed.append(item)
         counts = Counter(row.get("level", "PREPARED") for row in completed)
         if client:
             results = {}
@@ -164,14 +185,17 @@ def run_packs(args, out, packs, prompt):
         write_json(audit / "run_summary.json", {
             "targets_planned": len(packs), "targets_saved": len(completed),
             "targets_exported": sum(counts[level] for level in LEVELS),
-            "counts": dict(counts), "error": error,
-            "results": completed,
+            "targets_failed": len(failures), "counts": dict(counts), "error": error,
+            "results": completed, "failures": failures,
         })
     print(f"Saved {len(completed)} targets to {out}", flush=True)
+    if failures:
+        print(f"{len(failures)} targets need a retry. Rerun the same command to retry them.", flush=True)
+    return bool(failures)
 
 
 if __name__ == "__main__":
     try:
-        run(arguments())
+        raise SystemExit(1 if run(arguments()) else 0)
     except (OSError, ValueError, KeyError, TypeError, ModelError, yaml.YAMLError) as exc:
         raise SystemExit(f"Provision screening stopped: {exc}") from exc
