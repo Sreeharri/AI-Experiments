@@ -24,6 +24,8 @@ SUPPORTING_LOCATORS = {
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("samples", "holdout50", "pilot"))
+    parser.add_argument("--celex", nargs="+", help="Limit pilot mode to these manifest IDs")
+    parser.add_argument("--target", nargs="+", help="Exact target locators for one selected act")
     parser.add_argument("--prepare-only", action="store_true", help="Save evidence without calling the model")
     parser.add_argument("--enriched-dir", type=Path, default=ROOT / "output_db")
     parser.add_argument("--manifest", type=Path, default=ROOT / "pilot_acts.json")
@@ -39,6 +41,14 @@ def configure(args):
     if not isinstance(manifest, dict) or not manifest:
         raise ValueError("The manifest must map CELEX IDs to pinned version IDs.")
     selected = manifest if args.mode == "pilot" else {celex: manifest[celex] for celex in SAMPLES}
+    requested = getattr(args, "celex", None)
+    targets = getattr(args, "target", None)
+    if requested:
+        if args.mode != "pilot" or len(set(requested)) != len(requested) or not set(requested) <= manifest.keys():
+            raise ValueError("--celex requires pilot mode and unique IDs from the manifest.")
+        selected = {celex: manifest[celex] for celex in requested}
+    if targets and (not requested or len(requested) != 1 or len(set(targets)) != len(targets)):
+        raise ValueError("--target requires one --celex and unique target locators.")
     holdout = None
     if args.mode == "holdout50":
         holdout = read_json(ROOT / "config/eurlex_provision_holdout50.json")
@@ -75,6 +85,11 @@ def configure(args):
                       "TABLE": summary["xhtml_data_tables"]}
             if Counter(unit["kind"] for unit in units) != Counter({k: v for k, v in counts.items() if v}):
                 raise ValueError(f"{celex}: target inventory disagrees with enriched summary.")
+        if targets:
+            by_locator = {evidence.locator(unit["id"]): unit for unit in units}
+            if not set(targets) <= by_locator.keys():
+                raise ValueError(f"{celex}: target locator not found: {sorted(set(targets) - by_locator.keys())}")
+            units = [by_locator[locator] for locator in targets]
         locators = set()
         for unit in units:
             locators_for_context = SUPPORTING_LOCATORS.get((celex, unit["label"]), ())
@@ -91,8 +106,11 @@ def configure(args):
 def run(args):
     packs = configure(args)
     prompt = (ROOT / "prompts/eurlex_provision_simple.md").read_text(encoding="utf-8")
+    review_prompt = (ROOT / "prompts/eurlex_provision_ignore_review.md").read_text(encoding="utf-8")
+    if getattr(args, "celex", None) and args.output_dir is None:
+        raise ValueError("Set --output-dir for a subset run.")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_validated" + ("_prepared" if args.prepare_only else "")
+        f"eurlex_provisions_{args.mode}_context_safe" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -101,12 +119,12 @@ def run(args):
     except FileExistsError as exc:
         raise ValueError(f"Output directory is locked: {out}. Confirm no run is active before removing .running.") from exc
     try:
-        return run_packs(args, out, packs, prompt)
+        return run_packs(args, out, packs, prompt, review_prompt)
     finally:
         lock.unlink()
 
 
-def run_packs(args, out, packs, prompt):
+def run_packs(args, out, packs, prompt, review_prompt):
     client = None
     if not args.prepare_only:
         client = QwenClient.from_env(args.env_file, retries=0)
@@ -118,12 +136,13 @@ def run_packs(args, out, packs, prompt):
     model = client.model if client else None
     scorer = ROOT / "eurlex_provision/simple.py"
     fingerprint = sha({"packs": packs, "model": model, "prepare_only": args.prepare_only,
-                       "prompt": prompt, "code": scorer.read_text(encoding="utf-8"),
+                       "prompt": prompt, "review_prompt": review_prompt, "code": scorer.read_text(encoding="utf-8"),
                        "runner": Path(__file__).read_text(encoding="utf-8")})
     run_file = audit / "run_config.json"
     if run_file.exists() and read_json(run_file)["fingerprint"] != fingerprint:
         raise ValueError("Run inputs changed. Choose a new --output-dir.")
-    write_json(run_file, {"fingerprint": fingerprint, "model": model, "system_prompt": prompt})
+    write_json(run_file, {"fingerprint": fingerprint, "model": model, "system_prompt": prompt,
+                          "ignore_review_prompt": review_prompt})
     targets = []
     checkpoints = {}
     for celex, unit_id, kind, pack in packs:
@@ -142,15 +161,36 @@ def run_packs(args, out, packs, prompt):
     try:
         for index, (item, path, pack) in enumerate(targets, 1):
             label = f"{item['celex']} {item['target']}"
-            if path in checkpoints and "failure" not in checkpoints[path]:
+            previous = checkpoints.get(path, {})
+            if previous and "failure" not in previous and (not client or "level" in previous):
                 continue
             print(f"[{index}/{len(targets)}] {label}", flush=True)
             saved = {**item, "fingerprint": fingerprint, "evidence_pack": pack}
             if client:
                 try:
-                    decision, attempt = score(client, prompt, pack)
+                    if "ignore_review" in previous:
+                        saved["ignore_review"] = previous["ignore_review"]
+                    else:
+                        decision, attempt = score(client, prompt, pack)
+                        if decision["level"] == "IGNORE":
+                            saved["ignore_review"] = {
+                                "status": "pending", "initial_decision": decision, "initial_attempt": attempt,
+                            }
+                            write_json(path, saved)
+                            checkpoints[path] = saved
+                    if "ignore_review" in saved:
+                        review = saved["ignore_review"]
+                        review_pack = {**pack, "initial_ignore": {
+                            "reason": review["initial_decision"]["reason"],
+                            "target_quote": review["initial_attempt"]["evidence"]["target_quote"],
+                        }}
+                        decision, attempt = score(client, f"{prompt}\n\n{review_prompt}", review_pack)
+                        saved["ignore_review"] = {
+                            **review, "status": "confirmed" if decision["level"] == "IGNORE" else "changed",
+                        }
                 except TargetScreeningError as exc:
-                    saved["failure"] = {"error": str(exc), "attempts": exc.attempts}
+                    saved["failure"] = {"error": str(exc), "attempts": exc.attempts,
+                                        "stage": "ignore_review" if "ignore_review" in saved else "initial"}
                     print(f"Could not classify {label}: {exc}", flush=True)
                 except ModelError as exc:
                     raise ModelError(f"{label}: {exc}") from exc
@@ -164,14 +204,20 @@ def run_packs(args, out, packs, prompt):
     finally:
         completed = []
         failures = []
+        reviews = Counter()
         for item, path, _ in targets:
             if path not in checkpoints:
                 continue
             saved = checkpoints[path]
+            review = saved.get("ignore_review")
+            if review:
+                reviews[review["status"]] += 1
             if "failure" in saved:
-                failures.append({**item, "error": saved["failure"]["error"]})
+                failures.append({**item, "error": saved["failure"]["error"],
+                                 "stage": saved["failure"]["stage"]})
             elif client:
-                completed.append({**item, **{field: saved[field] for field in DECISION_FIELDS}})
+                if "level" in saved:
+                    completed.append({**item, **{field: saved[field] for field in DECISION_FIELDS}})
             else:
                 completed.append(item)
         counts = Counter(row.get("level", "PREPARED") for row in completed)
@@ -186,6 +232,7 @@ def run_packs(args, out, packs, prompt):
             "targets_planned": len(packs), "targets_saved": len(completed),
             "targets_exported": sum(counts[level] for level in LEVELS),
             "targets_failed": len(failures), "counts": dict(counts), "error": error,
+            "ignore_reviews": {status: reviews[status] for status in ("confirmed", "changed", "pending")},
             "results": completed, "failures": failures,
         })
     print(f"Saved {len(completed)} targets to {out}", flush=True)

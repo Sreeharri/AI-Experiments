@@ -20,6 +20,10 @@ class TargetScreeningError(ModelError):
         self.attempts = list(attempts)
 
 
+class ContextLimitError(TargetScreeningError):
+    """The model rejected the request because it exceeds its context window."""
+
+
 def build_pack(evidence, unit, anchors, supporting_ids=()):
     key = unit["id"]
     kind = unit["kind"]
@@ -215,7 +219,7 @@ def validate_decision(decision, passages, sources):
 
 
 
-def score(client, prompt, pack):
+def score_request(client, prompt, pack):
     passages = target_passages(pack["provision"])
     if not passages:
         raise TargetScreeningError("The target has no text available for a passage citation.")
@@ -247,7 +251,7 @@ def score(client, prompt, pack):
                             schema=schema, schema_name="provision_relevance_sources", max_tokens=1024)
         if not reply.ok:
             if reply.error_kind == "context_limit":
-                raise TargetScreeningError("The complete evidence pack exceeds the model context limit.")
+                raise ContextLimitError("The evidence pack exceeds the model context limit.")
             raise ModelError(client.clean(reply.error or "Model request failed."))
         candidate, error = reply.parse_json()
         try:
@@ -269,3 +273,105 @@ def score(client, prompt, pack):
             if rejected_reply is not None:
                 audit["rejected_reply"] = rejected_reply
             return decision, audit
+
+
+
+SECTION_CHAR_BUDGET = 16000
+SCOPE_SECTION = re.compile(r", (scope|definitions) \[section \d+\]$", re.IGNORECASE)
+LEVEL_PRIORITY = {"DIRECT": 2, "INDIRECT": 1, "IGNORE": 0}
+
+
+def section_size(section):
+    return len(json.dumps(section, ensure_ascii=False))
+
+
+def scope_sections(sections):
+    return [section for section in sections if SCOPE_SECTION.search(section["locator"])]
+
+
+def compact_annex_references(pack):
+    references = []
+    compacted = []
+    for reference in pack["direct_references"]:
+        sections = reference.get("sections", [])
+        if not sections or section_size(reference) <= SECTION_CHAR_BUDGET:
+            references.append(reference)
+            continue
+        compacted.append(reference["locator"])
+        references.append({
+            "locator": reference["locator"],
+            "sections": scope_sections(sections),
+            "section_outline": [
+                re.sub(r" \[section \d+\]$", "", section["locator"]) for section in sections
+            ],
+            "coverage": "Scope and definitions where available, plus an outline of section locators.",
+        })
+    return {**pack, "direct_references": references}, compacted
+
+
+def screen_annex_sections(client, prompt, pack):
+    provision = pack["provision"]
+    sections = provision["sections"]
+    common = scope_sections(sections)
+    completed = []
+
+    def screen_group(group):
+        group_ids = [section["locator"] for section in group]
+        context = [*pack["essential_context"],
+                   *(section for section in common if section["locator"] not in group_ids)]
+        part_pack = {**pack, "provision": {**provision, "sections": group},
+                     "essential_context": context}
+        try:
+            decision, audit = score_request(client, prompt, part_pack)
+        except ContextLimitError:
+            if len(group) == 1:
+                raise ContextLimitError(f"Annex section exceeds the context limit: {group_ids[0]}") from None
+            middle = len(group) // 2
+            screen_group(group[:middle])
+            screen_group(group[middle:])
+        else:
+            completed.append({"sections": group_ids, "decision": decision, "audit": audit})
+
+    group, size = [], 0
+    for section in sections:
+        length = section_size(section)
+        if group and size + length > SECTION_CHAR_BUDGET:
+            screen_group(group)
+            group, size = [], 0
+        group.append(section)
+        size += length
+    screen_group(group)
+
+    winner = max(completed, key=lambda entry: LEVEL_PRIORITY[entry["decision"]["level"]])
+    decision = winner["decision"]
+    reason = ("No screened section established a relevant company connection."
+              if decision["level"] == "IGNORE" else decision["reason"])
+    return {**decision, "reason": f"Screened all {len(sections)} sections. {reason}"[:600]}, {
+        **winner["audit"], "section_batches": completed, "sections_screened": len(sections),
+    }
+
+
+def score(client, prompt, pack):
+    try:
+        return score_request(client, prompt, pack)
+    except ContextLimitError as original:
+        reduced, compacted = compact_annex_references(pack)
+        if compacted:
+            reference_prompt = (f"{prompt}\n\nSome annex references are supplied as scope excerpts and an outline. "
+                                "Base this decision on the target and on the supplied text.")
+            try:
+                decision, audit = score_request(client, reference_prompt, reduced)
+            except ContextLimitError:
+                pass
+            else:
+                return decision, {**audit, "context_fallback": {
+                    "mode": "annex_reference_outline", "compacted_references": compacted,
+                }}
+        if len(pack["provision"].get("sections", [])) < 2:
+            raise original
+        section_prompt = (f"{prompt}\n\nThis request contains a group of sections from the target annex. "
+                          "Assess the supplied target sections. Shared scope and definitions are context.")
+        decision, audit = screen_annex_sections(client, section_prompt, reduced)
+        return decision, {**audit, "context_fallback": {
+            "mode": "annex_section_batches", "compacted_references": compacted,
+        }}
