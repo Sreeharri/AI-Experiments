@@ -92,6 +92,8 @@ def build_pack(evidence, unit, anchors, supporting_ids=()):
         item = {"locator": element["locator"], "text": element["text"]}
         if element["heading"]:
             item["heading"] = element["heading"]
+        if recovery_source := source.get("recovery_source"):
+            item["source_location"] = recovery_source
         return item
 
     provision = record(key)
@@ -142,6 +144,8 @@ def build_pack(evidence, unit, anchors, supporting_ids=()):
                 unavailable[identity] = reason
     context.extend(record(source_id) for source_id in supporting_ids if source_id not in included)
     document = {field: evidence.document[field] for field in ("celex", "version_id", "title")}
+    if evidence.document.get("language") == "DE":
+        document["language"] = "DE"
     if coverage := evidence.document.get("source_coverage"):
         document["source_coverage"] = coverage["limitations"]
     return {

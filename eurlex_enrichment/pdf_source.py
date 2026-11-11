@@ -113,3 +113,26 @@ def pdf_tables(raw, annexes):
             tables[owner].append(grid)
     stats["unlinked_or_non_rectangular"] = stats["candidates"] - sum(map(len, tables.values()))
     return tables, stats
+
+
+def pdf_text(raw):
+    """Return native PDF lines with page coordinates in the text sequence."""
+    import pdfplumber
+    from pdfminer.psparser import PSException
+    from pdfplumber.utils.exceptions import PdfminerException
+
+    lines = []
+    try:
+        with pdfplumber.open(BytesIO(raw)) as pdf:
+            for page in pdf.pages:
+                try:
+                    content = page.extract_text() or ""
+                    if not content.strip():
+                        return []
+                    lines.extend((page.page_number, number, line)
+                                 for number, line in enumerate(content.splitlines(), 1))
+                finally:
+                    page.close()
+    except (PdfminerException, PSException, ValueError, OSError):
+        return []
+    return lines

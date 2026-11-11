@@ -16,6 +16,7 @@ from eurlex_enrichment.xhtml import AnnexLocatorError, SourceMarkupError
 
 TARGET_COUNTS = {"ARTICLE": "articles", "ANNEX": "annexes", "TABLE": "xhtml_data_tables"}
 PROVISION_METRICS = (*TARGET_COUNTS.values(), "pdf_data_tables")
+TARGET_METRICS = (*PROVISION_METRICS, "document_text_targets")
 SAMPLE_LIMIT = 5
 
 
@@ -35,8 +36,9 @@ def verify_enriched(enriched, celex, version):
     document = enriched["document"]
     if enriched["schema_version"] != 1 or (document["celex"], document["version_id"]) != (celex, version):
         raise ValueError("Enriched file does not match the pinned act and version.")
-    if document["language"] != "EN":
-        raise ValueError("Enrichment currently requires an English source version.")
+    recovery = document.get("source_coverage", {}).get("document_recovery")
+    if document["language"] != "EN" and (document["language"] != "DE" or not recovery):
+        raise ValueError("Only English versions and German document-text recovery are supported.")
     if not re.fullmatch(r"[0-9a-f]{64}", document["source_sha256"]):
         raise ValueError("Missing or invalid source SHA-256.")
     units = enriched["units"]
@@ -48,6 +50,7 @@ def verify_enriched(enriched, celex, version):
     expected = {
         "articles": counts["ARTICLE"], "annexes": counts["ANNEX"],
         "xhtml_data_tables": counts["TABLE"] - len(pdf_units), "pdf_data_tables": len(pdf_units),
+        "document_text_targets": counts["DOCUMENT_TEXT"],
     }
     if pdf_ids != pdf_units or any(enriched["summary"].get(field, 0) != count
                                   for field, count in expected.items()):
@@ -98,14 +101,19 @@ def share_summary(summary, details, parser_counts, annex_recovery_acts, stop_rea
     for celex, detail in details.items():
         groups[detail["group"]].append((celex, detail))
     no_targets = summary["acts_without_provision_targets"]
+    document_text_only = summary["acts_with_document_text_only"]
+    document_text_ids = set(document_text_only)
+    empty = [celex for celex in no_targets if celex not in document_text_ids]
     return {
         "schema_version": 1,
         **{key: value for key, value in summary.items()
            if key not in {"failures", "failure_details", "acts_without_provision_targets",
-                          "partial_coverage_by_act", "error"}},
+                          "acts_with_document_text_only", "partial_coverage_by_act", "error"}},
         "stop_reason": stop_reason,
         "acts_with_provision_targets": summary["acts_valid"] - len(no_targets),
         "acts_without_provision_targets": {"count": len(no_targets), "sample_celex": no_targets[:SAMPLE_LIMIT]},
+        "acts_with_document_text_only": {"count": len(document_text_only), "sample_celex": document_text_only[:SAMPLE_LIMIT]},
+        "acts_without_any_targets": {"count": len(empty), "sample_celex": empty[:SAMPLE_LIMIT]},
         "source_parsers": dict(parser_counts),
         "acts_with_annex_locator_recovery": annex_recovery_acts,
         "failure_groups": {
@@ -136,6 +144,7 @@ def process(args, manifest, dsn):
     partial_coverage = {}
     annex_recovery_acts = 0
     no_targets = []
+    document_text_only = []
     stopped = None
     stop_reason = None
     processed = 0
@@ -155,12 +164,12 @@ def process(args, manifest, dsn):
                 try:
                     data = from_postgres(celex, version, dsn)
                     stage = "PINNED_LANGUAGE"
-                    if data["version"]["language"] != "EN":
+                    if data["version"]["language"] not in {"EN", "DE"}:
                         raise ValueError(f"Pinned source language is {data['version']['language']!r}.")
                     stage = "SOURCE_SNAPSHOT"
                     raw, origin = source_bytes(data, args.xhtml_dir, args.fetch_xhtml)
                     stage = "ENRICHMENT_VALIDATION"
-                    enriched = build(data, raw, origin, recover_from_database=True)
+                    enriched = build(data, raw, origin, recover_from_database=True, recover_document_text=True)
                     metrics = verify_enriched(enriched, celex, version)
                 except (OSError, ValueError, KeyError, TypeError, XMLSyntaxError) as exc:
                     failures[celex] = str(exc)
@@ -178,8 +187,10 @@ def process(args, manifest, dsn):
             annex_recovery_acts += bool(document.get("annex_locator_recoveries"))
             if coverage := document.get("source_coverage"):
                 partial_coverage[celex] = coverage
-            if not any(metrics.values()):
+            if not any(metrics[field] for field in PROVISION_METRICS):
                 no_targets.append(celex)
+                if metrics["document_text_targets"]:
+                    document_text_only.append(celex)
             if not args.verify_only and (processed % 100 == 0 or processed == len(manifest)):
                 print(f"{processed:,}/{len(manifest):,} checked, {valid:,} valid, {len(failures):,} failed.", flush=True)
     except Exception as exc:
@@ -199,6 +210,12 @@ def process(args, manifest, dsn):
             "acts_planned": len(manifest), "acts_checked": processed, "acts_valid": valid,
             "acts_written": written, "acts_failed": len(failures), "acts_pending": len(manifest) - processed,
             "provisions": {field: counts[field] for field in PROVISION_METRICS},
+            "document_text_targets": counts["document_text_targets"],
+            "acts_with_document_text_only": document_text_only,
+            "document_recovery_methods": dict(Counter(
+                coverage["document_recovery"] for coverage in partial_coverage.values()
+                if "document_recovery" in coverage
+            )),
             "acts_with_partial_source_coverage": len(partial_coverage),
             "annexes_using_database_text": sum(len(c["database_annex_ids"]) for c in partial_coverage.values()),
             "missing_structured_targets": sum(len(c["missing_targets"]) for c in partial_coverage.values()),
@@ -221,7 +238,7 @@ def process(args, manifest, dsn):
             print(f"Compact report to share: {compact_report}", flush=True)
         if stopped:
             print(stopped, flush=True)
-    return bool(failures or no_targets or stopped)
+    return bool(failures or len(no_targets) > len(document_text_only) or stopped)
 
 
 def main():

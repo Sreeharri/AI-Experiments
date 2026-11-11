@@ -3,6 +3,7 @@
 from collections import Counter, defaultdict
 import re
 
+from .document_recovery import recover_document
 from .pdf_source import pdf_tables
 from .references import Resolver
 from .xhtml import AnnexLocatorError, XHTML, payload_type
@@ -45,10 +46,16 @@ class NoUsableProvisions(ValueError):
     """The selected version has no usable structured provision text."""
 
 
-def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
+def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False, recover_document_text=False):
     is_pdf = recover_from_database and payload_type(raw_xhtml) == "PDF"
     xhtml = None if is_pdf else XHTML(raw_xhtml)
-    raw_elements = sorted(data["legal_elements"], key=lambda item: item["ordinal"])
+    additions, recovery = [], None
+    if recover_document_text and not any(row["element_type"] in {"ARTICLE", "ANNEX"}
+                                         for row in data["legal_elements"]):
+        additions, recovery = recover_document(data, raw_xhtml, xhtml)
+        if not additions:
+            raise NoUsableProvisions("The selected version has no usable provision or full-document text.")
+    raw_elements = sorted([*data["legal_elements"], *additions], key=lambda item: item["ordinal"])
     elements = {}
     children = defaultdict(list)
     for row in raw_elements:
@@ -63,6 +70,7 @@ def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
             "text": row.get("body_text") or "",
             "source_locator": row.get("source_locator"),
             "aggregate_text": bool((row.get("details") or {}).get("aggregate_body")),
+            **({"recovery_source": row["recovery_source"]} if "recovery_source" in row else {}),
         }
         if parent:
             children[parent].append(node_id)
@@ -85,17 +93,17 @@ def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
                 pieces.append(child)
         return "\n\n".join(pieces)
 
-    if is_pdf and not any(database_body(node) for node in articles + annexes):
+    if is_pdf and not recovery and not any(database_body(node) for node in articles + annexes):
         raise NoUsableProvisions("The pinned PDF has no usable PostgreSQL article or annex text.")
     annex_bodies = {node["id"]: database_body(node) for node in annexes} if recover_from_database else {}
     grids, pdf_stats = pdf_tables(raw_xhtml, {
         node["id"]: (node["label"], annex_bodies[node["id"]]) for node in annexes
-    }) if is_pdf else ({}, None)
+    }) if is_pdf and (not recovery or annexes) else ({}, None)
 
     def database_annex(row):
         annex_id = row["id"]
         body = annex_bodies[annex_id]
-        source = {"kind": "POSTGRESQL_LEGAL_ELEMENT", "element_id": annex_id}
+        source = row.get("recovery_source") or {"kind": "POSTGRESQL_LEGAL_ELEMENT", "element_id": annex_id}
         section_id = f"{annex_id}:database:1"
         grid_ids = []
         for index, grid in enumerate(grids.get(annex_id, ()), 1):
@@ -137,7 +145,7 @@ def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
         else:
             missing_targets.append({"id": row["id"], "kind": "ANNEX", "reason": "MISSING_ANNEX_TEXT"})
 
-    partial = is_pdf or bool(database_annexes)
+    partial = is_pdf or bool(database_annexes) or bool(recovery)
     if partial:
         for article in articles:
             if not article["text"].strip():
@@ -301,6 +309,10 @@ def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
         add_unit("ARTICLE", article["id"], article["label"], article["text"], own,
                  note_ids=article["footnote_ids"])
 
+    for row in additions:
+        if row["element_type"] == "DOCUMENT_TEXT":
+            add_unit("DOCUMENT_TEXT", row["id"], row["identifier"], row["body_text"], [row["id"]])
+
     for annex in annexes:
         if annex["id"] in missing_ids:
             continue
@@ -331,7 +343,7 @@ def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
                  note_ids=table["footnote_ids"], image_ids=section["image_ids"])
 
     counts = Counter(unit["kind"] for unit in units)
-    if partial and not any(counts[kind] for kind in ("ARTICLE", "ANNEX", "TABLE")):
+    if partial and not any(counts[kind] for kind in ("ARTICLE", "ANNEX", "TABLE", "DOCUMENT_TEXT")):
         raise NoUsableProvisions("Recovery did not find a usable article, annex, or table.")
     pdf_table_count = sum(table.get("origin") == "PDF_PAGE_GRID" for table in tables)
     version = data["version"]
@@ -352,16 +364,22 @@ def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False):
             **({"source_coverage": {
                 "status": "PARTIAL", "database_annex_ids": database_annexes,
                 "missing_targets": missing_targets, "pdf_table_scan": pdf_stats,
+                **({"document_recovery": recovery} if recovery else {}),
                 "limitations": [
                     "PDF tables are page-local grids. Merged or unlinked grids, footnotes, and images are unverified."
                     if is_pdf else
                     "Source tables, footnotes, and images are unverified in annexes using stored text."
-                ],
+                ] + (["Targets were recovered from headings in full text. Check provision boundaries and source layout."]
+                     if recovery == "HEADING_RECOVERY" else
+                     ["Full text is available for document-level review. No article or annex targets were assigned."]
+                     if recovery else [])
+                  + (["German citation resolution requires review."] if version["language"] == "DE" else []),
             }} if partial else {}),
         },
         "summary": {
             "articles": counts["ARTICLE"], "annexes": counts["ANNEX"],
             "xhtml_data_tables": counts["TABLE"] - pdf_table_count, "pdf_data_tables": pdf_table_count,
+            "document_text_targets": counts["DOCUMENT_TEXT"],
             "recitals": len(recitals),
             "database_table_elements": sum(item["kind"] == "TABLE" for item in elements.values()),
             "annex_section_units": counts["SECTION"], "bat_units": counts["BAT"],
