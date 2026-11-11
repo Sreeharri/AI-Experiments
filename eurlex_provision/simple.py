@@ -7,6 +7,8 @@ from .screening import LEVELS, ModelError
 
 
 DECISION_FIELDS = ("level", "reason", "area")
+EVIDENCE_FIELDS = ("target_quote", "anchor_quotes")
+ANCHOR_SOURCE_FIELDS = ("company_facts", "scope", "roles", "note")
 
 
 def build_pack(evidence, unit, anchors, supporting_ids=()):
@@ -137,35 +139,30 @@ def build_pack(evidence, unit, anchors, supporting_ids=()):
     }
 
 
-def score(client, prompt, pack):
-    schema = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": list(DECISION_FIELDS),
-        "properties": {
-            "level": {"type": "string", "enum": list(LEVELS)},
-            "reason": {"type": "string", "minLength": 1, "maxLength": 600},
-            "area": {
-                "type": "array",
-                "items": {"type": "string", "enum": list(pack["business_anchors"])},
-                "maxItems": 4,
-            },
-        },
-    }
-    messages = [{"role": "system", "content": prompt},
-                {"role": "user", "content": json.dumps(pack, ensure_ascii=False)}]
-    reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
-                        schema=schema, schema_name="provision_relevance_decision", max_tokens=512)
-    if not reply.ok:
-        if reply.error_kind == "context_limit":
-            raise ModelError("The complete evidence pack exceeds the model context limit.")
-        raise ModelError(client.clean(reply.error or "Model request failed."))
+def target_text(value):
+    """Yield source text from the target body, including table cells."""
+    if isinstance(value, dict):
+        if isinstance(value.get("text"), str):
+            yield value["text"]
+        for child in value.values():
+            yield from target_text(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from target_text(child)
 
-    decision, error = reply.parse_json()
-    if error:
-        raise ModelError(error)
-    if not isinstance(decision, dict) or set(decision) != set(DECISION_FIELDS):
-        raise ModelError("Expected exactly level, reason and area.")
+
+def contains_quote(quote, sources):
+    if not isinstance(quote, str):
+        return False
+    normalized = " ".join(quote.split())
+    return 0 < len(normalized) <= 240 and any(
+        normalized in " ".join(source.split()) for source in sources if isinstance(source, str)
+    )
+
+
+def validate_decision(decision, pack):
+    if not isinstance(decision, dict) or set(decision) != set(DECISION_FIELDS + EVIDENCE_FIELDS):
+        raise ModelError("Expected level, reason, area, target_quote and anchor_quotes.")
     level, reason, area = (decision[field] for field in DECISION_FIELDS)
     if level not in LEVELS:
         raise ModelError("Expected level DIRECT, INDIRECT or IGNORE.")
@@ -177,6 +174,79 @@ def score(client, prompt, pack):
         raise ModelError("Expected up to four distinct area IDs from the supplied business anchors.")
     if bool(area) != (level != "IGNORE"):
         raise ModelError("Expected matching area IDs for DIRECT or INDIRECT, and [] for IGNORE.")
-    decision["reason"] = reason.strip()
-    audit = {"finish_reason": reply.finish_reason, "usage": reply.usage, "raw_reply": reply.content}
-    return decision, audit
+    if not contains_quote(decision["target_quote"], target_text(pack["provision"])):
+        raise ModelError("Copy target_quote from the target provision itself, including a table cell if relevant.")
+    quotes = decision["anchor_quotes"]
+    if (not isinstance(quotes, list) or len(quotes) != len(area)
+            or any(not isinstance(item, dict) or set(item) != {"id", "quote"} for item in quotes)
+            or [item["id"] for item in quotes] != area):
+        raise ModelError("Provide one anchor quote per area ID, in the same order as area.")
+    for item in quotes:
+        anchor = pack["business_anchors"][item["id"]]
+        sources = []
+        for field in ANCHOR_SOURCE_FIELDS:
+            value = anchor.get(field)
+            sources.extend(value if isinstance(value, list) else [value])
+        if not contains_quote(item["quote"], sources):
+            raise ModelError(f"Copy the quote for {item['id']} from its company_facts, scope, roles or note.")
+    return {"level": level, "reason": reason.strip(), "area": area}
+
+
+
+def score(client, prompt, pack):
+    anchor_ids = list(pack["business_anchors"])
+    quote_schema = {"type": "string", "minLength": 1, "maxLength": 240}
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": list(EVIDENCE_FIELDS + DECISION_FIELDS),
+        "properties": {
+            "target_quote": quote_schema,
+            "anchor_quotes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["id", "quote"],
+                    "properties": {
+                        "id": {"type": "string", "enum": anchor_ids},
+                        "quote": quote_schema,
+                    },
+                },
+                "maxItems": 4,
+            },
+            "level": {"type": "string", "enum": list(LEVELS)},
+            "reason": {"type": "string", "minLength": 1, "maxLength": 600},
+            "area": {
+                "type": "array",
+                "items": {"type": "string", "enum": anchor_ids},
+                "maxItems": 4,
+            },
+        },
+    }
+    messages = [{"role": "system", "content": prompt},
+                {"role": "user", "content": json.dumps(pack, ensure_ascii=False)}]
+    rejected_reply = None
+    for attempt in range(2):
+        reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
+                            schema=schema, schema_name="provision_relevance_evidence", max_tokens=1024)
+        if not reply.ok:
+            if reply.error_kind == "context_limit":
+                raise ModelError("The complete evidence pack exceeds the model context limit.")
+            raise ModelError(client.clean(reply.error or "Model request failed."))
+        candidate, error = reply.parse_json()
+        try:
+            if error:
+                raise ModelError(error)
+            decision = validate_decision(candidate, pack)
+        except ModelError as exc:
+            if attempt:
+                raise ModelError(f"Invalid response after one correction request: {exc}") from exc
+            rejected_reply = {"raw_reply": reply.content, "error": str(exc), "usage": reply.usage}
+            messages[0]["content"] = f"{prompt}\nCorrection required for the previous response: {exc}"
+        else:
+            audit = {"finish_reason": reply.finish_reason, "usage": reply.usage,
+                     "raw_reply": reply.content, "evidence": {key: candidate[key] for key in EVIDENCE_FIELDS}}
+            if rejected_reply is not None:
+                audit["rejected_reply"] = rejected_reply
+            return decision, audit
