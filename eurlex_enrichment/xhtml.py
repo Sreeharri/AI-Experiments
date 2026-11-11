@@ -11,10 +11,95 @@ TABLE = re.compile(r"^Table\s+([0-9]+[a-z]?)\b", re.I)
 BAT = re.compile(r"^(\d{1,3})\.\s+.{0,600}?\bBAT (?:is|are)\b", re.I)
 SECTION = re.compile(r"^\d+(?:\.\d+)+\b")
 BLOCK_TAGS = {"p", "div", "li", "tr", "td", "th", "figure", "br"}
+ANNEX_LABEL = re.compile(r"ANNEX(?: [A-Z0-9]+)?", re.I)
+HTML_START = re.compile(r"(?:<!doctype\s+html\b|<html(?:\s|>))", re.I)
+LEADING_MARKUP = re.compile(r"^(?:\s|<!--.*?-->|<\?xml\s.*?\?>)*", re.I | re.S)
+
+
+class SourceMarkupError(ValueError):
+    """The verified snapshot cannot be used as legal HTML."""
+
+    def __init__(self, payload_type, message):
+        super().__init__(message)
+        self.payload_type = payload_type
+
+
+class AnnexLocatorError(ValueError):
+    """The source does not identify a unique, bounded annex block."""
+
+
+def payload_type(raw):
+    if raw.startswith((b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")):
+        prefix = raw[:65536].decode("utf-32", errors="replace")
+    elif raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+        prefix = raw[:65536].decode("utf-16", errors="replace")
+    else:
+        prefix = raw[:65536].decode("utf-8-sig", errors="replace")
+    prefix = prefix.lstrip()
+    if not prefix:
+        return "EMPTY_OR_WHITESPACE_PREFIX"
+    if prefix.startswith("%PDF-"):
+        return "PDF"
+    if raw.startswith(b"\x1f\x8b"):
+        return "GZIP"
+    if raw.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")):
+        return "ZIP"
+    if prefix.startswith(("{", "[")):
+        return "JSON_LIKE"
+    if HTML_START.match(prefix, LEADING_MARKUP.match(prefix).end()):
+        return "HTML"
+    if prefix.startswith("<"):
+        return "OTHER_MARKUP"
+    return "NON_MARKUP"
+
+
+def parse_document(raw):
+    parser = etree.XMLParser(no_network=True, resolve_entities=False, load_dtd=False)
+    try:
+        root = etree.fromstring(raw, parser)
+        if root.tag == f"{{{NS['h']}}}html":
+            return root, "XHTML_XML"
+        if root.tag != "html":
+            raise SourceMarkupError(payload_type(raw), "Verified snapshot has a non-HTML root.")
+        mode = "HTML_XML"
+    except etree.XMLSyntaxError as exc:
+        kind = payload_type(raw)
+        if kind != "HTML":
+            raise SourceMarkupError(kind, "Verified snapshot could not be parsed as legal HTML.") from exc
+        encoding = None
+        prefix = raw[:65536]
+        if not re.search(rb"<meta\b[^>]*charset\s*=|<\?xml\b[^?]*encoding\s*=", prefix, re.I):
+            try:
+                raw.decode("utf-8")
+            except UnicodeDecodeError:
+                pass  # Let libxml detect the source encoding.
+            else:
+                encoding = "UTF-8"
+        html_parser = etree.HTMLParser(encoding=encoding, no_network=True, recover=True)
+        try:
+            root = etree.fromstring(raw, html_parser)
+        except etree.XMLSyntaxError as recovery_error:
+            raise SourceMarkupError(kind, "Legacy HTML parser failed.") from recovery_error
+        if html_parser.error_log.filter_from_level(etree.ErrorLevels.FATAL):
+            raise SourceMarkupError(kind, "Legacy HTML parser reported a fatal error.")
+        mode = "HTML_RECOVERY"
+
+    if root is None or tag(root) != "html":
+        raise SourceMarkupError("HTML", "Legacy HTML has no document root.")
+    for node in root.iter():
+        if isinstance(node.tag, str) and not node.tag.startswith("{"):
+            # The existing extraction paths use XHTML names for HTML elements.
+            # Leave prefixed names alone, including unknown XML extensions.
+            if ":" not in node.tag:
+                node.tag = f"{{{NS['h']}}}{node.tag}"
+    bodies = root.xpath("./h:body", namespaces=NS)
+    if len(bodies) != 1 or not text(bodies[0]):
+        raise SourceMarkupError("HTML", "Legacy HTML has no nonempty body.")
+    return root, mode
 
 
 def tag(node):
-    return etree.QName(node).localname if isinstance(node.tag, str) else ""
+    return node.tag.rsplit("}", 1)[-1] if isinstance(node.tag, str) else ""
 
 
 def classes(node):
@@ -94,10 +179,9 @@ def table_grid(table):
 
 class XHTML:
     def __init__(self, raw):
-        parser = etree.XMLParser(no_network=True, resolve_entities=False, load_dtd=False)
-        self.root = etree.fromstring(raw, parser)
-        if self.root.tag != f"{{{NS['h']}}}html":
-            raise ValueError("Source is not an XHTML document")
+        self.root, self.parser_mode = parse_document(raw)
+        self.annex_locator_recoveries = []
+        self.used_annex_roots = set()
         self.by_id = defaultdict(list)
         for node in self.root.xpath("//*[@id]"):
             self.by_id[node.get("id")].append(node)
@@ -136,10 +220,43 @@ class XHTML:
                     for node in nodes]
         return {"preamble_before_recitals": blocks(preamble), "closing": blocks(closing)}
 
+    def annex_root(self, element):
+        source_id = element.get("source_locator")
+        root = self.node(source_id)
+        if root is None or tag(root) not in {"div", "section", "article"} or not len(root):
+            label = " ".join(element["identifier"].upper().split())
+            candidates = []
+            if ANNEX_LABEL.fullmatch(label):
+                for container in self.root.xpath("//h:div|//h:section|//h:article", namespaces=NS):
+                    if not (
+                        set(classes(container)) & {"eli-container", "annex"}
+                        or re.match(r"^(?:anx|annex)(?:[_-]|$)", container.get("id", ""), re.I)
+                    ):
+                        continue
+                    blocks = (child for child in container if isinstance(child.tag, str) and text(child))
+                    first = next(blocks, None)
+                    if first is None or next(blocks, None) is None:
+                        continue
+                    headings = (
+                        node for node in container.iterdescendants()
+                        if "oj-doc-ti" in classes(node) or tag(node) in {"h1", "h2", "h3", "h4", "h5", "h6"}
+                    )
+                    annex_headings = [heading for heading in headings if ANNEX_LABEL.fullmatch(text(heading))]
+                    if annex_headings == [first] and text(first).upper() == label:
+                        candidates.append(container)
+            if len(candidates) != 1:
+                raise AnnexLocatorError(f"Annex has no unique XHTML locator: {element['identifier']}")
+            root = candidates[0]
+            self.annex_locator_recoveries.append({
+                "annex_id": element["id"], "original_locator": source_id, "source": locator(root),
+            })
+        if root in self.used_annex_roots:
+            raise AnnexLocatorError(f"XHTML block maps to more than one annex: {element['identifier']}")
+        self.used_annex_roots.add(root)
+        return root
+
     def annex(self, element):
-        root = self.node(element.get("source_locator"))
-        if root is None:
-            raise ValueError(f"Annex has no unique XHTML locator: {element['identifier']}")
+        root = self.annex_root(element)
         annex_id = element["id"]
         segments, tables, images = [], [], []
         part = None
@@ -184,7 +301,7 @@ class XHTML:
                 candidates.append(block)
             candidates.extend(block.xpath(".//h:table", namespaces=NS))
             data_tables = [table for table in candidates
-                           if "oj-table" in classes(table) or table.find("h:thead", NS) is not None]
+                           if "oj-table" in classes(table) or table.xpath("./h:thead", namespaces=NS)]
             for table in data_tables:
                 caption = captions[:] if len(data_tables) == 1 else []
                 published = next(

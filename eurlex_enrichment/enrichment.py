@@ -260,6 +260,8 @@ def build(data, raw_xhtml, xhtml_origin):
             "version_id": version["id"], "language": version["language"],
             "version_kind": version.get("version_kind"), "source_url": version.get("source_url"),
             "source_sha256": version["content_sha256"], "xhtml_origin": xhtml_origin,
+            "source_parser": xhtml.parser_mode,
+            "annex_locator_recoveries": xhtml.annex_locator_recoveries,
         },
         "summary": {
             "articles": counts["ARTICLE"], "annexes": counts["ANNEX"],
