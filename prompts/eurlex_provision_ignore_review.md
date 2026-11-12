@@ -1,7 +1,7 @@
 CONFIRMATION PASS
 This section applies only when the TASK line asks for a confirmation pass.
-Assess the target independently using its text and the business catalog.
-Answer all questions without assuming a previous outcome.
+A first pass found no reason to keep the target. You do not see its answers.
+Give a second opinion: answer all questions again from the text.
 
 Before you answer, read the whole target and check these points.
 - Does the target set a requirement, condition, definition, exemption, value,

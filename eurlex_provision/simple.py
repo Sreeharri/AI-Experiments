@@ -524,25 +524,23 @@ def derive(reply, options):
     topic, role, path = reply["topic"], reply["company_role"], reply["indirect_path"]
     question = reply["open_question"].strip()
     business_side = reply["actor_kind"] in (BUSINESS, NOT_STATED)
-    if question:
-        return "UNSURE", "OPEN_QUESTION"
     if reply["formal_function"] != NONE:
         # A formal clause has no business actor. If the reply names one, a person decides.
-        return ("UNSURE", "FORMAL_CONFLICT") if reply["actor_kind"] == BUSINESS or role != NONE or path != NONE else ("IGNORE", "FORMAL")
+        return ("UNSURE", "FORMAL_CONFLICT") if reply["actor_kind"] == BUSINESS else ("IGNORE", "FORMAL")
     if topic in options["negative_anchors"]:
-        if path != NONE or any(anchor in options["anchors"] for anchor in reply.get("other_anchors", [])):
-            return "UNSURE", "NEGATIVE_ANCHOR_CONFLICT"
         return "IGNORE", "OUTSIDE_BUSINESS"
     if topic == NO_MATCH:
         # A link was named although no catalog entry describes the subject: keep it for a person to check.
         return ("UNSURE", "LINK_WITHOUT_TOPIC") if role != NONE or path != NONE else ("IGNORE", "NO_MATCH")
     if role != NONE:
         if business_side:
-            return "DIRECT", "ROLE"
+            return ("UNSURE", "OPEN_QUESTION") if question else ("DIRECT", "ROLE")
         # A role was named although the actor is a state, an EU body or a private person.
         return ("INDIRECT", "PATH") if path != NONE else ("UNSURE", "ROLE_ACTOR_CONFLICT")
     if path != NONE:
         return "INDIRECT", "PATH"
+    if question:
+        return "UNSURE", "OPEN_QUESTION"
     # The subject lies in a business area and a business is the actor, but no link was named:
     # too uncertain to remove.
     return ("UNSURE", "TOPIC_ONLY") if business_side else ("IGNORE", "NO_PATH")
@@ -650,7 +648,7 @@ def score_request(client, system, sent, passages, options, task, log, thinking=F
 
 
 # The confirmation pass does not see the first answers, so that it is a second opinion.
-REVIEW_TASK = ("TASK: Confirmation pass. Assess this target independently. Answer all "
+REVIEW_TASK = ("TASK: Confirmation pass. A first pass found no reason to keep this target. Answer all "
                "questions again from the text of the target, as described under CONFIRMATION PASS, and "
                "return the JSON object.")
 

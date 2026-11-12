@@ -255,17 +255,13 @@ class DecisionRuleTests(unittest.TestCase):
                   indirect_path="purchased_products"), ("INDIRECT", "PATH")),
             (dict(actor_kind="EU_OR_INTERNATIONAL_BODY", company_role="employer"), ("UNSURE", "ROLE_ACTOR_CONFLICT")),
             # Formal clauses are removed, unless the reply itself names a business as the actor.
-            (dict(formal_function="ADDRESSEES", actor_kind=STATE, company_role="employer"), ("UNSURE", "FORMAL_CONFLICT")),
+            (dict(formal_function="ADDRESSEES", actor_kind=STATE, company_role="employer"), ("IGNORE", "FORMAL")),
             (dict(formal_function="COMMITTEE_PROCEDURE", indirect_path="purchased_products"),
              ("UNSURE", "FORMAL_CONFLICT")),
             # A negative anchor as topic removes the target whatever role was named next to it.
             (dict(topic="food_feed", company_role="importer"), ("IGNORE", "OUTSIDE_BUSINESS")),
             (dict(topic="eu_administration_budget", company_role="employer", indirect_path="market_funding"),
-             ("UNSURE", "NEGATIVE_ANCHOR_CONFLICT")),
-            (dict(formal_function="ADDRESSEES", actor_kind=STATE, indirect_path="market_funding"), ("UNSURE", "FORMAL_CONFLICT")),
-            (dict(topic="food_feed", other_anchors=[ANCHOR]), ("UNSURE", "NEGATIVE_ANCHOR_CONFLICT")),
-            (dict(topic=NO_MATCH, open_question="Is this activity operated?"), ("UNSURE", "OPEN_QUESTION")),
-            (dict(indirect_path="purchased_products", open_question="Are these products purchased?"), ("UNSURE", "OPEN_QUESTION")),
+             ("IGNORE", "OUTSIDE_BUSINESS")),
             (dict(topic=NO_MATCH), ("IGNORE", "NO_MATCH")),
             (dict(topic=NO_MATCH, indirect_path="market_funding"), ("UNSURE", "LINK_WITHOUT_TOPIC")),
         )
@@ -299,7 +295,7 @@ class DecisionRuleTests(unittest.TestCase):
         decision, details = validate_decision(reply("IGNORE", formal_function=NONE, topic="statistics",
                                                     other_anchors=["site_safety"]), self.PASSAGES, OPTIONS)
         self.assertEqual((decision["area"], details["negative_anchor"], details["ignore_reason"]),
-                         (["site_safety"], "statistics", NONE))
+                         ([], "statistics", "OUTSIDE_BUSINESS"))
 
     def test_malformed_replies_are_rejected(self):
         cases = (
