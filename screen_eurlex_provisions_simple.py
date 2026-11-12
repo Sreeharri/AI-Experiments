@@ -2,7 +2,9 @@
 
 import argparse
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+import threading
 
 import yaml
 
@@ -24,6 +26,7 @@ SUPPORTING_LOCATORS = {
     ("32013D0163", "BAT 17"): ("1.5.1 Dust emissions",),
 }
 ANCHOR_FACTS = ROOT / "config/eurlex_provision_anchor_facts.json"
+MAX_WORKERS = 8
 CODE_FILES = ("eurlex_provision/simple.py", "eurlex_provision/quality.py", "eurlex_provision/profile.py")
 
 
@@ -78,6 +81,8 @@ def arguments():
                         help="Document relevance run folder. Adds each act's document decision as context.")
     parser.add_argument("--thinking", choices=("on", "off"), default="off",
                         help="Let Qwen think before it answers. Slower; use it to compare on a small sample.")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Targets classified at the same time (1 to 8). 4 was fastest in the endpoint check.")
     parser.add_argument("--confirm-thinking", choices=("on", "off"), default="off",
                         help="Let Qwen think in the confirmation pass for IGNORE only.")
     parser.add_argument("--supplements", type=Path)
@@ -209,7 +214,7 @@ def run(args):
     if (getattr(args, "celex", None) or getattr(args, "targets_file", None)) and args.output_dir is None:
         raise ValueError("Set --output-dir for a subset run.")
     out = args.output_dir or ROOT / "runs" / (
-f"eurlex_provisions_{args.mode}_v3_1" + ("_prepared" if args.prepare_only else "")
+f"eurlex_provisions_{args.mode}_v3_2" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -344,57 +349,90 @@ def run_packs(args, out, packs, system, profile, not_found=()):
                 raise ValueError(f"Checkpoint inputs changed for {target}. Choose a new --output-dir.")
             checkpoints[path] = saved
 
+    stop = threading.Event()
+
+    def process(index, item, path, entry, previous):
+        """Classify one target and save its file. Runs in a worker thread."""
+        if stop.is_set():
+            return None
+        label = f"{item['celex']} {item['target']}"
+        pack = entry["pack"]
+        saved = {**item, "fingerprint": fingerprint, "evidence_pack": pack}
+        if entry["input_warnings"]:
+            saved["input_warnings"] = entry["input_warnings"]
+        if entry["not_assessable"]:
+            text = " ".join(" ".join(target_text(pack["provision"])).split())
+            saved["not_assessable"] = {**entry["not_assessable"], "text": text[:300]}
+        elif client:
+            print(f"[{index}/{len(targets)}] {label}", flush=True)
+            context = {"act_context": entry["document_screening"],
+                       "warnings": [WARNING_TEXT[code] for code in entry["input_warnings"]]}
+            try:
+                if "ignore_review" in previous:
+                    saved["ignore_review"] = previous["ignore_review"]
+                else:
+                    decision, attempt = screen(client, system, profile, pack, thinking=thinking, **context)
+                    if decision["level"] == "IGNORE":
+                        saved["ignore_review"] = {
+                            "status": "pending", "initial_decision": decision, "initial_attempt": attempt,
+                        }
+                        write_json(path, saved)
+                if "ignore_review" in saved:
+                    review = saved["ignore_review"]
+                    decision, attempt = screen(client, system, profile, pack, thinking=confirm_thinking,
+                                               first=review["initial_attempt"], **context)
+                    saved["ignore_review"] = {
+                        **review, "status": "confirmed" if decision["level"] == "IGNORE" else "changed",
+                    }
+            except TargetScreeningError as exc:
+                saved["failure"] = {"error": str(exc), "attempts": exc.attempts,
+                                    "stage": "ignore_review" if "ignore_review" in saved else "initial"}
+                print(f"Could not classify {label}: {exc}", flush=True)
+            except ModelError as exc:
+                # The endpoint failed. Let the other workers finish their request and stop the run.
+                stop.set()
+                raise ModelError(f"{label}: {exc}") from exc
+            else:
+                saved.update(decision, details=attempt["evidence"], model_attempt=attempt)
+        write_json(path, saved)
+        return saved
+
     error = None
     try:
+        todo = []
         for index, (item, path, entry) in enumerate(targets, 1):
-            label = f"{item['celex']} {item['target']}"
             previous = checkpoints.get(path, {})
             if previous and "failure" not in previous and (
                     not client or "level" in previous or "not_assessable" in previous):
                 continue
-            pack = entry["pack"]
-            saved = {**item, "fingerprint": fingerprint, "evidence_pack": pack}
-            if entry["input_warnings"]:
-                saved["input_warnings"] = entry["input_warnings"]
-            if entry["not_assessable"]:
-                text = " ".join(" ".join(target_text(pack["provision"])).split())
-                saved["not_assessable"] = {**entry["not_assessable"], "text": text[:300]}
-            elif client:
-                print(f"[{index}/{len(targets)}] {label}", flush=True)
-                context = {"act_context": entry["document_screening"],
-                           "warnings": [WARNING_TEXT[code] for code in entry["input_warnings"]]}
-                try:
-                    if "ignore_review" in previous:
-                        saved["ignore_review"] = previous["ignore_review"]
-                    else:
-                        decision, attempt = screen(client, system, profile, pack, thinking=thinking, **context)
-                        if decision["level"] == "IGNORE":
-                            saved["ignore_review"] = {
-                                "status": "pending", "initial_decision": decision, "initial_attempt": attempt,
-                            }
-                            write_json(path, saved)
-                            checkpoints[path] = saved
-                    if "ignore_review" in saved:
-                        review = saved["ignore_review"]
-                        decision, attempt = screen(client, system, profile, pack, thinking=confirm_thinking,
-                                                   first=review["initial_attempt"], **context)
-                        saved["ignore_review"] = {
-                            **review, "status": "confirmed" if decision["level"] == "IGNORE" else "changed",
-                        }
-                except TargetScreeningError as exc:
-                    saved["failure"] = {"error": str(exc), "attempts": exc.attempts,
-                                        "stage": "ignore_review" if "ignore_review" in saved else "initial"}
-                    print(f"Could not classify {label}: {exc}", flush=True)
-                except ModelError as exc:
-                    raise ModelError(f"{label}: {exc}") from exc
-                else:
-                    saved.update(decision, details=attempt["evidence"], model_attempt=attempt)
-            write_json(path, saved)
-            checkpoints[path] = saved
+            todo.append((index, item, path, entry, previous))
+        workers = max(1, min(int(getattr(args, "workers", 1) or 1), MAX_WORKERS)) if client else 1
+        failure = None
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {pool.submit(process, *job): job[2] for job in todo}
+            try:
+                for future in as_completed(futures):
+                    try:
+                        saved = future.result()
+                    except ModelError as exc:
+                        failure = failure or exc
+                        continue
+                    if saved is not None:
+                        checkpoints[futures[future]] = saved
+            except BaseException:
+                # Ctrl+C: targets that have not started are skipped; running ones finish and are saved.
+                stop.set()
+                raise
+        if failure:
+            raise failure
     except ModelError as exc:
         error = str(exc)
         raise
     finally:
+        # Count what the workers saved before a stop, including a first pass that awaits its confirmation.
+        for _, path, _ in targets:
+            if path not in checkpoints and path.exists():
+                checkpoints[path] = read_json(path)
         summary, completed = summarise(targets, checkpoints, client, error)
         summary["targets_not_found"] = list(not_found)
         if client:

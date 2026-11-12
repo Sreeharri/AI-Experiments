@@ -105,7 +105,8 @@ def run_batch(args, directory, manifest, prepare_only=False):
     ]
     if args.document_run:
         command.extend(["--document-run", str(args.document_run)])
-    command.extend(["--thinking", args.thinking, "--confirm-thinking", args.confirm_thinking])
+    command.extend(["--thinking", args.thinking, "--confirm-thinking", args.confirm_thinking,
+                    "--workers", str(args.workers)])
     if prepare_only:
         command.append("--prepare-only")
     return subprocess.run(command, cwd=ROOT, check=False).returncode
@@ -270,7 +271,9 @@ def main():
                         help="Let Qwen think before it answers. Slower.")
     parser.add_argument("--confirm-thinking", choices=("on", "off"), default="off",
                         help="Let Qwen think in the confirmation pass for IGNORE only.")
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full_v3_1")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Targets classified at the same time (1 to 8). 4 was fastest in the endpoint check.")
+    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full_v3_2")
     args = parser.parse_args()
     if args.document_run is None and not args.no_document_hint:
         export = args.manifest.parent / "relevance_export"

@@ -1,11 +1,25 @@
-# EUR-Lex provision relevance, version 3.1
+# EUR-Lex provision relevance, version 3.2
 
 Copy the files of this patch into the root of `AI-Experiments` and replace the
 matching files. If `resume_eurlex_provision_corpus.py` is still there, delete
 it. The patch uses the same `.env`, Python environment, anchor catalog and
 enriched files as before. Older run folders stay valid and untouched.
 
-## What changed since version 3
+## What changed since version 3.1
+
+The instructions to Qwen are unchanged, so Qwen gives the same answers as in
+run D and the same provisions are kept and removed. Two things are new:
+
+- **A role must belong to the business area.** The catalog lists the roles Max
+  Bögl holds in each business anchor. If Qwen names a role that the chosen
+  anchor does not list, the result is no longer DIRECT: it is INDIRECT when a
+  path is named and UNSURE otherwise (basis `ROLE_NOT_IN_AREA`). This never
+  removes a provision.
+- **`--workers N`** classifies several targets at the same time. 4 was the
+  fastest setting in the endpoint check. Rerunning with another number of
+  workers resumes the same run.
+
+## What changed from version 3 to 3.1
 
 Version 3 (run A) removed far more noise than version 2, but it also removed
 provisions that matter. The saved answers showed why:
@@ -32,7 +46,8 @@ returns a level.
 | a formal function, but a business is named as actor | UNSURE | `FORMAL_CONFLICT` |
 | topic is a negative anchor | IGNORE | `OUTSIDE_BUSINESS` |
 | no catalog entry fits, no role, no path | IGNORE | `NO_MATCH` |
-| business anchor, a company role, actor is a business | DIRECT | `ROLE` |
+| business anchor, a company role listed for that anchor, actor is a business | DIRECT | `ROLE` |
+| a company role that the anchor does not list, no path | UNSURE | `ROLE_NOT_IN_AREA` |
 | the same with an open question | UNSURE | `OPEN_QUESTION` |
 | business anchor, an indirect path, no direct role | INDIRECT | `PATH` |
 | business anchor, no role, no path, actor is a business or not stated | UNSURE | `TOPIC_ONLY` |
@@ -97,10 +112,11 @@ where two models disagree.
 ## 3. Full corpus, once a variant is good enough
 
 ```powershell
-& .\.venv\Scripts\python.exe .\run_eurlex_provision_corpus.py
+& .\.venv\Scripts\python.exe .\run_eurlex_provision_corpus.py --no-document-hint --workers 4
 ```
 
-Results go to `runs/eurlex_provisions_full_v3_1`. The document hint is used
+Results go to `runs/eurlex_provisions_full_v3_2`. `--no-document-hint` keeps
+the full run on the settings that were tested in run D. The document hint is used
 when the manifest's folder holds `relevance_export/direct.json` and
 `indirect.json`; add `--no-document-hint` to leave it out. `--thinking on` and
 `--confirm-thinking on` work here too. Run the same command again to resume.

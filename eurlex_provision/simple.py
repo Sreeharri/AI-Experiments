@@ -533,10 +533,16 @@ def derive(reply, options):
         # A link was named although no catalog entry describes the subject: keep it for a person to check.
         return ("UNSURE", "LINK_WITHOUT_TOPIC") if role != NONE or path != NONE else ("IGNORE", "NO_MATCH")
     if role != NONE:
-        if business_side:
+        # The catalog lists which roles Max Bögl holds in each business area. A role from
+        # another area does not make the target a direct duty in this one.
+        areas = [topic, *reply.get("other_anchors", ())]
+        listed = any(role in options["anchor_roles"].get(area, ()) for area in areas)
+        if business_side and listed:
             return ("UNSURE", "OPEN_QUESTION") if question else ("DIRECT", "ROLE")
-        # A role was named although the actor is a state, an EU body or a private person.
-        return ("INDIRECT", "PATH") if path != NONE else ("UNSURE", "ROLE_ACTOR_CONFLICT")
+        if path != NONE:
+            return "INDIRECT", "PATH"
+        # A role was named, but the actor is not a business or the role does not belong to this area.
+        return "UNSURE", "ROLE_ACTOR_CONFLICT" if not business_side else "ROLE_NOT_IN_AREA"
     if path != NONE:
         return "INDIRECT", "PATH"
     if question:

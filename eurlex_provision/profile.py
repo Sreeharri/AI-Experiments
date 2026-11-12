@@ -68,6 +68,8 @@ def choices(profile):
     return {
         "anchors": anchors,
         "negative_anchors": negatives,
+        # The roles Max Bögl holds in each business area.
+        "anchor_roles": {key: list(profile["business_anchors"][key].get("roles", ())) for key in anchors},
         # One list: the model picks the entry that best describes the subject, positive or negative.
         "topics": [NONE, *anchors, *negatives, NO_MATCH, *NULL_ALIASES],
         "roles": [NONE, *profile["roles"], *NULL_ALIASES],

@@ -150,6 +150,8 @@ class ProfileTests(unittest.TestCase):
 
     def test_choices_come_from_the_catalog(self):
         self.assertEqual(OPTIONS["anchors"], list(CATALOG["anchors"]))
+        self.assertEqual(OPTIONS["anchor_roles"]["imports_trade_defence"], ["importer"])
+        self.assertEqual(OPTIONS["anchor_roles"]["funding_investment"], [])
         self.assertEqual(OPTIONS["topics"], [NONE, *CATALOG["anchors"], *CATALOG["negative_anchors"],
                                              NO_MATCH, *NULL_ALIASES])
         self.assertEqual(OPTIONS["roles"], [NONE, *CATALOG["roles"], *NULL_ALIASES])
@@ -240,9 +242,13 @@ class DecisionRuleTests(unittest.TestCase):
 
     def test_level_follows_from_the_answers(self):
         cases = (
-            (dict(company_role="importer"), ("DIRECT", "ROLE")),
-            (dict(company_role="importer", actor_kind="NOT_STATED"), ("DIRECT", "ROLE")),
-            (dict(company_role="importer", open_question="Does it import this itself?"), ("UNSURE", "OPEN_QUESTION")),
+            (dict(company_role="employer"), ("DIRECT", "ROLE")),
+            (dict(company_role="employer", actor_kind="NOT_STATED"), ("DIRECT", "ROLE")),
+            (dict(company_role="employer", open_question="Is the plant registered?"), ("UNSURE", "OPEN_QUESTION")),
+            # A role that the catalog does not list for this business area is not a direct duty here.
+            (dict(company_role="importer"), ("UNSURE", "ROLE_NOT_IN_AREA")),
+            (dict(company_role="importer", indirect_path="purchased_products"), ("INDIRECT", "PATH")),
+            (dict(company_role="importer", other_anchors=["imports_trade_defence"]), ("DIRECT", "ROLE")),
             (dict(indirect_path="purchased_products"), ("INDIRECT", "PATH")),
             # The actor is a business in a business area, but no link was named: too uncertain to remove.
             (dict(), ("UNSURE", "TOPIC_ONLY")),
@@ -496,7 +502,7 @@ class RunnerTests(unittest.TestCase):
 
     def args(self, **changes):
         values = dict(mode="pilot", celex=None, target=None, targets_file=None, prepare_only=False, thinking="off",
-                      confirm_thinking="off",
+                      confirm_thinking="off", workers=1,
                       enriched_dir=self.root / "enriched", manifest=self.root / "manifest.json",
                       anchors=ROOT / "config/business_anchors_en.yaml", document_run=self.root / "document_run",
                       supplements=None, env_file=self.root / ".env", output_dir=self.root / "out")
@@ -658,6 +664,43 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(summary["ignore_reviews"]["confirmed"], 1)
         config = json.loads((out / "audit/run_config.json").read_text(encoding="utf-8"))
         self.assertEqual((config["thinking"], config["confirm_thinking"]), (False, True))
+
+    def test_parallel_workers_give_the_same_results(self):
+        _, one, out_one = self.run_with(self.fake_client(), output_dir=self.root / "one", workers=1)
+        client = self.fake_client()
+        _, four, out_four = self.run_with(client, output_dir=self.root / "four", workers=4)
+        for key in ("counts", "not_assessable", "ignore_reviews", "decision_basis", "targets_kept"):
+            self.assertEqual(one[key], four[key])
+        self.assertEqual(four["requests"]["count"], 5)
+        read = lambda folder: json.loads((folder / "relevance_export/results.json").read_text(encoding="utf-8"))
+        self.assertEqual(read(out_one), read(out_four))
+        self.assertEqual({call.args[0][0]["content"] for call in client.chat.call_args_list},
+                         {json.loads((out_four / "audit/run_config.json").read_text(encoding="utf-8"))["system_prompt"]})
+        calls = client.chat.call_count
+        self.run_with(client, output_dir=self.root / "four", workers=2)
+        self.assertEqual(client.chat.call_count, calls)
+
+    def test_endpoint_failure_with_workers_stops_and_keeps_finished_targets(self):
+        client = self.fake_client()
+        good = client.chat.side_effect
+
+        def chat(messages, **options):
+            _, evidence, _ = sent_parts(SimpleNamespace(args=[messages]))
+            if evidence["target"]["locator"] == "Article 4":
+                return ChatResult(ok=False, error_kind="timeout", error="Timed out")
+            return good(messages, **options)
+
+        client.chat.side_effect = chat
+        with patch.object(runner.QwenClient, "from_env", return_value=client):
+            with self.assertRaisesRegex(ModelError, "Article 4"):
+                runner.run(self.args(workers=3))
+        summary = json.loads((self.root / "out/audit/run_summary.json").read_text(encoding="utf-8"))
+        self.assertIn("Article 4", summary["error"])
+        self.assertEqual(summary["targets_failed"], 0)
+        self.assertLess(summary["targets_exported"], 4)
+        client.chat.side_effect = good
+        failed, summary, _ = self.run_with(client, workers=3)
+        self.assertEqual((failed, summary["targets_exported"], summary["error"]), (False, 4, None))
 
     def test_run_without_document_hint(self):
         client = self.fake_client()
