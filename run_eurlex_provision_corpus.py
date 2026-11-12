@@ -33,10 +33,14 @@ def prepare_plan(args):
     settings = [
         Path(__file__), ROOT / "screen_eurlex_provisions_simple.py",
         ROOT / "eurlex_provision/simple.py", ROOT / "eurlex_provision/evidence.py",
-        ROOT / "eurlex_provision/screening.py",
+        ROOT / "eurlex_provision/screening.py", ROOT / "eurlex_provision/quality.py",
+        ROOT / "eurlex_provision/profile.py",
         ROOT / "prompts/eurlex_provision_simple.md", ROOT / "prompts/eurlex_provision_ignore_review.md",
         args.anchors,
     ]
+    if args.document_run:
+        settings.extend(args.document_run / "relevance_export" / f"{level}.json"
+                        for level in ("direct", "indirect"))
     for optional in ("lr_ai/qwen_client.py", "config/eurlex_provision_anchor_facts.json"):
         if (ROOT / optional).is_file():
             settings.append(ROOT / optional)
@@ -96,6 +100,8 @@ def run_batch(args, directory, manifest, prepare_only=False):
         "--anchors", str(args.anchors), "--env-file", str(args.env_file),
         "--output-dir", str(directory),
     ]
+    if args.document_run:
+        command.extend(["--document-run", str(args.document_run)])
     if prepare_only:
         command.append("--prepare-only")
     return subprocess.run(command, cwd=ROOT, check=False).returncode
@@ -111,8 +117,13 @@ def batch_summary(directory, expected):
     return summary, path.stat().st_mtime_ns
 
 
+def handled(summary):
+    """Targets with a final outcome: classified, or reported as not assessable."""
+    return summary.get("targets_exported", 0) + summary.get("targets_not_assessable", 0)
+
+
 def complete(summary, expected):
-    return (summary.get("targets_exported") == expected
+    return (bool(summary) and handled(summary) == expected
             and not summary.get("targets_failed") and not summary.get("error"))
 
 
@@ -122,8 +133,11 @@ def batch_directory(args, number):
 
 def export_results(args, plan, stopped):
     results = {}
-    failed = []
+    failed, not_assessable, all_ignore = [], [], []
     counts = Counter()
+    tallies = {name: Counter() for name in ("not_assessable", "input_warnings", "ignore_reasons",
+                                            "negative_anchors", "indirect_paths", "ignore_reviews")}
+    requests = Counter()
     models = set()
     for number, batch in enumerate(plan["batches"], 1):
         directory = batch_directory(args, number)
@@ -148,22 +162,34 @@ def export_results(args, plan, stopped):
             raise ValueError(f"Export and batch summary disagree in {directory}.")
         counts.update(batch_counts)
         failed.extend(summary["failures"])
+        not_assessable.extend(summary["not_assessable_targets"])
+        all_ignore.extend(summary["acts_all_ignore"])
+        for name, tally in tallies.items():
+            tally.update(summary[name])
+        requests.update({key: value for key, value in summary["requests"].items() if value})
 
     if len(models) > 1:
         raise ValueError("Batch checkpoints use different Qwen models. Keep the original model for this output directory.")
     exported = sum(counts.values())
     write_json(args.output_dir / "relevance_export" / "results.json", results)
+    done = exported + len(not_assessable)
     summary = {
         "acts_with_provisions": plan["acts_with_provisions"],
         "targets_planned": plan["targets"], "targets_exported": exported,
-        "targets_failed": len(failed), "targets_pending": plan["targets"] - exported - len(failed),
+        "targets_not_assessable": len(not_assessable),
+        "targets_failed": len(failed), "targets_pending": plan["targets"] - done - len(failed),
         "counts": {level: counts[level] for level in sorted(LEVELS)}, "model": next(iter(models), None),
+        **{name: dict(tally) for name, tally in tallies.items()},
+        "requests": {**dict(requests), "seconds": round(requests["seconds"], 1)},
+        "acts_all_ignore": sorted(all_ignore),
         "document_text_only": plan["document_text_only"], "without_targets": plan["without_targets"],
         "stop_reason": stopped, "failures": failed,
     }
     write_json(args.output_dir / "run_summary.json", summary)
-    print(f"{exported:,}/{plan['targets']:,} results exported to {args.output_dir}", flush=True)
-    return exported == plan["targets"]
+    write_json(args.output_dir / "not_assessable.json", not_assessable)
+    print(f"{exported:,} results exported and {len(not_assessable):,} targets reported as not assessable, "
+          f"of {plan['targets']:,} planned. Folder: {args.output_dir}", flush=True)
+    return done == plan["targets"]
 
 
 def run(args):
@@ -209,7 +235,7 @@ def run_locked(args):
             exit_code = run_batch(args, directory, batch["manifest"])
             summary, stamp = batch_summary(directory, batch["targets"])
             if (stamp == previous_stamp or summary.get("error")
-                    or summary.get("targets_exported", 0) + summary.get("targets_failed", 0) != batch["targets"]
+                    or handled(summary) + summary.get("targets_failed", 0) != batch["targets"]
                     or (exit_code and not summary.get("targets_failed"))):
                 stopped = f"Batch {number} stopped. See the terminal output and batch audit."
                 break
@@ -229,10 +255,18 @@ def main():
     parser.add_argument("--enriched-dir", type=Path, default=ROOT / "output_db_corpus")
     parser.add_argument("--anchors", type=Path, default=ROOT / "config/business_anchors_en.yaml")
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full")
+    parser.add_argument("--document-run", type=Path,
+                        help="Document relevance run folder. Default: the manifest's folder, "
+                             "when it holds relevance_export/direct.json and indirect.json.")
+    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full_v2")
     args = parser.parse_args()
+    if args.document_run is None:
+        export = args.manifest.parent / "relevance_export"
+        if (export / "direct.json").is_file() and (export / "indirect.json").is_file():
+            args.document_run = args.manifest.parent
     for key, value in vars(args).items():
-        setattr(args, key, value.resolve())
+        if value is not None:
+            setattr(args, key, value.resolve())
     try:
         return run(args)
     except (OSError, ValueError, TypeError, KeyError) as exc:
