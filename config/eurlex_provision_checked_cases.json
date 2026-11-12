@@ -1,0 +1,21 @@
+{
+  "description": "Provisions whose expected result was checked against the legal text. Used by tools/compare_provision_labels.py. Never sent to Qwen and never used as prompt examples.",
+  "cases": [
+    {"celex": "32011R0284", "target": "Article 2", "expected": ["IGNORE"],
+     "why": "definitions for imports of plastic kitchenware from China"},
+    {"celex": "32009L0132", "target": "Article 4", "expected": ["IGNORE"],
+     "why": "VAT relief for personal property of people moving to the EU"},
+    {"celex": "32002R1750", "target": "Article 1", "expected": ["IGNORE"],
+     "why": "allowances of EU staff"},
+    {"celex": "32006L0112", "target": "Article 63", "expected": ["DIRECT"],
+     "why": "when VAT becomes chargeable on supplies; Max Bögl is a taxable person"},
+    {"celex": "32006L0042", "target": "Article 13 [source path article/13]", "expected": ["INDIRECT", "UNSURE"],
+     "why": "duty of manufacturers of partly completed machinery; Max Bögl buys machinery"},
+    {"celex": "32009R1221", "target": "Article 8", "expected": ["UNSURE"],
+     "why": "applies only to EMAS-registered organisations; registration of Max Bögl is not in the catalog"}
+  ],
+  "excluded": [
+    {"celex": "32004L0054", "target": "Annex II [source path annex/ii]",
+     "why": "stored text is the end of Article 11, not Annex II"}
+  ]
+}

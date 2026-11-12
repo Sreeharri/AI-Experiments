@@ -15,7 +15,7 @@ import json
 import re
 
 from .evidence import norm
-from .profile import NO_MATCH, NONE, choices
+from .profile import NO_MATCH, NONE, NULL_ALIASES, choices
 from .screening import ModelError
 
 
@@ -24,10 +24,17 @@ DECISION_FIELDS = ("level", "reason", "area")
 # that the profile does not hold is true. It is kept for the department.
 LEVELS = ("DIRECT", "INDIRECT", "UNSURE", "IGNORE")
 KEPT_LEVELS = LEVELS[:3]
-REPLY_FIELDS = ("actor", "subject", "target_passage", "content", "topic", "other_anchors",
-                "company_role", "indirect_path", "open_question", "reason")
-CONTENT = ("RULE", "FORMAL")
+REPLY_FIELDS = ("actor", "actor_kind", "subject", "target_passage", "formal_function", "topic",
+                "other_anchors", "company_role", "indirect_path", "open_question", "reason")
+# Who the actor is. A company role only counts when the actor is on the business side.
+BUSINESS, NOT_STATED = "BUSINESS", "NOT_STATED"
+ACTOR_KINDS = (BUSINESS, "STATE_OR_AUTHORITY", "EU_OR_INTERNATIONAL_BODY", "PRIVATE_PERSON", NOT_STATED)
+# A target is formal only when it has one of these named functions.
+FORMAL_FUNCTIONS = (NONE, "ADDRESSEES", "ENTRY_INTO_FORCE", "TRANSPOSITION_DEADLINE", "REPEAL",
+                    "COMMITTEE_PROCEDURE", "REPORTING_TO_COMMISSION", "AMENDMENT_POINTER",
+                    "CORRELATION_TABLE", "HEADING_ONLY")
 IGNORE_REASONS = ("FORMAL", "OUTSIDE_BUSINESS", "NO_MATCH", "NO_PATH")
+NULLS = frozenset({NONE, NO_MATCH, *NULL_ALIASES})
 LEVEL_PRIORITY = {"DIRECT": 3, "INDIRECT": 2, "UNSURE": 1, "IGNORE": 0}
 TEXT_LIMITS = {"actor": 160, "subject": 200, "reason": 500}
 QUESTION_CHARS = 200
@@ -489,9 +496,10 @@ def reply_schema(passages, options):
         "type": "object", "additionalProperties": False, "required": list(REPLY_FIELDS),
         "properties": {
             "actor": text["actor"],
+            "actor_kind": {"type": "string", "enum": list(ACTOR_KINDS)},
             "subject": text["subject"],
             "target_passage": {"type": "string", "enum": list(passages)},
-            "content": {"type": "string", "enum": list(CONTENT)},
+            "formal_function": {"type": "string", "enum": [*FORMAL_FUNCTIONS, *NULL_ALIASES]},
             "topic": {"type": "string", "enum": options["topics"]},
             "other_anchors": {"type": "array", "maxItems": 2,
                               "items": {"type": "string", "enum": options["anchors"]}},
@@ -503,22 +511,41 @@ def reply_schema(passages, options):
     }
 
 
+def normalise(reply):
+    """Map every spelling of "no value" to one value per field."""
+    def value(name, null):
+        return null if reply[name] in NULLS else reply[name]
+    return {**reply, "topic": value("topic", NO_MATCH), "company_role": value("company_role", NONE),
+            "indirect_path": value("indirect_path", NONE), "formal_function": value("formal_function", NONE)}
+
+
 def derive(reply, options):
-    """Work out (level, basis) from the model's answers."""
+    """Work out (level, basis) from the model's normalised answers."""
     topic, role, path = reply["topic"], reply["company_role"], reply["indirect_path"]
     question = reply["open_question"].strip()
-    if reply["content"] == "FORMAL":
-        return "IGNORE", "FORMAL"
+    business_side = reply["actor_kind"] in (BUSINESS, NOT_STATED)
+    if question:
+        return "UNSURE", "OPEN_QUESTION"
+    if reply["formal_function"] != NONE:
+        # A formal clause has no business actor. If the reply names one, a person decides.
+        return ("UNSURE", "FORMAL_CONFLICT") if reply["actor_kind"] == BUSINESS or role != NONE or path != NONE else ("IGNORE", "FORMAL")
     if topic in options["negative_anchors"]:
+        if path != NONE or any(anchor in options["anchors"] for anchor in reply.get("other_anchors", [])):
+            return "UNSURE", "NEGATIVE_ANCHOR_CONFLICT"
         return "IGNORE", "OUTSIDE_BUSINESS"
     if topic == NO_MATCH:
         # A link was named although no catalog entry describes the subject: keep it for a person to check.
         return ("UNSURE", "LINK_WITHOUT_TOPIC") if role != NONE or path != NONE else ("IGNORE", "NO_MATCH")
     if role != NONE:
-        return ("UNSURE", "OPEN_QUESTION") if question else ("DIRECT", "ROLE")
+        if business_side:
+            return "DIRECT", "ROLE"
+        # A role was named although the actor is a state, an EU body or a private person.
+        return ("INDIRECT", "PATH") if path != NONE else ("UNSURE", "ROLE_ACTOR_CONFLICT")
     if path != NONE:
         return "INDIRECT", "PATH"
-    return ("UNSURE", "OPEN_QUESTION") if question else ("IGNORE", "NO_PATH")
+    # The subject lies in a business area and a business is the actor, but no link was named:
+    # too uncertain to remove.
+    return ("UNSURE", "TOPIC_ONLY") if business_side else ("IGNORE", "NO_PATH")
 
 
 def validate_decision(reply, passages, options):
@@ -531,10 +558,11 @@ def validate_decision(reply, passages, options):
     passage = reply["target_passage"]
     if not isinstance(passage, str) or passage not in passages:
         raise ModelError("Select a target_passage ID that is marked in the target.")
-    if (reply["content"] not in CONTENT or reply["topic"] not in options["topics"]
-            or reply["company_role"] not in options["roles"]
+    if (reply["actor_kind"] not in ACTOR_KINDS or reply["formal_function"] not in (*FORMAL_FUNCTIONS, *NULL_ALIASES)
+            or reply["topic"] not in options["topics"] or reply["company_role"] not in options["roles"]
             or reply["indirect_path"] not in options["indirect_paths"]):
-        raise ModelError("Use the listed values for content, topic, company_role and indirect_path.")
+        raise ModelError("Use the listed values for actor_kind, formal_function, topic, company_role "
+                         "and indirect_path.")
     others, question = reply["other_anchors"], reply["open_question"]
     if (not isinstance(others, list) or len(others) > 2
             or any(anchor not in options["anchors"] for anchor in others)):
@@ -542,6 +570,7 @@ def validate_decision(reply, passages, options):
     if not isinstance(question, str) or len(question) > QUESTION_CHARS:
         raise ModelError(f"open_question is a string of at most {QUESTION_CHARS} characters.")
 
+    reply = normalise(reply)
     level, basis = derive(reply, options)
     topic, question, reason = reply["topic"], question.strip(), reply["reason"].strip()
     kept = level != "IGNORE"
@@ -551,9 +580,9 @@ def validate_decision(reply, passages, options):
         if level == "UNSURE" and question:
             reason = f"{reason} To check: {question}"
     details = {
-        "actor": reply["actor"].strip(), "subject": reply["subject"].strip(),
+        "actor": reply["actor"].strip(), "actor_kind": reply["actor_kind"], "subject": reply["subject"].strip(),
         "target_passage": passage, "target_quote": passages[passage],
-        "content": reply["content"], "topic": topic,
+        "formal_function": reply["formal_function"], "topic": topic,
         "company_role": reply["company_role"], "indirect_path": reply["indirect_path"],
         "open_question": question, "other_anchors": list(dict.fromkeys(others)),
         "basis": basis, "ignore_reason": NONE if kept else basis,
@@ -620,24 +649,10 @@ def score_request(client, system, sent, passages, options, task, log, thinking=F
             return decision, audit
 
 
-def review_task(first):
-    details = first["evidence"]
-    answers = {name: details[name] for name in ("actor", "subject", "content", "topic", "company_role",
-                                                "indirect_path", "open_question")}
-    return ("TASK: Confirmation pass. The first pass led to IGNORE for the reason "
-            f"{details['ignore_reason']}. Its answers were: {json.dumps(answers, ensure_ascii=False)}. "
-            f"Its reason was: {json.dumps(first['decision']['reason'], ensure_ascii=False)}. "
-            "Check these answers as described under CONFIRMATION PASS and return the JSON object.")
-
-
-def prior_part(first, part_id):
-    """Find the first-pass result for a part, or for the part it was split from."""
-    by_id = {part["part"]: part for part in first["parts"]}
-    while part_id:
-        if part_id in by_id:
-            return by_id[part_id]
-        part_id = part_id.rpartition(".")[0]
-    return first["parts"][0]
+# The confirmation pass does not see the first answers, so that it is a second opinion.
+REVIEW_TASK = ("TASK: Confirmation pass. Assess this target independently. Answer all "
+               "questions again from the text of the target, as described under CONFIRMATION PASS, and "
+               "return the JSON object.")
 
 
 def screen(client, system, profile, pack, first=None, act_context=None, warnings=(), thinking=False):
@@ -657,7 +672,7 @@ def screen(client, system, profile, pack, first=None, act_context=None, warnings
         label = f"{part_id} of {total}" if total > 1 or "." in part_id else None
         sent, passages, trimmed = request_pack(
             pack, part, label, opening if label and part_id != "1" else None, act_context, warnings)
-        task = review_task(prior_part(first, part_id)) if first else SCORE_TASK
+        task = REVIEW_TASK if first else SCORE_TASK
         try:
             decision, audit = score_request(client, system, sent, passages, options, task, log, thinking)
         except ContextLimitError:

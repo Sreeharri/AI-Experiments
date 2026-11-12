@@ -12,6 +12,10 @@ ANCHOR_FIELDS = ("label", "scope", "roles", "note", "not_covered", "company_fact
 NEGATIVE_FIELDS = ("label", "text", "except")
 NONE = "NONE"
 NO_MATCH = "NO_MATCH"
+# Other spellings of "no value" that the model may start to write. The reply
+# format only lets it finish a listed value, so without these a reply that
+# starts with "no" can only end as an anchor such as "noise_vibration".
+NULL_ALIASES = ("none", "None", "no_match", "not_applicable", "n/a")
 
 
 def company_profile(catalog, anchor_facts=None):
@@ -58,11 +62,14 @@ def choices(profile):
     anchors, negatives = list(profile["business_anchors"]), list(profile["negative_anchors"])
     if clash := sorted(set(anchors) & set(negatives)):
         raise ValueError(f"Business and negative anchors share IDs: {', '.join(clash)}")
+    reserved = {NONE, NO_MATCH, *NULL_ALIASES}
+    if clash := sorted(reserved & {*anchors, *negatives, *profile["roles"], *profile["indirect_paths"]}):
+        raise ValueError(f"Catalog IDs use reserved words: {', '.join(clash)}")
     return {
         "anchors": anchors,
         "negative_anchors": negatives,
         # One list: the model picks the entry that best describes the subject, positive or negative.
-        "topics": [NO_MATCH, *anchors, *negatives],
-        "roles": [NONE, *profile["roles"]],
-        "indirect_paths": [NONE, *profile["indirect_paths"]],
+        "topics": [NONE, *anchors, *negatives, NO_MATCH, *NULL_ALIASES],
+        "roles": [NONE, *profile["roles"], *NULL_ALIASES],
+        "indirect_paths": [NONE, *profile["indirect_paths"], *NULL_ALIASES],
     }

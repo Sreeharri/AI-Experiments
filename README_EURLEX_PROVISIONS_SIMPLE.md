@@ -1,50 +1,53 @@
-# EUR-Lex provision relevance, version 3
+# EUR-Lex provision relevance, version 3.1
 
 Copy the files of this patch into the root of `AI-Experiments` and replace the
 matching files. If `resume_eurlex_provision_corpus.py` is still there, delete
 it. The patch uses the same `.env`, Python environment, anchor catalog and
 enriched files as before. Older run folders stay valid and untouched.
 
-## What changed since version 2
+## What changed since version 3
 
-Version 2 kept almost everything and called it DIRECT. Qwen named the right
-actor, then justified DIRECT with a broad company role. Version 3 keeps the
-evidence pack of version 2 and changes how the decision is made.
+Version 3 (run A) removed far more noise than version 2, but it also removed
+provisions that matter. The saved answers showed why:
 
-| Area | Version 2 | Version 3 |
-|---|---|---|
-| Decision | Qwen chose the level and wrote a reason afterwards | Qwen answers separate questions; the level follows from the answers |
-| Actor | Mentioned in one sentence | Its own answer: who has to act |
-| Negative anchors | A reason Qwen could pick, never used | Offered in the same list as the business anchors; Qwen picks the closest entry for the subject |
-| Company role | Any matching role name was enough | The role counts only if the actor is that role for this subject |
-| Missing company fact | `open_points`, never used | An `open_question` turns DIRECT into UNSURE |
-| Document hint | Always sent with `--document-run` | Still optional; test with and without |
-| Thinking | Off | Off by default; `--thinking on` to compare |
+| Finding in run A | Change in 3.1 |
+|---|---|
+| "FORMAL" was used as a general "not relevant" answer: 31 of 53 removals, among them the VAT rule and the machinery article | Qwen must name one formal function from a fixed list (addressees, entry into force, …). A rule, value or definition is never formal |
+| 15 provisions, nearly all unrelated to noise, got the topic `noise_vibration`. Most likely cause: the reply format only lets Qwen finish a listed value, so a reply starting with "no…" could only end there | "none" and similar spellings are now listed values and mean "no topic" |
+| Qwen copied an example from the instructions into an answer (a chimney table became "importers of toys") | The instructions no longer contain example answers |
+| A rule that names no actor was assigned to "Member States" and dropped | Qwen names whose conduct the rule governs, and says what kind of actor that is |
+| A company role was chosen although the actor was a state or a standards body | A role only gives DIRECT when the actor is a business |
+| Half of the removals for "no path" were labelled relevant (6 of 12) | A business actor in a business area with no named link is UNSURE, not removed |
+| The confirmation pass confirmed all 53 removals | It no longer sees the first answers. `--confirm-thinking on` lets Qwen think in that pass only |
 
 ## How the level follows
 
-Qwen returns `actor`, `subject`, `content`, `topic`, `company_role`,
-`indirect_path`, `open_question` and `reason`. It never returns a level.
+Qwen returns `actor`, `actor_kind`, `subject`, `formal_function`, `topic`,
+`company_role`, `indirect_path`, `open_question` and `reason`. It never
+returns a level.
 
 | Qwen's answers | Level | Basis in the audit |
 |---|---|---|
-| content is FORMAL | IGNORE | `FORMAL` |
+| a formal function, and the actor is not a business | IGNORE | `FORMAL` |
+| a formal function, but a business is named as actor | UNSURE | `FORMAL_CONFLICT` |
 | topic is a negative anchor | IGNORE | `OUTSIDE_BUSINESS` |
 | no catalog entry fits, no role, no path | IGNORE | `NO_MATCH` |
-| business anchor and a company role | DIRECT | `ROLE` |
-| business anchor, a company role and an open question | UNSURE | `OPEN_QUESTION` |
-| business anchor, no role, an indirect path | INDIRECT | `PATH` |
-| business anchor, no role, no path | IGNORE | `NO_PATH` |
+| business anchor, a company role, actor is a business | DIRECT | `ROLE` |
+| the same with an open question | UNSURE | `OPEN_QUESTION` |
+| business anchor, an indirect path, no direct role | INDIRECT | `PATH` |
+| business anchor, no role, no path, actor is a business or not stated | UNSURE | `TOPIC_ONLY` |
+| business anchor, no role, no path, actor is a state, EU body or private person | IGNORE | `NO_PATH` |
 
-UNSURE means: the provision would apply to a Max Bögl role, but only if a
-company fact that the catalog does not hold is true. It is kept for the
-department, and its reason ends with "To check: …". DIRECT, INDIRECT and
-UNSURE are kept. IGNORE is removed. Every IGNORE gets a confirmation pass in
-which Qwen answers all questions again.
+UNSURE means the provision is kept for the department because something is
+open: a company fact, or an unclear link. DIRECT, INDIRECT and UNSURE are
+kept. IGNORE is removed. Every IGNORE gets a confirmation pass.
 
-## 1. Run the 100 reviewed provisions in three variants
+Applied to the answers Qwen gave in run A, with the actor kind filled in by
+hand, the new table alone brings back 4 of the 17 removed provisions that
+were labelled relevant and keeps 1 more that was labelled IGNORE. The other
+changes need a new run to show.
 
-One run cannot tell which change helps, so run the same 100 three times:
+## 1. Rerun the 100 reviewed provisions
 
 ```powershell
 $py = ".\.venv\Scripts\python.exe"
@@ -52,32 +55,41 @@ $common = @("pilot", "--manifest", ".\runs\eurlex_full_v10\provision_manifest.js
             "--enriched-dir", ".\output_db_corpus",
             "--targets-file", ".\config\eurlex_provision_review100.json")
 
-# A: no document hint, no thinking
-& $py .\screen_eurlex_provisions_simple.py @common --output-dir .\runs\review100_v3_A
-# B: with the document hint
-& $py .\screen_eurlex_provisions_simple.py @common --document-run .\runs\eurlex_full_v10 --output-dir .\runs\review100_v3_B
-# C: no document hint, with thinking (slower)
-& $py .\screen_eurlex_provisions_simple.py @common --thinking on --output-dir .\runs\review100_v3_C
+# D: version 3.1, no document hint, no thinking
+& $py .\screen_eurlex_provisions_simple.py @common --output-dir .\runs\review100_v3_1_D
+# E: the same, with thinking in the confirmation pass only
+& $py .\screen_eurlex_provisions_simple.py @common --confirm-thinking on --output-dir .\runs\review100_v3_1_E
 ```
 
 Use your own manifest and enriched folder if they differ. Rerun a command to
 resume it. A setting cannot be changed inside an existing output folder.
+`--thinking on` (both passes) and `--document-run` (document hint) still
+exist for later comparisons.
 
-## 2. Compare each variant with the labels
+## 2. Compare with the labels and the checked cases
 
 ```powershell
-foreach ($v in "A", "B", "C") {
+foreach ($v in "D", "E") {
     & $py .\tools\compare_provision_labels.py `
         --labels '.\EUR-Lex_100_Provision_Review_AI_labels (1).xlsx' `
-        --run ".\runs\review100_v3_$v" --baseline .\runs\eurlex_provisions_review100_v2
+        --run ".\runs\review100_v3_1_$v" --baseline .\runs\review100_v3_A
 }
 ```
 
-Read two lines first: "Removed by Qwen but labelled relevant" (should be low)
-and "Kept by Qwen but labelled IGNORE" (version 2: 37 of 66). Each run folder
-gets a `label_comparison.csv` with one row per provision and Qwen's answers:
-basis, actor, subject, topic, company role, indirect path and open question.
-A wrong row shows which answer was wrong.
+The output has three parts:
+
+- **Scores against the workbook labels.** Read "Removed by Qwen but labelled
+  relevant" first (run A: 17 of 52) and then "Kept by Qwen but labelled
+  IGNORE" (run A: 14 of 28).
+- **Hand-checked cases.** Six provisions whose expected result was checked
+  against the legal text, from `config/eurlex_provision_checked_cases.json`.
+  Each line says `ok` or `WRONG`. Run A had 3 of 6 right. Add a case to the
+  file whenever you verify one. These cases are never shown to Qwen.
+- **`label_comparison.csv`** in the run folder, one row per provision with
+  Qwen's answers.
+
+The tunnel item of 32004L0054 is left out of the scores, because its stored
+text is the end of Article 11 and not Annex II.
 
 Use hand-checked labels where you can. Labels from another AI only show
 where two models disagree.
@@ -88,10 +100,10 @@ where two models disagree.
 & .\.venv\Scripts\python.exe .\run_eurlex_provision_corpus.py
 ```
 
-Results go to `runs/eurlex_provisions_full_v3`. The document hint is used when
-the manifest's folder holds `relevance_export/direct.json` and
-`indirect.json`; add `--no-document-hint` to leave it out, and `--thinking on`
-for thinking. Run the same command again to resume.
+Results go to `runs/eurlex_provisions_full_v3_1`. The document hint is used
+when the manifest's folder holds `relevance_export/direct.json` and
+`indirect.json`; add `--no-document-hint` to leave it out. `--thinking on` and
+`--confirm-thinking on` work here too. Run the same command again to resume.
 
 ## What Qwen receives
 
@@ -134,7 +146,9 @@ warning to Qwen, and is listed under `targets_with_incomplete_text`.
 
 Known gap: text stored under the wrong label is not detected. Example: in
 32004L0054 the element stored as Annex II holds the end of Article 11. This
-comes from the database parser and was the same in earlier runs.
+comes from the database parser and was the same in earlier runs. Such rows
+can be listed under `excluded` in `config/eurlex_provision_checked_cases.json`
+so that they do not distort the scores.
 
 ## Results
 
@@ -142,13 +156,14 @@ comes from the database parser and was the same in earlier runs.
   target. Levels are DIRECT, INDIRECT, UNSURE and IGNORE.
 - `audit/run_summary.json`: counts, plus
   - `targets_kept`, `decision_basis`, `ignore_reasons`, `negative_anchors`,
-    `indirect_paths`, `company_roles`, `topics`
+    `indirect_paths`, `company_roles`, `formal_functions`, `actor_kinds`,
+    `topics`
   - `not_assessable` and `not_assessable_targets`
   - `ignore_reviews`: confirmed and changed IGNORE decisions
   - `acts_all_ignore`: acts in which every provision was ignored
   - `requests`: number of calls, seconds and, when reported, cached tokens
-- `audit/run_config.json`: the system prompt, and whether thinking and the
-  document hint were on.
+- `audit/run_config.json`: the system prompt, and whether thinking, thinking
+  in the confirmation pass and the document hint were on.
 - `audit/<CELEX>/…json`: the full evidence, every request part and Qwen's
   answers (`details`).
 

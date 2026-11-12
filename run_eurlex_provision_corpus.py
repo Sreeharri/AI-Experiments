@@ -46,8 +46,9 @@ def prepare_plan(args):
             settings.append(ROOT / optional)
     for path in settings:
         inputs.update(sha256(path.read_bytes()).digest())
-    if getattr(args, "thinking", "off") == "on":
-        inputs.update(b"thinking")
+    for option in ("thinking", "confirm_thinking"):
+        if getattr(args, option, "off") == "on":
+            inputs.update(option.encode())
 
     provision_counts = Counter()
     provision_inventory = {}
@@ -104,7 +105,7 @@ def run_batch(args, directory, manifest, prepare_only=False):
     ]
     if args.document_run:
         command.extend(["--document-run", str(args.document_run)])
-    command.extend(["--thinking", args.thinking])
+    command.extend(["--thinking", args.thinking, "--confirm-thinking", args.confirm_thinking])
     if prepare_only:
         command.append("--prepare-only")
     return subprocess.run(command, cwd=ROOT, check=False).returncode
@@ -140,7 +141,8 @@ def export_results(args, plan, stopped):
     counts = Counter()
     tallies = {name: Counter() for name in ("not_assessable", "input_warnings", "decision_basis",
                                             "ignore_reasons", "negative_anchors", "indirect_paths",
-                                            "company_roles", "topics", "ignore_reviews")}
+                                            "company_roles", "formal_functions", "actor_kinds", "topics",
+                                            "ignore_reviews")}
     requests = Counter()
     models = set()
     for number, batch in enumerate(plan["batches"], 1):
@@ -266,7 +268,9 @@ def main():
                         help="Do not tell Qwen why the act was kept at document level.")
     parser.add_argument("--thinking", choices=("on", "off"), default="off",
                         help="Let Qwen think before it answers. Slower.")
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full_v3")
+    parser.add_argument("--confirm-thinking", choices=("on", "off"), default="off",
+                        help="Let Qwen think in the confirmation pass for IGNORE only.")
+    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full_v3_1")
     args = parser.parse_args()
     if args.document_run is None and not args.no_document_hint:
         export = args.manifest.parent / "relevance_export"

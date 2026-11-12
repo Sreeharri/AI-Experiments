@@ -21,7 +21,10 @@ from pathlib import Path
 LEVELS = ("DIRECT", "INDIRECT", "IGNORE")              # labels in the workbook
 QWEN_LEVELS = ("DIRECT", "INDIRECT", "UNSURE", "IGNORE")  # UNSURE is kept for the department
 COLUMNS = ("Review ID", "Your label", "CELEX", "Provision")
-ANSWERS = ("basis", "actor", "subject", "topic", "company_role", "indirect_path", "open_question")
+ANSWERS = ("basis", "actor", "actor_kind", "subject", "formal_function", "topic", "company_role",
+           "indirect_path", "open_question")
+ROOT = Path(__file__).resolve().parents[1]
+CHECKS = ROOT / "config" / "eurlex_provision_checked_cases.json"
 
 
 def read_json(path):
@@ -71,16 +74,29 @@ def read_run(folder, with_answers=False):
     return decisions, {(row["celex"], row["target"]): row["code"] for row in skipped}
 
 
-def compare(labels, decisions, skipped=None, baseline=None):
+def checked_cases(checks, decisions):
+    """Compare hand-checked provisions with the run. Returns one line per case."""
+    lines = []
+    for case in checks.get("cases", []):
+        level = (decisions.get((case["celex"], case["target"])) or {}).get("level", "no result")
+        verdict = "ok   " if level in case["expected"] else "WRONG"
+        lines.append(f"{verdict} {case['celex']} {case['target']}: {level} "
+                     f"(expected {' or '.join(case['expected'])}) - {case['why']}")
+    return lines
+
+
+def compare(labels, decisions, skipped=None, baseline=None, excluded=None):
     """Return (table rows, summary) for labelled provisions against one run."""
-    skipped, baseline = skipped or {}, baseline or {}
+    skipped, baseline, excluded = skipped or {}, baseline or {}, excluded or {}
     table, matrix = [], Counter()
     for row in labels:
         key = (row["celex"], row["target"])
         decision = decisions.get(key)
         level = decision["level"] if decision else None
         label = row["label"]
-        if key in skipped:
+        if key in excluded:
+            outcome = f"left out of the scores ({excluded[key]})"
+        elif key in skipped:
             outcome = f"not assessable ({skipped[key]})"
         elif level is None:
             outcome = "no result in this run"
@@ -111,6 +127,7 @@ def compare(labels, decisions, skipped=None, baseline=None):
         "not_assessable": sum(row["Outcome"].startswith("not assessable") for row in table),
         "no_result": sum(row["Outcome"] == "no result in this run" for row in table),
         "no_usable_label": sum(row["Outcome"] == "no usable label" for row in table),
+        "left_out": sum(row["Outcome"].startswith("left out") for row in table),
         "same_label": sum(count for (label, level), count in matrix.items() if label == level),
         "same_relevant_or_ignore": sum(count for (label, level), count in matrix.items()
                                        if (label == "IGNORE") == (level == "IGNORE")),
@@ -133,7 +150,7 @@ def report(summary):
     lines = [
         f"Labelled rows: {summary['labelled_rows']}. Scored: {summary['scored']}. "
         f"Not assessable: {summary['not_assessable']}. No result: {summary['no_result']}. "
-        f"No usable label: {summary['no_usable_label']}.",
+        f"No usable label: {summary['no_usable_label']}. Left out (wrong stored text): {summary['left_out']}.",
         "",
         f"Removed by Qwen but labelled relevant: "
         f"{share(summary['removed_but_labelled_relevant'], summary['removed'])}   <- keep this at or below 5%",
@@ -155,22 +172,28 @@ def main():
     parser.add_argument("--run", type=Path, required=True, help="Run folder to check")
     parser.add_argument("--baseline", type=Path, help="Earlier run folder shown next to the new results")
     parser.add_argument("--out", type=Path, help="CSV file to write. Default: label_comparison.csv in the run folder")
+    parser.add_argument("--checks", type=Path, default=CHECKS,
+                        help="Hand-checked cases and rows to leave out of the scores")
     args = parser.parse_args()
     try:
         labels = read_labels(args.labels)
         decisions, skipped = read_run(args.run, with_answers=True)
         baseline = read_run(args.baseline)[0] if args.baseline else None
+        checks = read_json(args.checks) if args.checks.is_file() else {}
     except (OSError, ValueError, KeyError) as exc:
         raise SystemExit(f"Comparison stopped: {exc}") from exc
-    table, summary = compare(labels, decisions, skipped, baseline)
+    excluded = {(row["celex"], row["target"]): row["why"] for row in checks.get("excluded", [])}
+    table, summary = compare(labels, decisions, skipped, baseline, excluded)
     out = args.out or args.run / "label_comparison.csv"
     with out.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(table[0]))
         writer.writeheader()
         writer.writerows(table)
     print(report(summary))
+    if lines := checked_cases(checks, decisions):
+        print("\nHand-checked cases:\n" + "\n".join(lines))
     if args.baseline:
-        _, earlier = compare(labels, baseline)
+        _, earlier = compare(labels, baseline, excluded=excluded)
         print("\nEarlier run on the same rows:\n" + report(earlier))
     print(f"\nRow-by-row table: {out}")
 

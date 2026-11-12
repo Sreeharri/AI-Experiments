@@ -78,6 +78,8 @@ def arguments():
                         help="Document relevance run folder. Adds each act's document decision as context.")
     parser.add_argument("--thinking", choices=("on", "off"), default="off",
                         help="Let Qwen think before it answers. Slower; use it to compare on a small sample.")
+    parser.add_argument("--confirm-thinking", choices=("on", "off"), default="off",
+                        help="Let Qwen think in the confirmation pass for IGNORE only.")
     parser.add_argument("--supplements", type=Path)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     parser.add_argument("--output-dir", type=Path)
@@ -207,7 +209,7 @@ def run(args):
     if (getattr(args, "celex", None) or getattr(args, "targets_file", None)) and args.output_dir is None:
         raise ValueError("Set --output-dir for a subset run.")
     out = args.output_dir or ROOT / "runs" / (
-f"eurlex_provisions_{args.mode}_v3" + ("_prepared" if args.prepare_only else "")
+f"eurlex_provisions_{args.mode}_v3_1" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -229,7 +231,7 @@ def request_totals(saved):
 def summarise(targets, checkpoints, client, error):
     completed, failures, skipped, warned = [], [], [], []
     reviews, warnings, ignore_reasons, negatives, paths = Counter(), Counter(), Counter(), Counter(), Counter()
-    roles, bases, topics = Counter(), Counter(), Counter()
+    roles, bases, topics, formal, kinds = Counter(), Counter(), Counter(), Counter(), Counter()
     by_act = defaultdict(lambda: {"planned": 0, "done": 0, "levels": Counter(), "failed": 0})
     requests = []
     for item, path, entry in targets:
@@ -262,6 +264,9 @@ def summarise(targets, checkpoints, client, error):
             details = saved.get("details", {})
             bases[details.get("basis", "UNKNOWN")] += 1
             topics[details.get("topic", "UNKNOWN")] += 1
+            kinds[details.get("actor_kind", "UNKNOWN")] += 1
+            if details.get("formal_function", "NONE") != "NONE":
+                formal[details["formal_function"]] += 1
             if saved["level"] == "IGNORE":
                 ignore_reasons[details.get("ignore_reason", "UNKNOWN")] += 1
                 if details.get("negative_anchor", "NONE") != "NONE":
@@ -283,6 +288,7 @@ def summarise(targets, checkpoints, client, error):
         "decision_basis": dict(bases),
         "ignore_reasons": dict(ignore_reasons), "negative_anchors": dict(negatives),
         "indirect_paths": dict(paths), "company_roles": dict(roles),
+        "formal_functions": dict(formal), "actor_kinds": dict(kinds),
         "topics": dict(topics.most_common()),
         "ignore_reviews": {status: reviews[status] for status in ("confirmed", "changed", "pending")},
         # Acts in which every classified provision was ignored: candidates for a document-level recheck.
@@ -312,14 +318,16 @@ def run_packs(args, out, packs, system, profile, not_found=()):
     audit = out / "audit"
     model = client.model if client else None
     thinking = getattr(args, "thinking", "off") == "on"
+    confirm_thinking = thinking or getattr(args, "confirm_thinking", "off") == "on"
     fingerprint = sha({"packs": packs, "model": model, "prepare_only": args.prepare_only, "system": system,
-                       "thinking": thinking,
+                       "thinking": thinking, "confirm_thinking": confirm_thinking,
                        "code": [(ROOT / name).read_text(encoding="utf-8") for name in CODE_FILES],
                        "runner": Path(__file__).read_text(encoding="utf-8")})
     run_file = audit / "run_config.json"
     if run_file.exists() and read_json(run_file)["fingerprint"] != fingerprint:
         raise ValueError("Run inputs changed. Choose a new --output-dir.")
     write_json(run_file, {"fingerprint": fingerprint, "model": model, "thinking": thinking,
+                          "confirm_thinking": confirm_thinking,
                           "document_hint": any(entry["document_screening"] for entry in packs),
                           "system_prompt": system})
     targets = []
@@ -353,13 +361,13 @@ def run_packs(args, out, packs, system, profile, not_found=()):
                 saved["not_assessable"] = {**entry["not_assessable"], "text": text[:300]}
             elif client:
                 print(f"[{index}/{len(targets)}] {label}", flush=True)
-                context = {"act_context": entry["document_screening"], "thinking": thinking,
+                context = {"act_context": entry["document_screening"],
                            "warnings": [WARNING_TEXT[code] for code in entry["input_warnings"]]}
                 try:
                     if "ignore_review" in previous:
                         saved["ignore_review"] = previous["ignore_review"]
                     else:
-                        decision, attempt = screen(client, system, profile, pack, **context)
+                        decision, attempt = screen(client, system, profile, pack, thinking=thinking, **context)
                         if decision["level"] == "IGNORE":
                             saved["ignore_review"] = {
                                 "status": "pending", "initial_decision": decision, "initial_attempt": attempt,
@@ -368,7 +376,7 @@ def run_packs(args, out, packs, system, profile, not_found=()):
                             checkpoints[path] = saved
                     if "ignore_review" in saved:
                         review = saved["ignore_review"]
-                        decision, attempt = screen(client, system, profile, pack,
+                        decision, attempt = screen(client, system, profile, pack, thinking=confirm_thinking,
                                                    first=review["initial_attempt"], **context)
                         saved["ignore_review"] = {
                             **review, "status": "confirmed" if decision["level"] == "IGNORE" else "changed",
