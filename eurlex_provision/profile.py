@@ -10,8 +10,8 @@ import json
 
 ANCHOR_FIELDS = ("label", "scope", "roles", "note", "not_covered", "company_facts")
 NEGATIVE_FIELDS = ("label", "text", "except")
-NOT_ROLES = "not_roles"
 NONE = "NONE"
+NO_MATCH = "NO_MATCH"
 
 
 def company_profile(catalog, anchor_facts=None):
@@ -55,8 +55,14 @@ def system_prompt(instructions, review_instructions, profile):
 
 def choices(profile):
     """The IDs the model may select in its reply."""
+    anchors, negatives = list(profile["business_anchors"]), list(profile["negative_anchors"])
+    if clash := sorted(set(anchors) & set(negatives)):
+        raise ValueError(f"Business and negative anchors share IDs: {', '.join(clash)}")
     return {
-        "anchors": list(profile["business_anchors"]),
-        "negative_anchors": [NONE, NOT_ROLES, *profile["negative_anchors"]],
+        "anchors": anchors,
+        "negative_anchors": negatives,
+        # One list: the model picks the entry that best describes the subject, positive or negative.
+        "topics": [NO_MATCH, *anchors, *negatives],
+        "roles": [NONE, *profile["roles"]],
         "indirect_paths": [NONE, *profile["indirect_paths"]],
     }

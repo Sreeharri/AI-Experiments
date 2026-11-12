@@ -15,7 +15,7 @@ from eurlex_enrichment.inputs import read_json
 
 ROOT = Path(__file__).resolve().parent
 SMOKE_ACTS = ("31998D0600", "31964L0475")
-LEVELS = {"DIRECT", "INDIRECT", "IGNORE"}
+LEVELS = {"DIRECT", "INDIRECT", "UNSURE", "IGNORE"}
 FIELDS = {"level", "reason", "area"}
 MAX_ACTS = 20
 MAX_TARGETS = 250
@@ -46,6 +46,8 @@ def prepare_plan(args):
             settings.append(ROOT / optional)
     for path in settings:
         inputs.update(sha256(path.read_bytes()).digest())
+    if getattr(args, "thinking", "off") == "on":
+        inputs.update(b"thinking")
 
     provision_counts = Counter()
     provision_inventory = {}
@@ -102,6 +104,7 @@ def run_batch(args, directory, manifest, prepare_only=False):
     ]
     if args.document_run:
         command.extend(["--document-run", str(args.document_run)])
+    command.extend(["--thinking", args.thinking])
     if prepare_only:
         command.append("--prepare-only")
     return subprocess.run(command, cwd=ROOT, check=False).returncode
@@ -135,8 +138,9 @@ def export_results(args, plan, stopped):
     results = {}
     failed, not_assessable, all_ignore = [], [], []
     counts = Counter()
-    tallies = {name: Counter() for name in ("not_assessable", "input_warnings", "ignore_reasons",
-                                            "negative_anchors", "indirect_paths", "ignore_reviews")}
+    tallies = {name: Counter() for name in ("not_assessable", "input_warnings", "decision_basis",
+                                            "ignore_reasons", "negative_anchors", "indirect_paths",
+                                            "company_roles", "topics", "ignore_reviews")}
     requests = Counter()
     models = set()
     for number, batch in enumerate(plan["batches"], 1):
@@ -258,14 +262,18 @@ def main():
     parser.add_argument("--document-run", type=Path,
                         help="Document relevance run folder. Default: the manifest's folder, "
                              "when it holds relevance_export/direct.json and indirect.json.")
-    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full_v2")
+    parser.add_argument("--no-document-hint", action="store_true",
+                        help="Do not tell Qwen why the act was kept at document level.")
+    parser.add_argument("--thinking", choices=("on", "off"), default="off",
+                        help="Let Qwen think before it answers. Slower.")
+    parser.add_argument("--output-dir", type=Path, default=ROOT / "runs/eurlex_provisions_full_v3")
     args = parser.parse_args()
-    if args.document_run is None:
+    if args.document_run is None and not args.no_document_hint:
         export = args.manifest.parent / "relevance_export"
         if (export / "direct.json").is_file() and (export / "indirect.json").is_file():
             args.document_run = args.manifest.parent
     for key, value in vars(args).items():
-        if value is not None:
+        if isinstance(value, Path):
             setattr(args, key, value.resolve())
     try:
         return run(args)

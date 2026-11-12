@@ -1,77 +1,97 @@
-# EUR-Lex provision relevance, version 2
+# EUR-Lex provision relevance, version 3
 
 Copy the files of this patch into the root of `AI-Experiments` and replace the
-matching files. Then delete `resume_eurlex_provision_corpus.py`: its fixes
-(unique target names, splitting of long targets) are now part of the normal
-runner. The patch uses the same `.env`, Python environment, anchor catalog and
-enriched files as before. Old run folders stay valid and untouched; version 2
-writes to new folders.
+matching files. If `resume_eurlex_provision_corpus.py` is still there, delete
+it. The patch uses the same `.env`, Python environment, anchor catalog and
+enriched files as before. Older run folders stay valid and untouched.
 
-## What changed
+## What changed since version 2
 
-| Area | Before | Now |
+Version 2 kept almost everything and called it DIRECT. Qwen named the right
+actor, then justified DIRECT with a broad company role. Version 3 keeps the
+evidence pack of version 2 and changes how the decision is made.
+
+| Area | Version 2 | Version 3 |
 |---|---|---|
-| Broken input | Every stored article, annex and table went to Qwen | Targets that are not provisions are reported as "not assessable" and are not sent |
-| Company profile | 58 business anchors, placed after the target | Roles, "not roles", indirect paths, 17 negative anchors and 58 business anchors, placed first and identical in every request |
-| Question to Qwen | Prove the company link, otherwise IGNORE | Keep the provision unless one named ignore reason applies |
-| Target text | Sent twice | Sent once, with passage markers such as `[P3]` |
-| Table context | The whole parent section, sometimes a whole annex | Only the text just before the table |
-| Annex and table | Judged without the provision that refers to them | That provision is added |
-| References | Whole cited articles, no limit | Limited in size; the cited paragraph is kept first |
-| Long targets | Split only after the server refused the request | Split before the call, along paragraphs, sections and table rows |
+| Decision | Qwen chose the level and wrote a reason afterwards | Qwen answers separate questions; the level follows from the answers |
+| Actor | Mentioned in one sentence | Its own answer: who has to act |
+| Negative anchors | A reason Qwen could pick, never used | Offered in the same list as the business anchors; Qwen picks the closest entry for the subject |
+| Company role | Any matching role name was enough | The role counts only if the actor is that role for this subject |
+| Missing company fact | `open_points`, never used | An `open_question` turns DIRECT into UNSURE |
+| Document hint | Always sent with `--document-run` | Still optional; test with and without |
+| Thinking | Off | Off by default; `--thinking on` to compare |
 
-## 1. Check prefix caching (once)
+## How the level follows
 
-```powershell
-& .\.venv\Scripts\python.exe .\tools\check_prefix_cache.py
-```
+Qwen returns `actor`, `subject`, `content`, `topic`, `company_role`,
+`indirect_path`, `open_question` and `reason`. It never returns a level.
 
-The company profile is about 48,000 characters. vLLM cannot store it on the
-server for later calls: every request still carries the full text. What the
-server can do is reuse its earlier work when a request starts with exactly the
-same text. The script sends four tiny requests and tells you whether the
-repeated ones are faster. Nothing in the screening depends on the result. With
-caching the run is only faster.
+| Qwen's answers | Level | Basis in the audit |
+|---|---|---|
+| content is FORMAL | IGNORE | `FORMAL` |
+| topic is a negative anchor | IGNORE | `OUTSIDE_BUSINESS` |
+| no catalog entry fits, no role, no path | IGNORE | `NO_MATCH` |
+| business anchor and a company role | DIRECT | `ROLE` |
+| business anchor, a company role and an open question | UNSURE | `OPEN_QUESTION` |
+| business anchor, no role, an indirect path | INDIRECT | `PATH` |
+| business anchor, no role, no path | IGNORE | `NO_PATH` |
 
-## 2. Rerun the 100 reviewed provisions
+UNSURE means: the provision would apply to a Max Bögl role, but only if a
+company fact that the catalog does not hold is true. It is kept for the
+department, and its reason ends with "To check: …". DIRECT, INDIRECT and
+UNSURE are kept. IGNORE is removed. Every IGNORE gets a confirmation pass in
+which Qwen answers all questions again.
 
-```powershell
-$manifest = ".\runs\eurlex_full_v10\provision_manifest.json"
-& .\.venv\Scripts\python.exe .\screen_eurlex_provisions_simple.py pilot `
-    --manifest $manifest --enriched-dir .\output_db_corpus `
-    --targets-file .\config\eurlex_provision_review100.json `
-    --document-run .\runs\eurlex_full_v10 `
-    --output-dir .\runs\eurlex_provisions_review100_v2
-```
+## 1. Run the 100 reviewed provisions in three variants
 
-`config/eurlex_provision_review100.json` lists the 100 provisions of the review
-workbook. A target name that no longer exists is printed, listed under
-`targets_not_found` in the summary and left out. Add `--prepare-only` to save
-the evidence without calling Qwen. Rerun the same command to resume.
-
-## 3. Compare with the labels
+One run cannot tell which change helps, so run the same 100 three times:
 
 ```powershell
-& .\.venv\Scripts\python.exe .\tools\compare_provision_labels.py `
-    --labels .\EUR-Lex_100_Provision_Review.xlsx `
-    --run .\runs\eurlex_provisions_review100_v2 --baseline .\runs\eurlex_provisions_full
+$py = ".\.venv\Scripts\python.exe"
+$common = @("pilot", "--manifest", ".\runs\eurlex_full_v10\provision_manifest.json",
+            "--enriched-dir", ".\output_db_corpus",
+            "--targets-file", ".\config\eurlex_provision_review100.json")
+
+# A: no document hint, no thinking
+& $py .\screen_eurlex_provisions_simple.py @common --output-dir .\runs\review100_v3_A
+# B: with the document hint
+& $py .\screen_eurlex_provisions_simple.py @common --document-run .\runs\eurlex_full_v10 --output-dir .\runs\review100_v3_B
+# C: no document hint, with thinking (slower)
+& $py .\screen_eurlex_provisions_simple.py @common --thinking on --output-dir .\runs\review100_v3_C
 ```
 
-The first line to read is "Removed by Qwen but labelled relevant". That share
-should stay at or below 5%. The script also writes `label_comparison.csv` with
-one row per provision. Use hand-checked labels: labels from another AI only
-show where two models disagree.
+Use your own manifest and enriched folder if they differ. Rerun a command to
+resume it. A setting cannot be changed inside an existing output folder.
 
-## 4. Full corpus
+## 2. Compare each variant with the labels
+
+```powershell
+foreach ($v in "A", "B", "C") {
+    & $py .\tools\compare_provision_labels.py `
+        --labels '.\EUR-Lex_100_Provision_Review_AI_labels (1).xlsx' `
+        --run ".\runs\review100_v3_$v" --baseline .\runs\eurlex_provisions_review100_v2
+}
+```
+
+Read two lines first: "Removed by Qwen but labelled relevant" (should be low)
+and "Kept by Qwen but labelled IGNORE" (version 2: 37 of 66). Each run folder
+gets a `label_comparison.csv` with one row per provision and Qwen's answers:
+basis, actor, subject, topic, company role, indirect path and open question.
+A wrong row shows which answer was wrong.
+
+Use hand-checked labels where you can. Labels from another AI only show
+where two models disagree.
+
+## 3. Full corpus, once a variant is good enough
 
 ```powershell
 & .\.venv\Scripts\python.exe .\run_eurlex_provision_corpus.py
 ```
 
-Results go to `runs/eurlex_provisions_full_v2`. The document decisions are read
-from the manifest's folder (`relevance_export/direct.json` and `indirect.json`)
-when they are there; set `--document-run` to use another folder. Run the same
-command again to resume. Run steps 2 and 3 first.
+Results go to `runs/eurlex_provisions_full_v3`. The document hint is used when
+the manifest's folder holds `relevance_export/direct.json` and
+`indirect.json`; add `--no-document-hint` to leave it out, and `--thinking on`
+for thinking. Run the same command again to resume.
 
 ## What Qwen receives
 
@@ -81,36 +101,21 @@ User message     act, target, position, references       changes per target
                  TASK line                               last: "classify" or "confirmation pass"
 ```
 
+The system message is identical in every request, so vLLM prefix caching can
+reuse it. `tools/check_prefix_cache.py` tests whether that works on your
+endpoint.
+
 - **act**: CELEX, title and, with `--document-run`, why the act was kept.
 - **target**: the provision, once. Markers `[P1]`, `[P2]`, … number its text.
 - **position**: the text before a table, the annex scope, and the provision
   that refers to an annex or table.
-- **references**: cited provisions, at most about 5,000 characters. A long one
-  is shortened to the cited paragraph and marked `excerpt`.
+- **references**: cited provisions, at most about 5,000 characters.
 - **missing_references**, **context_not_included**: names of texts that could
   not be supplied or did not fit.
 - **source_notes**: known problems, such as text that is cut off.
 
-A target above 12,000 characters is split into parts. Each part is classified
-with the opening words of the whole target. The target takes the highest level
-of its parts, and the audit keeps every part's result.
-
-## How Qwen decides
-
-1. It says what the provision does and whom it addresses.
-2. It returns IGNORE only for one of three reasons:
-   `FORMAL` (no rule of its own), `OUTSIDE_BUSINESS` (falls under a negative
-   anchor or "not roles", and no business anchor covers it) or `NO_PATH` (binds
-   only other actors, with no indirect path to the company).
-3. Otherwise the provision is DIRECT or INDIRECT. INDIRECT names one of the
-   four indirect paths.
-4. A company detail the catalog does not hold (equipment, capacity, site) never
-   lowers the level. It is written to `open_points` for the department.
-5. In doubt between IGNORE and relevant, the answer is INDIRECT.
-
-Every IGNORE gets a confirmation pass that can keep it or change it. The code
-never changes a level. It rejects a reply only when its fields contradict each
-other, and asks once for a correction.
+A target above 12,000 characters is split into parts. The target takes the
+highest level of its parts, and the audit keeps every part's result.
 
 ## Not assessable targets
 
@@ -127,28 +132,25 @@ These are saved and listed, and are not sent to Qwen:
 Text that starts or ends in the middle of a sentence is still sent, with a
 warning to Qwen, and is listed under `targets_with_incomplete_text`.
 
+Known gap: text stored under the wrong label is not detected. Example: in
+32004L0054 the element stored as Annex II holds the end of Article 11. This
+comes from the database parser and was the same in earlier runs.
+
 ## Results
 
-- `relevance_export/results.json`: level, reason and area per classified target.
+- `relevance_export/results.json`: level, reason and area per classified
+  target. Levels are DIRECT, INDIRECT, UNSURE and IGNORE.
 - `audit/run_summary.json`: counts, plus
+  - `targets_kept`, `decision_basis`, `ignore_reasons`, `negative_anchors`,
+    `indirect_paths`, `company_roles`, `topics`
   - `not_assessable` and `not_assessable_targets`
-  - `ignore_reasons`, `negative_anchors`, `indirect_paths`: use these to sample
-    and check each reason
   - `ignore_reviews`: confirmed and changed IGNORE decisions
-  - `acts_all_ignore`: acts in which every provision was ignored, as
-    candidates for a second look at document level
-  - `requests`: number of calls, seconds and, when the server reports them,
-    cached tokens
+  - `acts_all_ignore`: acts in which every provision was ignored
+  - `requests`: number of calls, seconds and, when reported, cached tokens
+- `audit/run_config.json`: the system prompt, and whether thinking and the
+  document hint were on.
 - `audit/<CELEX>/…json`: the full evidence, every request part and Qwen's
-  detailed answer (`details`: effect, ignore reason, anchors, open points).
-- Corpus runs also write `run_summary.json` and `not_assessable.json` in the
-  run folder.
-
-## Earlier commands
-
-`samples` and `holdout50` still work and write to
-`runs/eurlex_provisions_samples_v2` and `runs/eurlex_provisions_holdout50_v2`.
-`--celex` with `--target` still selects single targets of one act.
+  answers (`details`).
 
 ## Tests
 

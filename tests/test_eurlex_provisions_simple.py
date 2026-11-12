@@ -9,11 +9,11 @@ import yaml
 
 from eurlex_enrichment.enrichment import build
 from eurlex_provision.evidence import Evidence
-from eurlex_provision.profile import NONE, choices, company_profile, system_prompt
+from eurlex_provision.profile import NO_MATCH, NONE, choices, company_profile, system_prompt
 from eurlex_provision.quality import (ENDS_MID_SENTENCE, IMAGE_ONLY, NO_TEXT, PDF_PAGE_TABLE, REFERENCE_ONLY,
                                       STARTS_MID_SENTENCE, TABLE_OF_CONTENTS, assess)
-from eurlex_provision.simple import (SCORE_TASK, TARGET_CHARS, ContextLimitError, ModelError,
-                                     TargetScreeningError, build_pack, number_passages, request_pack,
+from eurlex_provision.simple import (REPLY_FIELDS, SCORE_TASK, TARGET_CHARS, ContextLimitError, ModelError,
+                                     TargetScreeningError, build_pack, derive, number_passages, request_pack,
                                      reply_schema, screen, size, split_target, split_text, target_text,
                                      validate_decision)
 from lr_ai.qwen_client import ChatResult
@@ -30,16 +30,21 @@ REVIEW_PROMPT = (ROOT / "prompts/eurlex_provision_ignore_review.md").read_text(e
 SYSTEM = system_prompt(PROMPT, REVIEW_PROMPT, PROFILE)
 
 
+ANCHOR = "construction_materials_production"
+ANSWERS = {
+    "DIRECT": {"company_role": "plant_operator"},
+    "UNSURE": {"company_role": "plant_operator", "open_question": "Is the plant above 50 MW?"},
+    "INDIRECT": {"indirect_path": "suppliers_prices"},
+    "IGNORE": {"content": "FORMAL", "topic": NO_MATCH},
+}
+
+
 def reply(level="DIRECT", **changes):
-    relevant = level != "IGNORE"
-    value = {
-        "effect": "Operators must keep records.", "target_passage": "P1",
-        "ignore_reason": NONE if relevant else "FORMAL", "negative_anchor": NONE,
-        "anchors": ["construction_materials_production"] if relevant else [],
-        "indirect_path": "suppliers_prices" if level == "INDIRECT" else NONE,
-        "level": level, "reason": "Fixture reason.", "open_points": [],
-    }
-    return {**value, **changes}
+    """Answers that lead to the given level."""
+    value = {"actor": "operators of plants", "subject": "keeping of records", "target_passage": "P1",
+             "content": "RULE", "topic": ANCHOR, "other_anchors": [], "company_role": NONE,
+             "indirect_path": NONE, "open_question": "", "reason": "Fixture reason."}
+    return {**value, **ANSWERS[level], **changes}
 
 
 def chat_result(value, **usage):
@@ -143,9 +148,13 @@ class ProfileTests(unittest.TestCase):
         self.assertNotIn("celex", SYSTEM.casefold())
 
     def test_choices_come_from_the_catalog(self):
-        self.assertEqual(len(OPTIONS["anchors"]), len(CATALOG["anchors"]))
-        self.assertEqual(OPTIONS["negative_anchors"][:2], [NONE, "not_roles"])
+        self.assertEqual(OPTIONS["anchors"], list(CATALOG["anchors"]))
+        self.assertEqual(OPTIONS["topics"], [NO_MATCH, *CATALOG["anchors"], *CATALOG["negative_anchors"]])
+        self.assertEqual(OPTIONS["roles"], [NONE, *CATALOG["roles"]])
         self.assertEqual(OPTIONS["indirect_paths"], [NONE, *CATALOG["indirect_paths"]])
+        clash = {**CATALOG, "negative_anchors": {"site_safety": {"label": "x", "text": "y"}}}
+        with self.assertRaisesRegex(ValueError, "share IDs"):
+            choices(company_profile(clash))
 
     def test_incomplete_catalog_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "negative_anchors"):
@@ -225,51 +234,70 @@ class PassageAndSplitTests(unittest.TestCase):
 class DecisionRuleTests(unittest.TestCase):
     PASSAGES = {"P1": "Operators shall keep records."}
 
-    def test_levels_and_export_fields(self):
-        for level in ("DIRECT", "INDIRECT", "IGNORE"):
+    def test_level_follows_from_the_answers(self):
+        cases = (
+            (dict(company_role="importer"), ("DIRECT", "ROLE")),
+            (dict(company_role="importer", open_question="Does it import this itself?"), ("UNSURE", "OPEN_QUESTION")),
+            (dict(indirect_path="purchased_products"), ("INDIRECT", "PATH")),
+            (dict(), ("IGNORE", "NO_PATH")),
+            (dict(open_question="Is it registered?"), ("UNSURE", "OPEN_QUESTION")),
+            (dict(content="FORMAL", company_role="employer"), ("IGNORE", "FORMAL")),
+            # A negative anchor as topic removes the target whatever role was named next to it.
+            (dict(topic="food_feed", company_role="importer"), ("IGNORE", "OUTSIDE_BUSINESS")),
+            (dict(topic="eu_administration_budget", company_role="employer", indirect_path="market_funding"),
+             ("IGNORE", "OUTSIDE_BUSINESS")),
+            (dict(topic=NO_MATCH), ("IGNORE", "NO_MATCH")),
+            (dict(topic=NO_MATCH, indirect_path="market_funding"), ("UNSURE", "LINK_WITHOUT_TOPIC")),
+        )
+        for changes, expected in cases:
+            with self.subTest(changes=changes):
+                answers = reply("IGNORE", **{"content": "RULE", "topic": ANCHOR, **changes})
+                self.assertEqual(derive(answers, OPTIONS), expected)
+
+    def test_export_fields_and_details(self):
+        for level in ("DIRECT", "INDIRECT", "UNSURE", "IGNORE"):
             with self.subTest(level=level):
                 decision, details = validate_decision(reply(level), self.PASSAGES, OPTIONS)
-                self.assertEqual(decision, {"level": level, "reason": "Fixture reason.",
-                                            "area": [] if level == "IGNORE" else ["construction_materials_production"]})
+                self.assertEqual((decision["level"], decision["area"]),
+                                 (level, [] if level == "IGNORE" else [ANCHOR]))
                 self.assertEqual(details["target_quote"], "Operators shall keep records.")
+                self.assertEqual(details["ignore_reason"], "FORMAL" if level == "IGNORE" else NONE)
+        decision, details = validate_decision(reply("UNSURE"), self.PASSAGES, OPTIONS)
+        self.assertEqual(decision["reason"], "Fixture reason. To check: Is the plant above 50 MW?")
+        decision, details = validate_decision(
+            reply("DIRECT", other_anchors=["site_safety", ANCHOR]), self.PASSAGES, OPTIONS)
+        self.assertEqual(decision["area"], [ANCHOR, "site_safety"])
+        decision, details = validate_decision(reply("IGNORE", content="RULE", topic="statistics",
+                                                    other_anchors=["site_safety"]), self.PASSAGES, OPTIONS)
+        self.assertEqual((decision["area"], details["negative_anchor"], details["ignore_reason"]),
+                         ([], "statistics", "OUTSIDE_BUSINESS"))
 
-    def test_ignore_needs_a_named_reason(self):
-        with self.assertRaisesRegex(ModelError, "IGNORE needs ignore_reason"):
-            validate_decision(reply("IGNORE", ignore_reason=NONE), self.PASSAGES, OPTIONS)
-        with self.assertRaisesRegex(ModelError, "negative anchor"):
-            validate_decision(reply("IGNORE", ignore_reason="OUTSIDE_BUSINESS"), self.PASSAGES, OPTIONS)
-        _, details = validate_decision(
-            reply("IGNORE", ignore_reason="OUTSIDE_BUSINESS", negative_anchor="statistics"), self.PASSAGES, OPTIONS)
-        self.assertEqual((details["ignore_reason"], details["negative_anchor"]), ("OUTSIDE_BUSINESS", "statistics"))
-
-    def test_relevant_levels_need_an_anchor_and_indirect_needs_a_path(self):
+    def test_malformed_replies_are_rejected(self):
         cases = (
-            (reply("DIRECT", anchors=[]), "at least one business anchor"),
-            (reply("INDIRECT", indirect_path=NONE), "indirect_path"),
-            (reply("DIRECT", ignore_reason="FORMAL"), "together with ignore_reason"),
-            (reply("DIRECT", anchors=["invented_anchor"]), "business anchor IDs"),
-            (reply("DIRECT", target_passage="P9"), "target_passage"),
-            (reply("DIRECT", reason=" "), "non-empty reason"),
+            (reply(target_passage="P9"), "target_passage"),
+            (reply(reason=" "), "non-empty reason"),
+            (reply(actor=""), "non-empty actor"),
+            (reply(topic="invented_anchor"), "listed values"),
+            (reply(company_role="astronaut"), "listed values"),
+            (reply(other_anchors=["statistics"]), "other_anchors"),
+            (reply(open_question="x" * 300), "open_question"),
+            ({**reply(), "level": "DIRECT"}, "exactly these fields"),
         )
         for value, message in cases:
             with self.subTest(message=message), self.assertRaisesRegex(ModelError, message):
                 validate_decision(value, self.PASSAGES, OPTIONS)
 
-    def test_fields_that_do_not_apply_are_cleared_not_rejected(self):
-        decision, details = validate_decision(
-            reply("IGNORE", anchors=["site_safety"], indirect_path="suppliers_prices", negative_anchor="statistics"),
-            self.PASSAGES, OPTIONS)
-        self.assertEqual((decision["area"], details["indirect_path"], details["negative_anchor"]), ([], NONE, NONE))
-        _, details = validate_decision(reply("DIRECT", indirect_path="suppliers_prices", open_points=["Kiln?"]),
-                                       self.PASSAGES, OPTIONS)
-        self.assertEqual((details["indirect_path"], details["open_points"]), (NONE, ["Kiln?"]))
-
-    def test_schema_lists_only_catalog_ids_and_marked_passages(self):
-        schema = reply_schema({"P1": "a", "P2": "b"}, OPTIONS)["properties"]
-        self.assertEqual(schema["target_passage"]["enum"], ["P1", "P2"])
-        self.assertIn("statistics", schema["negative_anchor"]["enum"])
-        self.assertEqual(schema["anchors"]["items"]["enum"], OPTIONS["anchors"])
-        self.assertLess(list(schema).index("ignore_reason"), list(schema).index("level"))
+    def test_schema_has_no_level_and_asks_actor_and_subject_first(self):
+        schema = reply_schema({"P1": "a", "P2": "b"}, OPTIONS)
+        fields = schema["properties"]
+        self.assertEqual(list(fields), list(REPLY_FIELDS))
+        self.assertEqual(schema["required"], list(REPLY_FIELDS))
+        self.assertNotIn("level", fields)
+        self.assertEqual(list(fields)[:2], ["actor", "subject"])
+        self.assertEqual(fields["target_passage"]["enum"], ["P1", "P2"])
+        self.assertIn("statistics", fields["topic"]["enum"])
+        self.assertIn(ANCHOR, fields["topic"]["enum"])
+        self.assertNotIn("statistics", fields["other_anchors"]["items"]["enum"])
 
 
 class RequestLayoutTests(unittest.TestCase):
@@ -287,25 +315,40 @@ class RequestLayoutTests(unittest.TestCase):
         self.assertEqual(task1, SCORE_TASK)
         self.assertIn("Confirmation pass", task2)
         self.assertIn("FORMAL", task2)
+        self.assertIn('"actor": "operators of plants"', task2)
         self.assertNotIn("business_anchors", evidence1)
         first_user = client.chat.call_args_list[0].args[0][1]["content"]
         second_user = client.chat.call_args_list[1].args[0][1]["content"]
         shared = len(first_user) - len(SCORE_TASK)
         self.assertEqual(first_user[:shared], second_user[:shared])
-        self.assertFalse(client.chat.call_args.kwargs["thinking"])
+        options = client.chat.call_args.kwargs
+        self.assertEqual((options["thinking"], options["sampling"], options["max_tokens"]),
+                         (False, {"temperature": 0}, 1024))
+
+    def test_thinking_uses_the_client_defaults_and_more_output_room(self):
+        answer = chat_result(reply("DIRECT"))
+        answer.reasoning = "The actor is the operator."
+        client = client_with(answer)
+        _, audit = screen(client, SYSTEM, PROFILE, pack_for(self.PROVISION), thinking=True)
+        options = client.chat.call_args.kwargs
+        self.assertTrue(options["thinking"])
+        self.assertNotIn("sampling", options)
+        self.assertEqual(options["max_tokens"], 4096)
+        self.assertEqual(audit["parts"][0]["thinking"], "The actor is the operator.")
+        self.assertEqual(client.chat.call_args.args[0][0]["content"], SYSTEM)
 
     def test_correction_is_appended_after_the_task(self):
-        client = client_with(reply("IGNORE", ignore_reason=NONE), reply("DIRECT"))
+        client = client_with(reply("IGNORE", target_passage="P9"), reply("DIRECT"))
         decision, audit = screen(client, SYSTEM, PROFILE, pack_for(self.PROVISION))
         self.assertEqual(decision["level"], "DIRECT")
         first, second = (call.args[0] for call in client.chat.call_args_list)
         self.assertEqual(second[0]["content"], SYSTEM)
         self.assertTrue(second[1]["content"].startswith(first[1]["content"]))
         self.assertIn("CORRECTION", second[1]["content"])
-        self.assertIn("IGNORE needs ignore_reason", audit["parts"][0]["rejected_reply"]["error"])
+        self.assertIn("target_passage", audit["parts"][0]["rejected_reply"]["error"])
 
     def test_two_invalid_replies_fail_only_this_target(self):
-        client = client_with(reply("DIRECT", anchors=[]), reply("DIRECT", anchors=[]))
+        client = client_with(reply(target_passage="P9"), reply(target_passage="P9"))
         with self.assertRaises(TargetScreeningError) as caught:
             screen(client, SYSTEM, PROFILE, pack_for(self.PROVISION))
         self.assertEqual(len(caught.exception.attempts), 2)
@@ -423,7 +466,7 @@ class RunnerTests(unittest.TestCase):
         (export / "indirect.json").write_text("{}", encoding="utf-8")
 
     def args(self, **changes):
-        values = dict(mode="pilot", celex=None, target=None, targets_file=None, prepare_only=False,
+        values = dict(mode="pilot", celex=None, target=None, targets_file=None, prepare_only=False, thinking="off",
                       enriched_dir=self.root / "enriched", manifest=self.root / "manifest.json",
                       anchors=ROOT / "config/business_anchors_en.yaml", document_run=self.root / "document_run",
                       supplements=None, env_file=self.root / ".env", output_dir=self.root / "out")
@@ -440,7 +483,7 @@ class RunnerTests(unittest.TestCase):
             if "addressed to the Member States" in text:
                 return chat_result(reply("IGNORE"), prompt_tokens=12000,
                                    prompt_tokens_details={"cached_tokens": 11000})
-            return chat_result(reply("DIRECT", anchors=["industrial_emissions"]), prompt_tokens=12000)
+            return chat_result(reply("DIRECT", topic="industrial_emissions"), prompt_tokens=12000)
 
         client.chat.side_effect = chat
         return client
@@ -460,6 +503,10 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(summary["not_assessable"], {"REFERENCE_ONLY": 1, "PDF_PAGE_TABLE": 1})
         self.assertEqual(summary["counts"], {"DIRECT": 3, "IGNORE": 1})
         self.assertEqual(summary["ignore_reasons"], {"FORMAL": 1})
+        self.assertEqual(summary["decision_basis"], {"ROLE": 3, "FORMAL": 1})
+        self.assertEqual(summary["company_roles"], {"plant_operator": 3})
+        self.assertEqual(summary["topics"], {"industrial_emissions": 3, NO_MATCH: 1})
+        self.assertEqual(summary["targets_kept"], 3)
         self.assertEqual(summary["ignore_reviews"], {"confirmed": 1, "changed": 0, "pending": 0})
         self.assertEqual(summary["input_warnings"], {"STARTS_MID_SENTENCE": 1})
         self.assertEqual(summary["targets_with_incomplete_text"][0]["target"], "Article 4")
@@ -473,6 +520,7 @@ class RunnerTests(unittest.TestCase):
         results = json.loads((out / "relevance_export/results.json").read_text(encoding="utf-8"))
         self.assertEqual(set(results[CELEX]), {"Article 1", "Article 3", "Article 4", "Annex I"})
         self.assertEqual(results[CELEX]["Article 3"], {"level": "IGNORE", "reason": "Fixture reason.", "area": []})
+        self.assertEqual(results[CELEX]["Article 1"]["area"], ["industrial_emissions"])
 
         systems = {call.args[0][0]["content"] for call in client.chat.call_args_list}
         config = json.loads((out / "audit/run_config.json").read_text(encoding="utf-8"))
@@ -492,14 +540,16 @@ class RunnerTests(unittest.TestCase):
     def test_act_with_only_ignored_provisions_is_listed_for_document_review(self):
         client = self.fake_client()
         client.chat.side_effect = lambda messages, **options: chat_result(
-            reply("IGNORE", ignore_reason="OUTSIDE_BUSINESS", negative_anchor="statistics"))
+            reply("IGNORE", content="RULE", topic="statistics", company_role="large_undertaking"))
         _, summary, _ = self.run_with(client)
         self.assertEqual(summary["acts_all_ignore"], [CELEX])
         self.assertEqual(summary["negative_anchors"], {"statistics": 4})
+        self.assertEqual(summary["ignore_reasons"], {"OUTSIDE_BUSINESS": 4})
+        self.assertEqual(summary["targets_kept"], 0)
 
     def test_changed_review_exports_the_confirmed_level(self):
         client = self.fake_client()
-        answers = iter([reply("IGNORE", ignore_reason="NO_PATH"), reply("INDIRECT")])
+        answers = iter([reply("IGNORE", content="RULE", topic=ANCHOR), reply("INDIRECT")])
         client.chat.side_effect = lambda messages, **options: chat_result(next(answers))
         _, summary, out = self.run_with(client, celex=[CELEX], target=["Article 3"])
         self.assertEqual(summary["ignore_reviews"]["changed"], 1)
@@ -526,7 +576,7 @@ class RunnerTests(unittest.TestCase):
 
     def test_failed_target_is_reported_and_retried(self):
         client = self.fake_client()
-        client.chat.side_effect = lambda messages, **options: chat_result(reply("DIRECT", anchors=[]))
+        client.chat.side_effect = lambda messages, **options: chat_result(reply(target_passage="P99"))
         failed, summary, _ = self.run_with(client, celex=[CELEX], target=["Article 1"])
         self.assertTrue(failed)
         self.assertEqual((summary["targets_failed"], summary["targets_exported"]), (1, 0))
@@ -545,7 +595,7 @@ class RunnerTests(unittest.TestCase):
         summary = json.loads((output / "run_summary.json").read_text(encoding="utf-8"))
         self.assertEqual((summary["targets_exported"], summary["targets_not_assessable"],
                           summary["targets_pending"], summary["targets_failed"]), (4, 2, 0, 0))
-        self.assertEqual(summary["counts"], {"DIRECT": 3, "IGNORE": 1, "INDIRECT": 0})
+        self.assertEqual(summary["counts"], {"DIRECT": 3, "IGNORE": 1, "INDIRECT": 0, "UNSURE": 0})
         self.assertEqual(summary["not_assessable"], {"REFERENCE_ONLY": 1, "PDF_PAGE_TABLE": 1})
         self.assertEqual(summary["ignore_reasons"], {"FORMAL": 1})
         self.assertEqual(summary["requests"]["count"], 5)
@@ -554,12 +604,54 @@ class RunnerTests(unittest.TestCase):
         results = json.loads((output / "relevance_export/results.json").read_text(encoding="utf-8"))
         self.assertEqual(len(results[CELEX]), 4)
 
+    def test_unsure_is_kept_with_its_question_and_thinking_is_passed_on(self):
+        client = self.fake_client()
+        client.chat.side_effect = lambda messages, **options: chat_result(reply("UNSURE"))
+        _, summary, out = self.run_with(client, celex=[CELEX], target=["Article 1"], thinking="on")
+        self.assertEqual((summary["counts"], summary["targets_kept"]), ({"UNSURE": 1}, 1))
+        self.assertEqual(summary["decision_basis"], {"OPEN_QUESTION": 1})
+        results = json.loads((out / "relevance_export/results.json").read_text(encoding="utf-8"))
+        self.assertTrue(results[CELEX]["Article 1"]["reason"].endswith("To check: Is the plant above 50 MW?"))
+        self.assertTrue(client.chat.call_args.kwargs["thinking"])
+        config = json.loads((out / "audit/run_config.json").read_text(encoding="utf-8"))
+        self.assertEqual((config["thinking"], config["document_hint"]), (True, True))
+        with self.assertRaisesRegex(ValueError, "Run inputs changed"):
+            self.run_with(client, celex=[CELEX], target=["Article 1"], thinking="off")
+
+    def test_run_without_document_hint(self):
+        client = self.fake_client()
+        _, _, out = self.run_with(client, celex=[CELEX], target=["Article 1"], document_run=None)
+        _, evidence, _ = sent_parts(client.chat.call_args)
+        self.assertNotIn("document_screening", evidence["act"])
+        config = json.loads((out / "audit/run_config.json").read_text(encoding="utf-8"))
+        self.assertFalse(config["document_hint"])
+
     def test_prepare_only_saves_packs_without_a_model(self):
         with patch.object(runner.QwenClient, "from_env", side_effect=AssertionError("no model call expected")):
             runner.run(self.args(prepare_only=True))
         summary = json.loads((self.root / "out/audit/run_summary.json").read_text(encoding="utf-8"))
         self.assertEqual((summary["counts"], summary["targets_not_assessable"]), ({"PREPARED": 6}, 2))
         self.assertFalse((self.root / "out/relevance_export").exists())
+
+
+class LabelComparisonTests(unittest.TestCase):
+    def test_unsure_counts_as_kept_and_removed_relevant_rows_are_counted(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "tools"))
+        import compare_provision_labels as tool
+
+        labels = [{"id": str(n), "label": label, "celex": "A", "target": f"Article {n}"}
+                  for n, label in enumerate(("DIRECT", "IGNORE", "INDIRECT", "IGNORE", "UNSURE", "INDIRECT"), 1)]
+        decisions = {("A", f"Article {n}"): {"level": level, "reason": "r", "answers": {"actor": "operators"}}
+                     for n, level in enumerate(("UNSURE", "UNSURE", "IGNORE", "IGNORE", "DIRECT"), 1)}
+        table, summary = tool.compare(labels, decisions, {("A", "Article 6"): "REFERENCE_ONLY"})
+        self.assertEqual([row["Outcome"] for row in table], [
+            "kept, to check", "kept but labelled IGNORE", "REMOVED but labelled relevant", "same",
+            "no usable label", "not assessable (REFERENCE_ONLY)"])
+        self.assertEqual((summary["removed"], summary["removed_but_labelled_relevant"],
+                          summary["kept"], summary["kept_but_labelled_ignore"]), (2, 1, 2, 1))
+        self.assertEqual(table[0]["actor"], "operators")
+        self.assertIn("UNSURE", tool.report(summary))
 
 
 class CorpusRunnerTests(unittest.TestCase):

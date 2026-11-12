@@ -18,8 +18,10 @@ import csv
 import json
 from pathlib import Path
 
-LEVELS = ("DIRECT", "INDIRECT", "IGNORE")
+LEVELS = ("DIRECT", "INDIRECT", "IGNORE")              # labels in the workbook
+QWEN_LEVELS = ("DIRECT", "INDIRECT", "UNSURE", "IGNORE")  # UNSURE is kept for the department
 COLUMNS = ("Review ID", "Your label", "CELEX", "Provision")
+ANSWERS = ("basis", "actor", "subject", "topic", "company_role", "indirect_path", "open_question")
 
 
 def read_json(path):
@@ -45,16 +47,27 @@ def read_labels(path):
     return rows
 
 
-def read_run(folder):
-    """Return ({(celex, target): decision}, {(celex, target): code}) for one run folder."""
+def read_run(folder, with_answers=False):
+    """Return ({(celex, target): decision}, {(celex, target): code}) for one run folder.
+
+    With with_answers, each decision of a single run also carries Qwen's answers from its audit file.
+    """
     results = read_json(folder / "relevance_export" / "results.json")
-    decisions = {(celex, target): decision for celex, targets in results.items()
+    decisions = {(celex, target): dict(decision) for celex, targets in results.items()
                  for target, decision in targets.items()}
     skipped = []
+    summary_file = folder / "audit" / "run_summary.json"
     if (folder / "not_assessable.json").is_file():
         skipped = read_json(folder / "not_assessable.json")
-    elif (folder / "audit" / "run_summary.json").is_file():
-        skipped = read_json(folder / "audit" / "run_summary.json").get("not_assessable_targets", [])
+    elif summary_file.is_file():
+        summary = read_json(summary_file)
+        skipped = summary.get("not_assessable_targets", [])
+        if with_answers:
+            for row in summary.get("results", []):
+                key = (row["celex"], row["target"])
+                audit = folder / row["file"]
+                if key in decisions and audit.is_file():
+                    decisions[key]["answers"] = read_json(audit).get("details", {})
     return decisions, {(row["celex"], row["target"]): row["code"] for row in skipped}
 
 
@@ -82,10 +95,12 @@ def compare(labels, decisions, skipped=None, baseline=None):
             elif label == "IGNORE":
                 outcome = "kept but labelled IGNORE"
             else:
-                outcome = "relevant in both, level differs"
+                outcome = "kept, to check" if level == "UNSURE" else "relevant in both, level differs"
+        answers = (decision or {}).get("answers", {})
         table.append({"Review ID": row["id"], "CELEX": row["celex"], "Provision": row["target"],
                       "Label": label, "Qwen": level or "", "Outcome": outcome,
                       "Earlier run": (baseline.get(key) or {}).get("level", ""),
+                      **{name: answers.get(name, "") for name in ANSWERS},
                       "Qwen reason": decision["reason"] if decision else ""})
 
     scored = sum(matrix.values())
@@ -105,7 +120,7 @@ def compare(labels, decisions, skipped=None, baseline=None):
         "kept": kept,
         "kept_but_labelled_ignore": sum(count for (label, level), count in matrix.items()
                                         if level != "IGNORE" and label == "IGNORE"),
-        "matrix": {label: {level: matrix[label, level] for level in LEVELS} for label in LEVELS},
+        "matrix": {label: {level: matrix[label, level] for level in QWEN_LEVELS} for label in LEVELS},
     }
     return table, summary
 
@@ -126,10 +141,11 @@ def report(summary):
         f"Same relevant-or-ignore decision:      {share(summary['same_relevant_or_ignore'], summary['scored'])}",
         f"Same exact label:                      {share(summary['same_label'], summary['scored'])}",
         "",
-        f"{'Label / Qwen':14}" + "".join(f"{level:>10}" for level in LEVELS),
+        f"{'Label / Qwen':14}" + "".join(f"{level:>10}" for level in QWEN_LEVELS),
     ]
     for label in LEVELS:
-        lines.append(f"{label:14}" + "".join(f"{summary['matrix'][label][level]:>10}" for level in LEVELS))
+        lines.append(f"{label:14}" + "".join(f"{summary['matrix'][label].get(level, 0):>10}"
+                                             for level in QWEN_LEVELS))
     return "\n".join(lines)
 
 
@@ -142,7 +158,7 @@ def main():
     args = parser.parse_args()
     try:
         labels = read_labels(args.labels)
-        decisions, skipped = read_run(args.run)
+        decisions, skipped = read_run(args.run, with_answers=True)
         baseline = read_run(args.baseline)[0] if args.baseline else None
     except (OSError, ValueError, KeyError) as exc:
         raise SystemExit(f"Comparison stopped: {exc}") from exc

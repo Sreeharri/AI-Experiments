@@ -12,8 +12,9 @@ from eurlex_provision import evidence as evidence_module
 from eurlex_provision.evidence import TARGET_KINDS
 from eurlex_provision.profile import company_profile, system_prompt
 from eurlex_provision.quality import WARNING_TEXT, assess
-from eurlex_provision.screening import LEVELS, ModelError
-from eurlex_provision.simple import DECISION_FIELDS, TargetScreeningError, build_pack, screen, target_text
+from eurlex_provision.screening import ModelError
+from eurlex_provision.simple import (DECISION_FIELDS, KEPT_LEVELS, LEVELS, TargetScreeningError, build_pack,
+                                     screen, target_text)
 from lr_ai.qwen_client import QwenClient
 from screen_eurlex_provisions import ROOT, load_supplements, sha
 
@@ -75,6 +76,8 @@ def arguments():
                         help="Business anchor catalog (roles, negative anchors and anchors)")
     parser.add_argument("--document-run", type=Path,
                         help="Document relevance run folder. Adds each act's document decision as context.")
+    parser.add_argument("--thinking", choices=("on", "off"), default="off",
+                        help="Let Qwen think before it answers. Slower; use it to compare on a small sample.")
     parser.add_argument("--supplements", type=Path)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     parser.add_argument("--output-dir", type=Path)
@@ -204,7 +207,7 @@ def run(args):
     if (getattr(args, "celex", None) or getattr(args, "targets_file", None)) and args.output_dir is None:
         raise ValueError("Set --output-dir for a subset run.")
     out = args.output_dir or ROOT / "runs" / (
-        f"eurlex_provisions_{args.mode}_v2" + ("_prepared" if args.prepare_only else "")
+f"eurlex_provisions_{args.mode}_v3" + ("_prepared" if args.prepare_only else "")
     )
     out.mkdir(parents=True, exist_ok=True)
     lock = out / ".running"
@@ -226,6 +229,7 @@ def request_totals(saved):
 def summarise(targets, checkpoints, client, error):
     completed, failures, skipped, warned = [], [], [], []
     reviews, warnings, ignore_reasons, negatives, paths = Counter(), Counter(), Counter(), Counter(), Counter()
+    roles, bases, topics = Counter(), Counter(), Counter()
     by_act = defaultdict(lambda: {"planned": 0, "done": 0, "levels": Counter(), "failed": 0})
     requests = []
     for item, path, entry in targets:
@@ -256,12 +260,16 @@ def summarise(targets, checkpoints, client, error):
             act["done"] += 1
             act["levels"][saved["level"]] += 1
             details = saved.get("details", {})
+            bases[details.get("basis", "UNKNOWN")] += 1
+            topics[details.get("topic", "UNKNOWN")] += 1
             if saved["level"] == "IGNORE":
                 ignore_reasons[details.get("ignore_reason", "UNKNOWN")] += 1
                 if details.get("negative_anchor", "NONE") != "NONE":
                     negatives[details["negative_anchor"]] += 1
             elif saved["level"] == "INDIRECT":
                 paths[details.get("indirect_path", "UNKNOWN")] += 1
+            elif details.get("company_role", "NONE") != "NONE":
+                roles[details["company_role"]] += 1
     counts = Counter(row.get("level", "PREPARED") for row in completed)
     cached = [request["cached_tokens"] for request in requests if request.get("cached_tokens") is not None]
     summary = {
@@ -271,8 +279,11 @@ def summarise(targets, checkpoints, client, error):
         "counts": dict(counts), "error": error,
         "not_assessable": dict(Counter(row["code"] for row in skipped)),
         "input_warnings": dict(warnings),
+        "targets_kept": sum(counts[level] for level in KEPT_LEVELS),
+        "decision_basis": dict(bases),
         "ignore_reasons": dict(ignore_reasons), "negative_anchors": dict(negatives),
-        "indirect_paths": dict(paths),
+        "indirect_paths": dict(paths), "company_roles": dict(roles),
+        "topics": dict(topics.most_common()),
         "ignore_reviews": {status: reviews[status] for status in ("confirmed", "changed", "pending")},
         # Acts in which every classified provision was ignored: candidates for a document-level recheck.
         "acts_all_ignore": sorted(
@@ -300,13 +311,17 @@ def run_packs(args, out, packs, system, profile, not_found=()):
 
     audit = out / "audit"
     model = client.model if client else None
+    thinking = getattr(args, "thinking", "off") == "on"
     fingerprint = sha({"packs": packs, "model": model, "prepare_only": args.prepare_only, "system": system,
+                       "thinking": thinking,
                        "code": [(ROOT / name).read_text(encoding="utf-8") for name in CODE_FILES],
                        "runner": Path(__file__).read_text(encoding="utf-8")})
     run_file = audit / "run_config.json"
     if run_file.exists() and read_json(run_file)["fingerprint"] != fingerprint:
         raise ValueError("Run inputs changed. Choose a new --output-dir.")
-    write_json(run_file, {"fingerprint": fingerprint, "model": model, "system_prompt": system})
+    write_json(run_file, {"fingerprint": fingerprint, "model": model, "thinking": thinking,
+                          "document_hint": any(entry["document_screening"] for entry in packs),
+                          "system_prompt": system})
     targets = []
     checkpoints = {}
     for entry in packs:
@@ -338,7 +353,7 @@ def run_packs(args, out, packs, system, profile, not_found=()):
                 saved["not_assessable"] = {**entry["not_assessable"], "text": text[:300]}
             elif client:
                 print(f"[{index}/{len(targets)}] {label}", flush=True)
-                context = {"act_context": entry["document_screening"],
+                context = {"act_context": entry["document_screening"], "thinking": thinking,
                            "warnings": [WARNING_TEXT[code] for code in entry["input_warnings"]]}
                 try:
                     if "ignore_review" in previous:

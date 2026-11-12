@@ -4,21 +4,34 @@ The request is laid out for vLLM prefix caching: the system message is the
 same for every request of a run, the user message holds the target evidence,
 and the task line comes last. A confirmation request therefore repeats the
 first request up to its task line.
+
+The model does not choose a level. It names the actor and the subject of the
+target, the catalog entry that describes the subject, and the company role or
+indirect path that connects them to Max Bögl. derive() works out the level
+from those answers, so a level cannot contradict the answers it rests on.
 """
 
 import json
 import re
 
 from .evidence import norm
-from .profile import NONE, choices
-from .screening import LEVELS, ModelError
+from .profile import NO_MATCH, NONE, choices
+from .screening import ModelError
 
 
 DECISION_FIELDS = ("level", "reason", "area")
-REPLY_FIELDS = ("effect", "target_passage", "ignore_reason", "negative_anchor", "anchors",
-                "indirect_path", "level", "reason", "open_points")
-IGNORE_REASONS = ("FORMAL", "OUTSIDE_BUSINESS", "NO_PATH")
-LEVEL_PRIORITY = {"DIRECT": 2, "INDIRECT": 1, "IGNORE": 0}
+# UNSURE: the target would apply to a Max Bögl role, but only if a company fact
+# that the profile does not hold is true. It is kept for the department.
+LEVELS = ("DIRECT", "INDIRECT", "UNSURE", "IGNORE")
+KEPT_LEVELS = LEVELS[:3]
+REPLY_FIELDS = ("actor", "subject", "target_passage", "content", "topic", "other_anchors",
+                "company_role", "indirect_path", "open_question", "reason")
+CONTENT = ("RULE", "FORMAL")
+IGNORE_REASONS = ("FORMAL", "OUTSIDE_BUSINESS", "NO_MATCH", "NO_PATH")
+LEVEL_PRIORITY = {"DIRECT": 3, "INDIRECT": 2, "UNSURE": 1, "IGNORE": 0}
+TEXT_LIMITS = {"actor": 160, "subject": 200, "reason": 500}
+QUESTION_CHARS = 200
+THINKING_TOKENS = 4096
 
 # Size limits in characters of JSON text. The target is never shortened: a
 # target above TARGET_CHARS is split into parts that are each classified.
@@ -471,76 +484,82 @@ def request_pack(pack, part, part_label=None, opening=None, act_context=None, wa
 
 
 def reply_schema(passages, options):
+    text = {name: {"type": "string", "minLength": 1, "maxLength": limit} for name, limit in TEXT_LIMITS.items()}
     return {
         "type": "object", "additionalProperties": False, "required": list(REPLY_FIELDS),
         "properties": {
-            "effect": {"type": "string", "minLength": 1, "maxLength": 300},
+            "actor": text["actor"],
+            "subject": text["subject"],
             "target_passage": {"type": "string", "enum": list(passages)},
-            "ignore_reason": {"type": "string", "enum": [NONE, *IGNORE_REASONS]},
-            "negative_anchor": {"type": "string", "enum": options["negative_anchors"]},
-            "anchors": {"type": "array", "maxItems": 3,
-                        "items": {"type": "string", "enum": options["anchors"]}},
+            "content": {"type": "string", "enum": list(CONTENT)},
+            "topic": {"type": "string", "enum": options["topics"]},
+            "other_anchors": {"type": "array", "maxItems": 2,
+                              "items": {"type": "string", "enum": options["anchors"]}},
+            "company_role": {"type": "string", "enum": options["roles"]},
             "indirect_path": {"type": "string", "enum": options["indirect_paths"]},
-            "level": {"type": "string", "enum": list(LEVELS)},
-            "reason": {"type": "string", "minLength": 1, "maxLength": 600},
-            "open_points": {"type": "array", "maxItems": 3,
-                            "items": {"type": "string", "maxLength": 200}},
+            "open_question": {"type": "string", "maxLength": QUESTION_CHARS},
+            "reason": text["reason"],
         },
     }
 
 
+def derive(reply, options):
+    """Work out (level, basis) from the model's answers."""
+    topic, role, path = reply["topic"], reply["company_role"], reply["indirect_path"]
+    question = reply["open_question"].strip()
+    if reply["content"] == "FORMAL":
+        return "IGNORE", "FORMAL"
+    if topic in options["negative_anchors"]:
+        return "IGNORE", "OUTSIDE_BUSINESS"
+    if topic == NO_MATCH:
+        # A link was named although no catalog entry describes the subject: keep it for a person to check.
+        return ("UNSURE", "LINK_WITHOUT_TOPIC") if role != NONE or path != NONE else ("IGNORE", "NO_MATCH")
+    if role != NONE:
+        return ("UNSURE", "OPEN_QUESTION") if question else ("DIRECT", "ROLE")
+    if path != NONE:
+        return "INDIRECT", "PATH"
+    return ("UNSURE", "OPEN_QUESTION") if question else ("IGNORE", "NO_PATH")
+
+
 def validate_decision(reply, passages, options):
-    """Check that the fields agree with each other. The level itself is never changed."""
+    """Check the reply's form and derive the level. Returns (decision, details)."""
     if not isinstance(reply, dict) or set(reply) != set(REPLY_FIELDS):
         raise ModelError("Return exactly these fields: " + ", ".join(REPLY_FIELDS) + ".")
-    level, reason, effect = reply["level"], reply["reason"], reply["effect"]
-    if level not in LEVELS:
-        raise ModelError("Expected level DIRECT, INDIRECT or IGNORE.")
-    for name, value, limit in (("reason", reason, 600), ("effect", effect, 300)):
-        if not isinstance(value, str) or not 0 < len(value.strip()) <= limit:
+    for name, limit in TEXT_LIMITS.items():
+        if not isinstance(reply[name], str) or not 0 < len(reply[name].strip()) <= limit:
             raise ModelError(f"Expected a non-empty {name} of at most {limit} characters.")
     passage = reply["target_passage"]
     if not isinstance(passage, str) or passage not in passages:
         raise ModelError("Select a target_passage ID that is marked in the target.")
-    ignore_reason, negative, path = reply["ignore_reason"], reply["negative_anchor"], reply["indirect_path"]
-    anchors, open_points = reply["anchors"], reply["open_points"]
-    if (ignore_reason not in (NONE, *IGNORE_REASONS) or negative not in options["negative_anchors"]
-            or path not in options["indirect_paths"]):
-        raise ModelError("Use the listed values for ignore_reason, negative_anchor and indirect_path.")
-    if (not isinstance(anchors, list) or len(anchors) > 3
-            or any(anchor not in options["anchors"] for anchor in anchors)):
-        raise ModelError("Select up to three business anchor IDs from the company profile.")
-    if (not isinstance(open_points, list) or len(open_points) > 3
-            or any(not isinstance(item, str) or len(item) > 200 for item in open_points)):
-        raise ModelError("open_points holds up to three short strings.")
+    if (reply["content"] not in CONTENT or reply["topic"] not in options["topics"]
+            or reply["company_role"] not in options["roles"]
+            or reply["indirect_path"] not in options["indirect_paths"]):
+        raise ModelError("Use the listed values for content, topic, company_role and indirect_path.")
+    others, question = reply["other_anchors"], reply["open_question"]
+    if (not isinstance(others, list) or len(others) > 2
+            or any(anchor not in options["anchors"] for anchor in others)):
+        raise ModelError("other_anchors holds up to two business anchor IDs from the company profile.")
+    if not isinstance(question, str) or len(question) > QUESTION_CHARS:
+        raise ModelError(f"open_question is a string of at most {QUESTION_CHARS} characters.")
 
-    if level == "IGNORE":
-        if ignore_reason == NONE:
-            raise ModelError("IGNORE needs ignore_reason FORMAL, OUTSIDE_BUSINESS or NO_PATH. "
-                             "If none of them applies, the target is DIRECT or INDIRECT.")
-        if ignore_reason == "OUTSIDE_BUSINESS" and negative == NONE:
-            raise ModelError("OUTSIDE_BUSINESS needs the negative anchor it rests on, or not_roles.")
-        anchors, path = [], NONE
-        if ignore_reason != "OUTSIDE_BUSINESS":
-            negative = NONE
-    else:
-        if ignore_reason != NONE:
-            raise ModelError(f"The reply gives level {level} together with ignore_reason {ignore_reason}. "
-                             "Return IGNORE, or set ignore_reason to NONE.")
-        if not anchors:
-            raise ModelError("Select at least one business anchor for DIRECT or INDIRECT.")
-        if level == "INDIRECT" and path == NONE:
-            raise ModelError("INDIRECT needs the indirect_path that links the target to Max Bögl.")
-        negative = NONE
-        if level == "DIRECT":
-            path = NONE
-    anchors = list(dict.fromkeys(anchors))
+    level, basis = derive(reply, options)
+    topic, question, reason = reply["topic"], question.strip(), reply["reason"].strip()
+    kept = level != "IGNORE"
+    area = []
+    if kept:
+        area = list(dict.fromkeys([*([topic] if topic in options["anchors"] else []), *others]))
+        if level == "UNSURE" and question:
+            reason = f"{reason} To check: {question}"
     details = {
-        "effect": effect.strip(), "target_passage": passage, "target_quote": passages[passage],
-        "ignore_reason": ignore_reason, "negative_anchor": negative, "indirect_path": path,
-        "anchors": anchors, "open_points": [item.strip() for item in open_points if item.strip()],
+        "actor": reply["actor"].strip(), "subject": reply["subject"].strip(),
+        "target_passage": passage, "target_quote": passages[passage],
+        "content": reply["content"], "topic": topic,
+        "company_role": reply["company_role"], "indirect_path": reply["indirect_path"],
+        "open_question": question, "other_anchors": list(dict.fromkeys(others)),
+        "basis": basis, "ignore_reason": NONE if kept else basis,
+        "negative_anchor": topic if topic in options["negative_anchors"] else NONE,
     }
-    return {"level": level, "reason": reason.strip(), "area": anchors}, details
+    return {"level": level, "reason": reason[:700], "area": area}, details
 
 
 def cached_tokens(usage):
@@ -548,7 +567,7 @@ def cached_tokens(usage):
     return details.get("cached_tokens")
 
 
-def score_request(client, system, sent, passages, options, task, log):
+def score_request(client, system, sent, passages, options, task, log, thinking=False):
     """One classification with at most one correction. Returns (decision, audit)."""
     if not passages:
         raise TargetScreeningError("The target has no text available for a passage citation.")
@@ -560,8 +579,13 @@ def score_request(client, system, sent, passages, options, task, log):
     for attempt in range(2):
         if len(log) >= MAX_REQUESTS:
             raise TargetScreeningError("The target reached its request limit.")
-        reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
-                            schema=schema, schema_name="provision_relevance", max_tokens=1024)
+        if thinking:
+            # The client applies its sampling settings for thinking. Thinking text counts as output.
+            reply = client.chat(messages, thinking=True, stream=False, seed=42, schema=schema,
+                                schema_name="provision_relevance", max_tokens=THINKING_TOKENS)
+        else:
+            reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
+                                schema=schema, schema_name="provision_relevance", max_tokens=1024)
         log.append({"seconds": round(getattr(reply, "seconds", 0.0) or 0.0, 3),
                     "prompt_tokens": (reply.usage or {}).get("prompt_tokens"),
                     "cached_tokens": cached_tokens(reply.usage),
@@ -589,6 +613,8 @@ def score_request(client, system, sent, passages, options, task, log):
         else:
             audit = {"finish_reason": reply.finish_reason, "usage": reply.usage,
                      "raw_reply": reply.content, "evidence": details}
+            if getattr(reply, "reasoning", ""):
+                audit["thinking"] = reply.reasoning[:6000]
             if rejected_reply is not None:
                 audit["rejected_reply"] = rejected_reply
             return decision, audit
@@ -596,11 +622,12 @@ def score_request(client, system, sent, passages, options, task, log):
 
 def review_task(first):
     details = first["evidence"]
-    negative = (f" ({details['negative_anchor']})" if details["negative_anchor"] != NONE else "")
-    return ("TASK: Confirmation pass. The first pass returned IGNORE with ignore_reason "
-            f"{details['ignore_reason']}{negative}. Its effect sentence was: {json.dumps(details['effect'], ensure_ascii=False)}. "
+    answers = {name: details[name] for name in ("actor", "subject", "content", "topic", "company_role",
+                                                "indirect_path", "open_question")}
+    return ("TASK: Confirmation pass. The first pass led to IGNORE for the reason "
+            f"{details['ignore_reason']}. Its answers were: {json.dumps(answers, ensure_ascii=False)}. "
             f"Its reason was: {json.dumps(first['decision']['reason'], ensure_ascii=False)}. "
-            "Check this as described under CONFIRMATION PASS and return the JSON object.")
+            "Check these answers as described under CONFIRMATION PASS and return the JSON object.")
 
 
 def prior_part(first, part_id):
@@ -613,7 +640,7 @@ def prior_part(first, part_id):
     return first["parts"][0]
 
 
-def screen(client, system, profile, pack, first=None, act_context=None, warnings=()):
+def screen(client, system, profile, pack, first=None, act_context=None, warnings=(), thinking=False):
     """Classify a target, in parts when it is long.
 
     With `first` (the audit of an initial IGNORE) every part gets the
@@ -632,7 +659,7 @@ def screen(client, system, profile, pack, first=None, act_context=None, warnings
             pack, part, label, opening if label and part_id != "1" else None, act_context, warnings)
         task = review_task(prior_part(first, part_id)) if first else SCORE_TASK
         try:
-            decision, audit = score_request(client, system, sent, passages, options, task, log)
+            decision, audit = score_request(client, system, sent, passages, options, task, log, thinking)
         except ContextLimitError:
             smaller = split_target(part, max(budget // 2, MIN_PART_CHARS))
             if len(smaller) < 2:
@@ -653,7 +680,7 @@ def screen(client, system, profile, pack, first=None, act_context=None, warnings
         relevant = [item["part"] for item in results if item["decision"]["level"] != "IGNORE"]
         lead = (f"Classified in {len(results)} parts; relevant: part {', '.join(relevant)}. " if relevant
                 else f"Classified in {len(results)} parts; none is relevant. ")
-        decision["reason"] = (lead + decision["reason"])[:600]
+        decision["reason"] = (lead + decision["reason"])[:700]
         decision["area"] = list(dict.fromkeys(
             anchor for item in results if item["decision"]["level"] == decision["level"]
             for anchor in item["decision"]["area"]))[:6]
