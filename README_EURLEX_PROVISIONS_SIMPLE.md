@@ -121,6 +121,43 @@ when the manifest's folder holds `relevance_export/direct.json` and
 `indirect.json`; add `--no-document-hint` to leave it out. `--thinking on` and
 `--confirm-thinking on` work here too. Run the same command again to resume.
 
+## Unattended runs (overnight)
+
+```powershell
+& .\.venv\Scripts\python.exe .\run_provisions_overnight.py `
+    --manifest .\runs\eurlex_full_v10\provision_manifest.json --enriched-dir .\output_db_corpus `
+    --no-document-hint --workers 4 --output-dir .\runs\eurlex_provisions_baseline_v3_2
+```
+
+Use `run_provisions_overnight.py` instead of `run_eurlex_provision_corpus.py`,
+with the same options. It keeps the run going:
+
+- **It continues where the run stopped.** Finished batches are skipped at
+  once. Targets that failed (Qwen gave an invalid answer) are not tried again
+  on a restart; the run goes forward first.
+- **A connection error does not end the command.** When Qwen answers right
+  away (one request timed out), it resumes after 15 seconds. When Qwen does
+  not answer, it waits 15 minutes and checks again, then 30, then 45 minutes,
+  and then every 60 minutes until Qwen is back.
+- **Failed targets come last.** When every batch is through, it tries the
+  failed targets once more and writes the final export. Targets that fail
+  again are listed under `failures` in `run_summary.json`. Not-assessable
+  targets are in `not_assessable.json`.
+- One progress line: share done, targets, batch, speed per hour and the
+  expected finish time. Errors and messages still appear above it.
+- Every stop, wait and resume goes to `overnight_log.txt` in the output
+  folder.
+- It stops for problems that waiting cannot fix (changed settings, a
+  `.running` file from another run, errors that are not connection errors)
+  and says why.
+
+The screening code and results are unchanged: finished targets are never
+classified again. Ctrl+C stops it; the same command resumes.
+
+`run_summary.json` and `relevance_export` in the output folder are written by
+the final pass. While batches are still running, the progress line and
+`overnight_log.txt` show the current state.
+
 ## What Qwen receives
 
 ```text
