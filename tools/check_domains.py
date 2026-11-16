@@ -45,8 +45,9 @@ def main():
     if list(a) != list(b):
         problems.append(f'domains: keys or order differ: only DE {sorted(set(a) - set(b))}, '
                         f'only EN {sorted(set(b) - set(a))}')
-    if len(de.get('classification_rules') or []) != len(en.get('classification_rules') or []):
-        problems.append('classification_rules: different number of rules')
+    for section in ('classification_rules', 'routing_hints'):
+        if len(de.get(section) or []) != len(en.get(section) or []):
+            problems.append(f'{section}: different number of entries')
     if list(de.get('fallback') or {}) != list(en.get('fallback') or {}):
         problems.append('fallback: keys differ')
     if de.get('anchor_domain_overrides') != en.get('anchor_domain_overrides'):
@@ -67,10 +68,11 @@ def main():
             for other in re.findall(r'\b[a-z]+(?:_[a-z]+)+\b', str(domain.get('distinguish') or '')):
                 if other not in known:
                     problems.append(f'{name} domains.{key}: boundary names unknown domain {other}')
-        for rule in data.get('classification_rules') or []:
-            for other in re.findall(r'\b[a-z]+(?:_[a-z]+)+\b', rule):
-                if other not in known:
-                    problems.append(f'{name} classification_rules: unknown domain {other}')
+        for section in ('classification_rules', 'routing_hints'):
+            for rule in data.get(section) or []:
+                for other in re.findall(r'\b[a-z]+(?:_[a-z]+)+\b', rule):
+                    if other not in known:
+                        problems.append(f'{name} {section}: unknown domain {other}')
     for key in set(a) & set(b):
         for field in ('nr', 'departments'):
             if a[key].get(field) != b[key].get(field):

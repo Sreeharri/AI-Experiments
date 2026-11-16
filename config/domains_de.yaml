@@ -1,6 +1,6 @@
 # =============================================================================
 # Rechtsbereiche für Legal Radar · Deutsch
-# Version domains-v2 · 16.11.2026
+# Version domains-v3 · 16.11.2026
 #
 # Wozu: Die Klassifizierung ordnet jede relevante Vorschrift einem Rechtsbereich
 # zu. Über den Rechtsbereich findet Legal Radar die zuständigen Abteilungen.
@@ -23,12 +23,17 @@
 #   - Abgrenzungen ergänzt, Überschneidungen aufgelöst (Asbest, Druckgeräte,
 #     Zahlungsverzug, Umwelthaftung, Emissionshandel, KI und Datenrecht)
 #
+# Änderungen in domains-v3 (nach dem ersten Pilotlauf mit 100 Vorschriften):
+#   - routing_hints ergänzt für Themen, die im falschen Rechtsbereich landeten
+#   - communication_media: geistiges Eigentum steht zuerst
+#   - no_fitting_domain: typische Fälle genannt
+#
 # OFFEN - bitte klären:
 #   1. customs_trade: zuständiger Bereich fehlt noch.
 #   2. renewable_energy: In der Excel-Liste stehen 6 Bereiche und 5 Namen.
 #   3. product_safety: Verantwortlicher für Qualitätsmanagement/-sicherung "tbd.".
 # =============================================================================
-version: domains-v2
+version: domains-v3
 language: de
 
 # Regeln für die Zuordnung. Sie gelten für alle Rechtsbereiche.
@@ -52,12 +57,48 @@ classification_rules:
     Passt kein Bereich, lautet die Antwort no_fitting_domain. Es wird kein
     Bereich erzwungen.
 
+# Themen, die im Pilotlauf einem falschen Rechtsbereich zugeordnet wurden. Jede Zeile nennt den richtigen.
+routing_hints:
+  - >-
+    Marken, Designs, Patente, Urheberrecht, Softwarelizenzen und die
+    Durchsetzung von Rechten des geistigen Eigentums gehören zu
+    communication_media.
+  - >-
+    Regeln des Strom- und Gasmarkts, Netzanschlussanforderungen für Erzeuger,
+    Netzkodizes, Integrität des Energiegroßhandels und
+    Energieinfrastrukturkorridore gehören zu renewable_energy, nicht zu
+    energy_sustainability.
+  - >-
+    Emissionshandel (Zertifikate, Zuteilungstabellen, Registerkonten, aus
+    Zertifikaten gespeiste Fonds) und der CO2-Grenzausgleich gehören zu
+    energy_sustainability.
+  - >-
+    Straßenfahrzeuge gehören zu transport_fleet: Typgenehmigung, Geräusch-
+    und Abgasgrenzwerte, Reparatur- und Wartungsinformationen,
+    Hauptuntersuchung, Fahrtenschreiber, Frachtdokumente und -daten, Lade-
+    und Tankinfrastruktur. Mobile Maschinen abseits der Straße gehören zu
+    machinery_safety.
+  - >-
+    Drohnen und unbemannte Luftfahrzeuge gehören zu machinery_safety.
+  - >-
+    Sicherheit und Gesundheitsschutz auf Baustellen (Koordinatoren,
+    Sicherheits- und Gesundheitsschutzplan, Vorankündigung) ist
+    occupational_health_safety, nicht construction_building.
+  - >-
+    Ökodesign, Energieverbrauchskennzeichnung und Umweltzeichen von Produkten
+    gehören zu energy_sustainability.
+
 fallback:
   no_fitting_domain:
     title: Kein passender Rechtsbereich
     scope: >-
-      Der Gegenstand der Vorschrift gehört zu keinem der Rechtsbereiche. Diese
-      Vorschriften werden gesammelt und geprüft, ob ein Rechtsbereich fehlt.
+      Der Gegenstand der Vorschrift gehört zu keinem der Rechtsbereiche.
+      Typische Fälle: Geodaten und Datenmodelle für Karten, Statistik und
+      statistische Klassifikationen, Funkfrequenzen und Regulierung von
+      Telekommunikationsnetzen, Raumfahrt- und Satellitenprogramme,
+      Finanzmarktprodukte wie Anleihen und Bankenregeln, Landwirtschaft und
+      Lebensmittel, EU-Förderprogramme ohne geförderten Gegenstand in den
+      Rechtsbereichen.
 
 domains:
 
@@ -489,11 +530,13 @@ domains:
     nr: 24
     title: Unternehmenskommunikation und Medienrecht
     scope: >-
-      Unternehmenswerbung, unlautere Geschäftspraktiken und irreführende
-      Angaben, Umweltaussagen und Greenwashing-Verbot, Marken und Designs,
-      Urheberrecht an Plänen, Bildern, Publikationen und Software,
-      Softwarelizenzen, Presse- und Äußerungsrecht, Impressumspflichten,
-      digitale Dienste und Plattformpflichten.
+      Geistiges Eigentum: Marken, eingetragene Designs, Patente, Urheberrecht
+      an Plänen, Bildern, Publikationen und Software, Softwarelizenzen,
+      Durchsetzung von Rechten des geistigen Eigentums. Öffentliche Aussagen
+      des Unternehmens: Unternehmenswerbung, unlautere Geschäftspraktiken und
+      irreführende Angaben, Umweltaussagen und Greenwashing-Verbot, Presse-
+      und Äußerungsrecht, Impressumspflichten, digitale Dienste und
+      Plattformpflichten.
     distinguish: >-
       Öffentliche Aussagen und geistiges Eigentum. Inhalt des
       Nachhaltigkeitsberichts ist energy_sustainability. Personenbezogene

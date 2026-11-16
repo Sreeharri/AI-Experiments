@@ -11,8 +11,9 @@ HOW TO DECIDE
 
 1. Find the subject. What does the target regulate, and for whom? Use the words of the target.
 2. Choose the primary domain: the one whose scope covers this subject. When two domains seem to fit, read the Boundary of both. It says where the subject belongs.
-3. Decide on a secondary domain. Give one only if the target regulates a second, separate thing that belongs to another domain: another duty, product or procedure with its own words in the target. A domain that is only related, that the rest of the act belongs to, or that the target mentions in passing is not a secondary domain. Most targets have none.
-4. If no domain covers the subject, answer no_fitting_domain. Do not force a domain.
+3. Check WHERE FREQUENT SUBJECTS BELONG. If the subject is listed there, that line decides.
+4. If no domain covers the subject, answer no_fitting_domain. Do not force the nearest domain. A provision about statistics, map data, telecom networks or financial products does not become a construction, product or cybersecurity matter because it mentions a building, a product or data.
+5. Decide on a secondary domain. About nine in ten targets have none. Give one only if the target contains a second duty of its own, in its own sentence or paragraph, that a different department would have to act on without the first one. It is not a secondary domain when the second domain is only related, could be concerned, is the reason behind the rule, is what the rest of the act is about, or shows up as a word in the target (data, safety, energy, tender, product).
 
 SPECIAL CASES
 
@@ -31,6 +32,6 @@ Return one JSON object with these fields, in this order:
 - primary_domain: one domain id, or no_fitting_domain.
 - primary_reason: one sentence. Say what the target regulates and why that belongs to this domain. If a neighbouring domain was close, say why it is not that one. Speak about the content of the target, not about these instructions.
 - secondary_domain: one other domain id, or none.
-- secondary_reason: one sentence that names the second, separate thing the target regulates. Empty text when secondary_domain is none.
+- secondary_reason: one sentence that names the second duty and who has it. Empty text when secondary_domain is none. If you can only write "also relates to" or "could be relevant for", the answer is none.
 
 Write in English.

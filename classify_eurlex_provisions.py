@@ -48,7 +48,7 @@ from lr_ai.qwen_client import QwenClient  # noqa: E402
 PROMPT = ROOT / "prompts/eurlex_provision_classification.md"
 DEFAULT_RUNS = [ROOT / "runs/eurlex_provisions_baseline_v3_2", ROOT / "runs/eurlex_provisions_repair_v1"]
 DEFAULT_UNSURE = ROOT / "runs/eurlex_unsure_resolved_v1"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v1"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v2"
 TASK = "TASK: Assign this provision to a legal domain. Return the JSON object described in the instructions."
 NO_FIT = "no_fitting_domain"
 NO_SECOND = "none"
@@ -114,6 +114,7 @@ def load_domains(english, german, anchors):
     return {
         "version": en.get("version"), "ids": list(domains), "rules": [squash(rule) for rule in
                                                                       en.get("classification_rules") or []],
+        "hints": [squash(hint) for hint in en.get("routing_hints") or []],
         "english": {key: {"title": squash(d["title"]), "scope": squash(d["scope"]),
                           "distinguish": squash(d.get("distinguish"))} for key, d in domains.items()},
         "fallback": squash(((en.get("fallback") or {}).get(NO_FIT) or {}).get("scope"))
@@ -127,6 +128,8 @@ def load_domains(english, german, anchors):
 def system_prompt(instructions, domains):
     """Instructions, rules, then the domain list. The same text for every request, so it can be cached."""
     rules = "\n".join(f"- {rule}" for rule in domains["rules"])
+    if domains["hints"]:
+        rules += "\n\nWHERE FREQUENT SUBJECTS BELONG\n" + "\n".join(f"- {hint}" for hint in domains["hints"])
     entries = []
     for key, domain in domains["english"].items():
         entry = f"- {key} | {domain['title']}\n  Covers: {domain['scope']}"
@@ -594,7 +597,7 @@ def main():
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
         print("The prompt or the domain files changed since this folder was started. "
-              "Use a new --output-dir, for example runs/eurlex_classification_v2.", file=sys.stderr)
+              "Use a new --output-dir, for example runs/eurlex_classification_v3.", file=sys.stderr)
         return 1
     write_json(config, {"fingerprint": fingerprint, "domain_catalogue": domains["version"],
                         "runs": [str(run) for run in args.runs], "system_prompt": system})

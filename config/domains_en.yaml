@@ -1,6 +1,6 @@
 # =============================================================================
 # Legal domains for Legal Radar · English
-# Version domains-v2 · 16 Nov 2026
+# Version domains-v3 · 16 Nov 2026
 #
 # Purpose: the classification assigns every relevant provision to one legal
 # domain. Through the domain, Legal Radar finds the responsible departments.
@@ -24,12 +24,17 @@
 #   - boundaries added, overlaps resolved (asbestos, pressure equipment, late
 #     payment, environmental liability, emissions trading, AI and data law)
 #
+# Changes in domains-v3 (after the first pilot of 100 provisions):
+#   - routing_hints added for subjects that went to a wrong domain
+#   - communication_media: intellectual property named first
+#   - no_fitting_domain: typical cases listed
+#
 # OPEN - please clarify:
 #   1. customs_trade: the responsible department is still missing.
 #   2. renewable_energy: the Excel list has 6 departments and 5 names.
 #   3. product_safety: person for Qualitätsmanagement/-sicherung is "tbd.".
 # =============================================================================
-version: domains-v2
+version: domains-v3
 language: en
 
 # Rules for the assignment. They apply to all domains.
@@ -52,12 +57,45 @@ classification_rules:
   - >-
     If no domain fits, the answer is no_fitting_domain. No domain is forced.
 
+# Subjects that were assigned to a wrong domain in the pilot. Each line names where they belong.
+routing_hints:
+  - >-
+    Trade marks, designs, patents, copyright, software licences and the
+    enforcement of intellectual property rights belong to communication_media.
+  - >-
+    Electricity and gas market rules, grid connection requirements for
+    generators, network codes, wholesale energy market integrity and energy
+    infrastructure corridors belong to renewable_energy, not to
+    energy_sustainability.
+  - >-
+    Emissions trading (allowances, allocation tables, registry accounts,
+    funds fed by allowances) and the carbon border adjustment mechanism belong
+    to energy_sustainability.
+  - >-
+    Road vehicles belong to transport_fleet: type approval, noise and exhaust
+    limits, repair and maintenance information, roadworthiness, tachographs,
+    freight transport documents and data, recharging and refuelling
+    infrastructure. Non-road mobile machinery belongs to machinery_safety.
+  - >-
+    Drones and unmanned aircraft belong to machinery_safety.
+  - >-
+    Safety and health on construction sites (coordinators, safety and health
+    plan, prior notice) is occupational_health_safety, not
+    construction_building.
+  - >-
+    Ecodesign, energy labelling and environmental labels of products belong
+    to energy_sustainability.
+
 fallback:
   no_fitting_domain:
     title: No fitting legal domain
     scope: >-
-      The subject of the provision belongs to none of the legal domains. These
-      provisions are collected and checked for a missing domain.
+      The subject of the provision belongs to none of the legal domains.
+      Typical cases: spatial data and map data models, statistics and
+      statistical classifications, radio spectrum and telecom network
+      regulation, space and satellite programmes, financial market products
+      such as bonds and banking rules, agriculture and food, EU funding
+      programmes without a funded subject in the domains.
 
 domains:
 
@@ -482,11 +520,13 @@ domains:
     nr: 24
     title: Corporate communication and media law
     scope: >-
-      Corporate advertising, unfair commercial practices and misleading
-      claims, environmental claims and the ban on greenwashing, trade marks
-      and designs, copyright in plans, images, publications and software,
-      software licences, press law, imprint duties, digital services and
-      platform duties.
+      Intellectual property: trade marks, registered designs, patents,
+      copyright in plans, images, publications and software, software
+      licences, enforcement of intellectual property rights. Public
+      statements of the company: corporate advertising, unfair commercial
+      practices and misleading claims, environmental claims and the ban on
+      greenwashing, press law, imprint duties, digital services and platform
+      duties.
     distinguish: >-
       Public statements and intellectual property. The content of the
       sustainability report is energy_sustainability. Personal data are
