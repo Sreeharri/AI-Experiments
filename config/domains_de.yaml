@@ -1,6 +1,6 @@
 # =============================================================================
 # Rechtsbereiche für Legal Radar · Deutsch
-# Version domains-v4 · 16.11.2026
+# Version domains-v5 · 16.11.2026
 #
 # Wozu: Die Klassifizierung ordnet jede relevante Vorschrift einem Rechtsbereich
 # zu. Über den Rechtsbereich findet Legal Radar die zuständigen Abteilungen.
@@ -34,7 +34,7 @@
 #   2. renewable_energy: In der Excel-Liste stehen 6 Bereiche und 5 Namen.
 #   3. product_safety: Verantwortlicher für Qualitätsmanagement/-sicherung "tbd.".
 # =============================================================================
-version: domains-v4
+version: domains-v5
 language: de
 
 # Regeln für die Zuordnung. Sie gelten für alle Rechtsbereiche.
@@ -109,6 +109,12 @@ routing_hints:
   - >-
     Transeuropäische Energieinfrastrukturprojekte, Interkonnektoren und
     Offshore-Netze gehören zu renewable_energy.
+  - >-
+    Elektronische Identifizierung, Vertrauensdienste, digitale Brieftaschen,
+    Cybersicherheitszertifizierung und Regeln für KI-Systeme gehören zu
+    cybersecurity. communication_media betrifft geistiges Eigentum und
+    öffentliche Aussagen des Unternehmens, nicht Telekommunikation,
+    elektronische Kommunikation oder Digitaltechnik.
   - >-
     Kein Bereich passt, die Antwort ist also no_fitting_domain, bei:
     Funkfrequenzen, Telekommunikationsnetzen und Basisstationen, Satelliten

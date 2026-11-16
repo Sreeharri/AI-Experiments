@@ -1,6 +1,6 @@
 # =============================================================================
 # Legal domains for Legal Radar · English
-# Version domains-v4 · 16 Nov 2026
+# Version domains-v5 · 16 Nov 2026
 #
 # Purpose: the classification assigns every relevant provision to one legal
 # domain. Through the domain, Legal Radar finds the responsible departments.
@@ -35,7 +35,7 @@
 #   2. renewable_energy: the Excel list has 6 departments and 5 names.
 #   3. product_safety: person for Qualitätsmanagement/-sicherung is "tbd.".
 # =============================================================================
-version: domains-v4
+version: domains-v5
 language: en
 
 # Rules for the assignment. They apply to all domains.
@@ -107,6 +107,12 @@ routing_hints:
   - >-
     Trans-European energy infrastructure projects, interconnectors and
     offshore grids belong to renewable_energy.
+  - >-
+    Electronic identification, trust services, digital identity wallets,
+    cybersecurity certification and rules on AI systems belong to
+    cybersecurity. communication_media is about intellectual property and
+    the company's public statements; it does not cover telecommunication,
+    electronic communications or digital technology.
   - >-
     No domain fits, so the answer is no_fitting_domain, for: radio spectrum,
     telecom networks and base stations, satellites and space programmes,

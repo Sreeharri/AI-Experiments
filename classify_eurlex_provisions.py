@@ -54,7 +54,7 @@ PROMPT = ROOT / "prompts/eurlex_provision_classification.md"
 ACT_PROMPT = ROOT / "prompts/eurlex_act_domain.md"
 DEFAULT_RUNS = [ROOT / "runs/eurlex_provisions_baseline_v3_2", ROOT / "runs/eurlex_provisions_repair_v1"]
 DEFAULT_UNSURE = ROOT / "runs/eurlex_unsure_resolved_v1"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v4"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v5"
 TASK = "TASK: Assign this provision to a legal domain. Return the JSON object described in the instructions."
 ACT_TASK = "TASK: Assign this legal act to a legal domain. Return the JSON object described in the instructions."
 NO_FIT = "no_fitting_domain"
@@ -783,7 +783,7 @@ def main():
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
         print("The prompt or the domain files changed since this folder was started. "
-              "Use a new --output-dir, for example runs/eurlex_classification_v5.", file=sys.stderr)
+              "Use a new --output-dir, for example runs/eurlex_classification_v6.", file=sys.stderr)
         return 1
     write_json(config, {"fingerprint": fingerprint, "domain_catalogue": domains["version"],
                         "runs": [str(run) for run in args.runs], "system_prompt": system,
