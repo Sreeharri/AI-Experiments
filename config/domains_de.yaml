@@ -1,0 +1,547 @@
+# =============================================================================
+# Rechtsbereiche für Legal Radar · Deutsch
+# Version domains-v2 · 16.11.2026
+#
+# Wozu: Die Klassifizierung ordnet jede relevante Vorschrift einem Rechtsbereich
+# zu. Über den Rechtsbereich findet Legal Radar die zuständigen Abteilungen.
+#
+# Gleiche Schlüssel und gleicher Aufbau wie domains_en.yaml.
+# Wer hier etwas ändert, ändert die englische Datei im selben Schritt und
+# prüft beide mit:  py tools\check_domains.py
+#
+# Aufbau je Rechtsbereich:
+#   nr           Nummer in der Excel-Liste "Rechtsbereiche / Verantwortliche"
+#   title        Name wie in der Excel-Liste
+#   scope        was der Rechtsbereich umfasst
+#   distinguish  Abgrenzung zu ähnlichen Rechtsbereichen (wohin es sonst gehört)
+#   departments  zuständige Bereiche aus der Excel-Liste. Die Namen der
+#                Verantwortlichen stehen nur in der Excel-Liste.
+#
+# Änderungen gegenüber domains-v1:
+#   - neu: customs_trade (Zoll und Außenhandel)
+#   - Titel und Bereiche an die Excel-Liste angeglichen
+#   - Abgrenzungen ergänzt, Überschneidungen aufgelöst (Asbest, Druckgeräte,
+#     Zahlungsverzug, Umwelthaftung, Emissionshandel, KI und Datenrecht)
+#
+# OFFEN - bitte klären:
+#   1. customs_trade: zuständiger Bereich fehlt noch.
+#   2. renewable_energy: In der Excel-Liste stehen 6 Bereiche und 5 Namen.
+#   3. product_safety: Verantwortlicher für Qualitätsmanagement/-sicherung "tbd.".
+# =============================================================================
+version: domains-v2
+language: de
+
+# Regeln für die Zuordnung. Sie gelten für alle Rechtsbereiche.
+classification_rules:
+  - >-
+    Entscheidend ist der Gegenstand der Vorschrift: Was wird geregelt? Nicht
+    entscheidend ist, wie stark Max Bögl betroffen ist.
+  - >-
+    Genau ein Hauptbereich. Ein zweiter Bereich nur, wenn die Vorschrift
+    erkennbar zwei Gegenstände regelt.
+  - >-
+    Passt der Gegenstand zu zwei Bereichen, entscheidet die Abgrenzung
+    (distinguish) der beiden Bereiche.
+  - >-
+    Förderbedingungen und Förderprogramme gehören zum Bereich des geförderten
+    Gegenstands, zum Beispiel Windenergie-Förderung zu renewable_energy.
+  - >-
+    Formale Vorschriften (Inkrafttreten, Aufhebung, Adressaten) erhalten den
+    Bereich, den der Rechtsakt insgesamt regelt.
+  - >-
+    Passt kein Bereich, lautet die Antwort no_fitting_domain. Es wird kein
+    Bereich erzwungen.
+
+fallback:
+  no_fitting_domain:
+    title: Kein passender Rechtsbereich
+    scope: >-
+      Der Gegenstand der Vorschrift gehört zu keinem der Rechtsbereiche. Diese
+      Vorschriften werden gesammelt und geprüft, ob ein Rechtsbereich fehlt.
+
+domains:
+
+  occupational_health_safety:
+    nr: 1
+    title: Arbeitssicherheit und Gesundheitsschutz
+    scope: >-
+      Pflichten des Arbeitgebers zum Schutz der Beschäftigten:
+      Gefährdungsbeurteilung, Unterweisung, Arbeitsstätten, Benutzung
+      persönlicher Schutzausrüstung, Sicherheit auf Baustellen mit
+      Sicherheits- und Gesundheitsschutzplan und Koordinator,
+      Absturzsicherung, Gerüste, Arbeitsplatzgrenzwerte für Gefahrstoffe,
+      Quarzfeinstaub, Asbest, Lärm und Vibrationen, Schutz der Beschäftigten
+      in explosionsgefährdeten Bereichen, Radon am Arbeitsplatz,
+      arbeitsmedizinische Vorsorge und Meldung von Arbeitsunfällen.
+    distinguish: >-
+      Der Schutz der Beschäftigten bei der Arbeit. Bau und CE-Kennzeichnung
+      einer Maschine sowie Benutzung und Prüfung von Arbeitsmitteln sind
+      machinery_safety. Einstufung, Kennzeichnung, Lagerung und Beförderung
+      von Gefahrstoffen sind dangerous_goods. Entsorgung asbesthaltiger
+      Abfälle ist waste_management. Arbeitszeit ist employment_law.
+    departments: [Arbeitssicherheit]
+
+  environmental_protection:
+    nr: 2
+    title: Umweltschutz und Compliance
+    scope: >-
+      Umweltverträglichkeitsprüfung und Genehmigung von Anlagen und
+      Bauvorhaben, Industrieemissionen und beste verfügbare Techniken,
+      Emissionsgrenzwerte und Luftreinhaltung, Staub, Lärm und
+      Erschütterungen aus Baustellen, Werken und Steinbrüchen, Umgebungslärm,
+      Natur- und Artenschutz bei Bauprojekten, Bodenschutz und Altlasten,
+      Umwelthaftung und Sanierungspflichten der Betreiber,
+      Umweltstrafrecht, fluorierte Treibhausgase in Kälte- und Klimaanlagen.
+    distinguish: >-
+      Die Anlage, das Vorhaben und ihre Wirkung auf die Umwelt. Abfall ist
+      waste_management, Wasser ist water_protection. Der Stoff als Produkt
+      ist dangerous_goods. Emissionshandel und CO2-Bepreisung sind
+      energy_sustainability. Geräusch- und Abgaswerte einer Maschine als
+      Produkt sind machinery_safety. Versicherung von Umweltschäden ist
+      insurance_liability.
+    departments: [Umweltmanagement, Nachhaltigkeitsmanagement]
+
+  waste_management:
+    nr: 3
+    title: Abfallwirtschaft
+    scope: >-
+      Abfallhierarchie und Pflichten von Abfallerzeugern und -besitzern,
+      Trennung, Transport, Verwertung und Beseitigung von Bau- und
+      Abbruchabfall, Abfallverzeichnis und Einstufung gefährlicher Abfälle,
+      Nachweisverfahren und Beförderererlaubnis, Bodenaushub, mineralische
+      Ersatzbaustoffe und Recycling-Gesteinskörnungen, Ende der
+      Abfalleigenschaft, Deponiebetrieb und Annahmekriterien, Verbringung von
+      Abfällen, Entsorgung asbesthaltiger Abfälle.
+    distinguish: >-
+      Alles ab dem Zeitpunkt, an dem etwas Abfall ist. Abfälle aus
+      Steinbrüchen und der Rohstoffgewinnung sind geotechnical_mining. Schutz
+      der Beschäftigten beim Rückbau ist occupational_health_safety.
+      Beförderung als Gefahrgut ist dangerous_goods.
+    departments: [Umweltmanagement]
+
+  water_protection:
+    nr: 4
+    title: Gewässerschutz und Abwasser
+    scope: >-
+      Erlaubnisse für Wasserentnahme, Grundwasserabsenkung und
+      Bauwasserhaltung, Einleitung von Bau- und Prozessabwasser,
+      Niederschlagswasser und Baustellenentwässerung, Grundwasserschutz und
+      Wasserschutzgebiete, Bewirtschaftungspläne und Gewässerqualität,
+      Hochwasserrisiko und Bauen in Überschwemmungsgebieten.
+    distinguish: >-
+      Die Benutzung und der Schutz von Gewässern. Lagerung wassergefährdender
+      Stoffe ist dangerous_goods. Die technische Ausführung von Baugruben und
+      Wasserhaltung ist geotechnical_mining.
+    departments: [Umweltmanagement]
+
+  energy_sustainability:
+    nr: 5
+    title: Energie & Nachhaltigkeit
+    scope: >-
+      Gesamtenergieeffizienz von Gebäuden, Energieausweise,
+      Nullemissionsgebäude und Sanierungspflichten, Energieaudits und
+      Energiemanagementsysteme, Energieverbrauch und Abwärme von Werken,
+      Ökodesign und Energieverbrauchskennzeichnung von Produkten,
+      Nachhaltigkeitsberichterstattung und ESRS, EU-Taxonomie,
+      Treibhausgasbilanz, Ökobilanz und Umweltproduktdeklarationen,
+      Emissionshandel für Anlagen und Brennstoffe, Meldepflichten im
+      CO2-Grenzausgleich.
+    distinguish: >-
+      Energieverbrauch, Klimabilanz und Berichte darüber. Erzeugung von Strom
+      aus Wind und Sonne, Netzanschluss und Strommarkt sind renewable_energy.
+      Jahresabschluss ist finance_tax, die Prüfung der Berichte ist
+      internal_audit. Zölle und Zollverfahren bei der Einfuhr sind
+      customs_trade. Sorgfaltspflichten in der Lieferkette sind
+      procurement_supply_chain.
+    departments: [Energiesysteme, Operatives/Strategisches Energiemanagement,
+                  Nachhaltigkeitsmanagement, Konzernrechnungswesen]
+
+  construction_building:
+    nr: 6
+    title: Bau- und Gebäuderecht
+    scope: >-
+      Grundanforderungen an Bauwerke: Standsicherheit, Brandschutz,
+      Nutzungssicherheit, Schallschutz und Dauerhaftigkeit,
+      Tragwerksplanung und Eurocodes für Beton-, Stahl- und Holzbau,
+      Bauprodukte mit Leistungserklärung und CE-Kennzeichnung nach der
+      Bauprodukteverordnung, harmonisierte Normen und Leistungsklassen,
+      Marktüberwachung von Bauprodukten, werkseigene Produktionskontrolle
+      für Zement, Gesteinskörnungen, Beton und Betonfertigteile, Stahlbau,
+      modulares und serielles Bauen, Baugenehmigung und Planungsrecht.
+    distinguish: >-
+      Bauprodukte gehören hierher, nicht zu product_safety. Das Bauwerk als
+      Hochbau; Brücken, Tunnel, Straßen und Bahnstrecken sind
+      infrastructure_civil_engineering. Energieanforderungen an Gebäude sind
+      energy_sustainability. Emissionen eines Baustoffwerks sind
+      environmental_protection. Bauverträge sind contract_commercial.
+    departments: [Recht/Arenen, Technische Dienste Hochbau,
+                  Technische Gebäude Ausrüstung Hochbau,
+                  Planungskoordination Hochbau,
+                  Technische Dienste Infrastruktur, Planung Energietrassen,
+                  Planung Wind, Technische Dienste Wind]
+
+  infrastructure_civil_engineering:
+    nr: 7
+    title: Infrastruktur und Tiefbau
+    scope: >-
+      Planung, Genehmigung und Bau von Brücken, Tunneln, Straßen und
+      Bahnstrecken, Erd- und Kanalbau, transeuropäische Verkehrsnetze,
+      Sicherheitsmanagement der Straßeninfrastruktur,
+      Sicherheitsanforderungen für Straßentunnel, Bahninfrastruktur mit
+      fester Fahrbahn und Oberleitung, technische Spezifikationen für die
+      Interoperabilität, Prüfung und Erhaltung bestehender Brücken,
+      Leitungsbau und Mitnutzung von Infrastruktur für Breitbandnetze.
+    distinguish: >-
+      Verkehrswege und Ingenieurbauwerke. Gebäude sind
+      construction_building. Baugrund, Baugruben und Tunnelvortrieb als
+      geotechnische Aufgabe sind geotechnical_mining. Betrieb von Fahrzeugen
+      und Zügen ist transport_fleet.
+    departments: [Technische Dienste Infrastruktur, Infrastruktur Süd]
+
+  geotechnical_mining:
+    nr: 8
+    title: Geotechnik und Bergbauvorschriften
+    scope: >-
+      Baugrunduntersuchung, Bodenmechanik, Gründungen und
+      Böschungsstandsicherheit, Baugruben und Wasserhaltung, Tunnelvortrieb
+      und Untertagebau, Steinbrüche und Gewinnung von Sand, Kies und
+      Naturstein, Bergbauberechtigungen, geologische Erkundung,
+      Rekultivierung von Abbaustätten, Abfälle aus der mineralgewinnenden
+      Industrie.
+    distinguish: >-
+      Der Baugrund und die Rohstoffgewinnung. Erwerb, Lagerung und Verwendung
+      von Sprengstoff sind dangerous_goods. Staub und Lärm eines Steinbruchs
+      sind environmental_protection. Erlaubnisse für Wasserentnahme sind
+      water_protection.
+    departments: [Geotechnik und Grundbau, Geologie und Geotechnik]
+
+  product_safety:
+    nr: 9
+    title: Produktsicherheit und technische Normen
+    scope: >-
+      Konformitätsbewertung, notifizierte Stellen und CE-Kennzeichnung
+      geregelter Produkte außer Bauprodukten und Maschinen: elektrische
+      Betriebsmittel, elektromagnetische Verträglichkeit, Geräte für
+      explosionsgefährdete Bereiche, Druckgeräte und Druckbehälter, Aufzüge
+      und Seilbahnen einschließlich ihres Betriebs und ihrer Prüfung,
+      Messgeräte, Herstellung persönlicher Schutzausrüstung, allgemeine
+      Produktsicherheit, Marktüberwachung und Rückrufe.
+    distinguish: >-
+      Nicht Bauprodukte - die gehören zu construction_building. Nicht
+      Maschinen, Krane und Baumaschinen - die gehören zu machinery_safety.
+      Chemische Stoffe sind dangerous_goods. Haftung für fehlerhafte Produkte
+      ist insurance_liability. Cybersicherheit vernetzter Produkte ist
+      cybersecurity.
+    departments: [Recht/Arenen, Technische Dienste Hochbau,
+                  Technische Dienste Infrastruktur, Technische Dienste Wind,
+                  IT Automation/Netzwerk, Energiesysteme,
+                  Qualitätsmanagement/-sicherung]
+
+  machinery_safety:
+    nr: 10
+    title: Sicherheit von Maschinen und Industrieanlagen
+    scope: >-
+      Sicherheits- und Gesundheitsanforderungen an Konstruktion und
+      Inverkehrbringen von Maschinen, Krane, Hebezeuge, Hubarbeitsbühnen und
+      Erdbaumaschinen, Schutzeinrichtungen und Not-Halt, sichere
+      Bereitstellung, Benutzung und wiederkehrende Prüfung von Arbeitsmitteln,
+      Geräusch- und Abgasemissionen von Baumaschinen im Freien und mobilen
+      Maschinen, Betrieb von Drohnen für Vermessung.
+    distinguish: >-
+      Die Maschine und das Arbeitsmittel. Allgemeine Arbeitgeberpflichten und
+      Grenzwerte für Beschäftigte sind occupational_health_safety.
+      Druckgeräte, Aufzüge und elektrische Betriebsmittel sind
+      product_safety. Lkw und Nutzfahrzeuge im Straßenverkehr sind
+      transport_fleet.
+    departments: [IT Automation/Netzwerk, TuG Geräte, TuG Technischer Service,
+                  TuG Materialtechnologie, TuG Werksinstandhaltung,
+                  TuG Produktionstechnologie]
+
+  transport_fleet:
+    nr: 11
+    title: Transport & Flottenvorgaben
+    scope: >-
+      Fahrtenschreiber, Lenk- und Ruhezeiten, Berufskraftfahrerqualifikation
+      und Kontrollen, Hauptuntersuchung, Zulassung, Typgenehmigung und
+      CO2-Grenzwerte für Nutzfahrzeuge, Maße und Gewichte, Großraum- und
+      Schwerlasttransporte, Maut und Güterkraftverkehrserlaubnis,
+      Schienengüterverkehr und Triebfahrzeugführerschein, Infrastruktur für
+      alternative Kraftstoffe und Laden des Fuhrparks.
+    distinguish: >-
+      Betrieb von Fahrzeugen und Transporten. Beförderung gefährlicher Güter
+      ist dangerous_goods. Bau von Straßen und Bahnstrecken ist
+      infrastructure_civil_engineering. Ladepunkte als Pflicht an Gebäuden
+      sind energy_sustainability. Kfz-Haftpflichtversicherung ist
+      insurance_liability. Baumaschinen abseits der Straße sind
+      machinery_safety.
+    departments: [TuG Logistik, TuG Flottenmanagement,
+                  TuG Multimodale Logistik]
+
+  dangerous_goods:
+    nr: 12
+    title: Gefahrgut und gefährliche Stoffe
+    scope: >-
+      Beförderung gefährlicher Güter auf Straße und Schiene mit Einstufung,
+      Verpackung, Kennzeichnung und Beförderungspapieren, Registrierung,
+      Zulassung und Beschränkung chemischer Stoffe und Sicherheitsdatenblätter,
+      Einstufung, Kennzeichnung und Verpackung von Stoffen und Gemischen,
+      Lagerung und Abfüllung von Gefahrstoffen auf Baustellen und in Werken,
+      Störfallvorsorge, Erwerb, Lagerung und Verwendung von Explosivstoffen
+      für zivile Zwecke.
+    distinguish: >-
+      Der Stoff als Produkt, seine Lagerung und Beförderung. Grenzwerte und
+      Schutz der Beschäftigten beim Umgang, auch mit Asbest, sind
+      occupational_health_safety. Genehmigung und Emissionen der Anlage sind
+      environmental_protection. Einstufung und Entsorgung von Abfall sind
+      waste_management.
+    departments: [TuG Logistik, TuG Materialtechnologie, Arbeitssicherheit,
+                  Umweltmanagement]
+
+  public_procurement:
+    nr: 13
+    title: Öffentliches Beschaffungswesen und Ausschreibungen
+    scope: >-
+      Vergabe öffentlicher Bau-, Liefer- und Dienstleistungsaufträge und
+      Konzessionen, Schwellenwerte, Vergabeverfahren, Eignungsprüfung,
+      Ausschlussgründe und Zuschlagskriterien, ungewöhnlich niedrige
+      Angebote, Rahmenvereinbarungen und elektronische Vergabe,
+      Nachprüfungsverfahren, Meldepflichten für drittstaatliche Subventionen
+      im Vergabeverfahren.
+    distinguish: >-
+      Das Verfahren bis zum Zuschlag. Der Vertrag nach dem Zuschlag ist
+      contract_commercial. Sorgfaltspflichten gegenüber Lieferanten sind
+      procurement_supply_chain. Kartellrecht und Korruptionsprävention sind
+      corporate_compliance.
+    departments: [Einkauf, Technische Dienste Hochbau,
+                  Technische Dienste Infrastruktur, Technische Dienste Wind]
+
+  procurement_supply_chain:
+    nr: 14
+    title: Lieferantenmanagement
+    scope: >-
+      Sorgfaltspflichten für Menschenrechte und Umwelt in der eigenen
+      Geschäftstätigkeit und der Lieferkette, Lieferantenaudits und
+      Verhaltenskodizes, verantwortungsvolle Rohstoffbeschaffung,
+      Konfliktmineralien, entwaldungsfreie Lieferketten, Verbot von Produkten
+      aus Zwangsarbeit, Rückverfolgbarkeit und Sorgfaltserklärungen für
+      eingekaufte Materialien.
+    distinguish: >-
+      Sorgfalt gegenüber Lieferanten und Herkunft der Materialien. Zölle,
+      Zollverfahren und Handelsschutz sind customs_trade. Sanktionen und
+      Exportkontrolle sind corporate_compliance. Das Vergabeverfahren ist
+      public_procurement. Nachhaltigkeitsberichte sind energy_sustainability.
+    departments: [Einkauf, Nachhaltigkeitsmanagement]
+
+  contract_commercial:
+    nr: 15
+    title: Vertrags- und Handelsrecht
+    scope: >-
+      Bau- und Werkverträge, Nachunternehmer, Nachträge und Abnahme,
+      Zahlungsbedingungen und Zahlungsverzug im Geschäftsverkehr,
+      Sicherheitseinbehalt und Bürgschaften, Gewährleistung und
+      Mängelansprüche, Vertragsstrafen und Streitbeilegung, Handelsvertreter-
+      und Vertriebsverträge, grenzüberschreitende Geschäfte,
+      Gesellschaftsrecht und Umstrukturierung.
+    distinguish: >-
+      Rechte und Pflichten aus Verträgen und das Gesellschaftsrecht. Haftung
+      gegenüber Dritten und Versicherung sind insurance_liability. Das
+      Vergabeverfahren ist public_procurement. Arbeitsverträge sind
+      employment_law. Rechnungslegung und Steuern sind finance_tax.
+    departments: [Recht/Arenen, Gesellschaftsrecht]
+
+  insurance_liability:
+    nr: 16
+    title: Versicherungen und Haftung
+    scope: >-
+      Haftung für Baumängel, Einsturz und Schäden durch Bauarbeiten,
+      Produkthaftung für fehlerhafte Produkte, Bauleistungs- und
+      Projektversicherung, Betriebs- und Berufshaftpflicht,
+      Pflichtversicherungen, Kfz-Haftpflichtversicherung für den Fuhrpark,
+      gesetzliche Unfallversicherung und Schadenbearbeitung, Versicherung und
+      Deckungsvorsorge für Umweltschäden.
+    distinguish: >-
+      Wer für einen Schaden haftet und wie er versichert ist. Pflichten zur
+      Vermeidung und Sanierung von Umweltschäden sind
+      environmental_protection. Mängelansprüche aus dem Vertrag sind
+      contract_commercial. Sicherheitsanforderungen an Produkte sind
+      product_safety.
+    departments: [Recht/Arenen, Treasury, Gesellschaftsrecht]
+
+  finance_tax:
+    nr: 17
+    title: Finanzen, Rechnungswesen und Steuern
+    scope: >-
+      Umsatzsteuer und Reverse-Charge bei Bauleistungen, Einfuhrumsatzsteuer,
+      Körperschaftsteuer und globale Mindeststeuer, Verrechnungspreise und
+      grenzüberschreitende Besteuerung, Rechnungslegungsstandards, Jahres-
+      und Konzernabschluss und Offenlegungspflichten, elektronische
+      Rechnungsstellung, steuerliche Melde- und Aufzeichnungspflichten,
+      Energie- und Verbrauchsteuern, Lohnsteuer und
+      Sozialversicherungsbeiträge.
+    distinguish: >-
+      Steuern, Abgaben und Rechnungslegung. Die Abschlussprüfung ist
+      internal_audit. Nachhaltigkeitsberichte und Taxonomie sind
+      energy_sustainability. Zölle sind customs_trade. Zahlungsverzug ist
+      contract_commercial. Soziale Sicherheit bei Entsendung ist
+      employment_law. Geldwäscheprävention ist corporate_compliance.
+    departments: [Konzernrechnungswesen, Unternehmenscontrolling]
+
+  employment_law:
+    nr: 18
+    title: Personalwesen und Arbeitsrecht
+    scope: >-
+      Arbeitsverträge und transparente Arbeitsbedingungen, Arbeitszeit,
+      Ruhezeiten, Urlaub und Überstunden, Entgelttransparenz und
+      Gleichbehandlung, Entsendung von Arbeitnehmern und soziale Sicherheit
+      bei Einsätzen im Ausland, Leiharbeit und Nachunternehmereinsatz,
+      Mindestlohn im Baugewerbe, Beschäftigung von Arbeitnehmern aus
+      Nicht-EU-Staaten, Elternzeit und Kündigungsschutz, Massenentlassung und
+      Betriebsübergang.
+    distinguish: >-
+      Das einzelne Arbeitsverhältnis. Rechte der Arbeitnehmervertretung sind
+      works_council. Arbeitsschutz ist occupational_health_safety. Lenk- und
+      Ruhezeiten der Fahrer sind transport_fleet. Beschäftigtendaten sind
+      data_protection. Lohnsteuer ist finance_tax.
+    departments: [Personal, Arbeitsrecht]
+
+  works_council:
+    nr: 19
+    title: Mitbestimmung und Betriebsrat
+    scope: >-
+      Rechte des Betriebsrats, Unterrichtung und Anhörung der
+      Arbeitnehmervertretung, Mitbestimmung im Aufsichtsrat, Europäische
+      Betriebsräte, Arbeitnehmerbeteiligung in der Europäischen Gesellschaft,
+      Tarifverträge im Baugewerbe.
+    distinguish: >-
+      Die Vertretung der Beschäftigten und ihre Beteiligungsrechte. Rechte
+      des einzelnen Arbeitnehmers sind employment_law. Bei Massenentlassung
+      und Betriebsübergang ist employment_law der Hauptbereich und
+      works_council der zweite Bereich.
+    departments: [Betriebsrat freigestellt]
+
+  data_protection:
+    nr: 20
+    title: Datenschutz und Privatsphäre
+    scope: >-
+      Verarbeitung personenbezogener Daten von Beschäftigten, Kunden und
+      Geschäftspartnern, Rechte betroffener Personen, Auftragsverarbeitung,
+      Datenschutz-Folgenabschätzung, Verarbeitungsverzeichnis und Meldung von
+      Datenschutzverletzungen, Datenübermittlung in Drittländer, Überwachung
+      am Arbeitsplatz und Videoüberwachung.
+    distinguish: >-
+      Personenbezogene Daten. Sicherheit von Netzen und Systemen ist
+      cybersecurity. Zugang zu Maschinen- und Industriedaten ohne
+      Personenbezug und Pflichten beim Einsatz von KI sind cybersecurity.
+    departments: [Konzerndatenschutz, Werks-Infrastruktur Neumarkt]
+
+  cybersecurity:
+    nr: 21
+    title: Cybersicherheit und Informationssicherheit
+    scope: >-
+      Risikomanagement für Netz- und Informationssysteme, Meldepflichten bei
+      Sicherheitsvorfällen, Sicherheitsanforderungen für wichtige und
+      kritische Einrichtungen und ihre Lieferkette, Sicherheit industrieller
+      Steuerungssysteme, Cyberresilienz vernetzter Produkte, Zugangskontrolle,
+      Verschlüsselung und Notfallwiederherstellung, Pflichten beim Einsatz
+      von KI-Systemen, Zugang zu und Nutzung von Daten vernetzter Maschinen,
+      Wechsel von Cloud-Diensten.
+    distinguish: >-
+      Sicherheit und Regulierung von IT, KI und Maschinendaten.
+      Personenbezogene Daten sind data_protection. Software-Urheberrecht und
+      Lizenzen sind communication_media. Pflichten von Online-Plattformen
+      sind communication_media.
+    departments: [Compliance/Interne Revision (Informationssicherheit),
+                  IT Basis, IT Services, Werks-Infrastruktur Neumarkt]
+
+  corporate_compliance:
+    nr: 22
+    title: Compliance und Corporate Governance
+    scope: >-
+      Korruptionsprävention, Kartell- und Wettbewerbsrecht mit
+      Gruppenfreistellungen, Geldwäscheprävention, Hinweisgeberschutz und
+      interne Meldestellen, allgemeine Verbote aus Wirtschaftssanktionen,
+      Exportkontrolle für Güter mit doppeltem Verwendungszweck,
+      Unternehmensführung und Berichtspflichten der Geschäftsleitung.
+    distinguish: >-
+      Regeltreue des Unternehmens. Zölle und Zollverfahren sind
+      customs_trade. Sorgfaltspflichten in der Lieferkette sind
+      procurement_supply_chain. Internes Kontrollsystem, Risikomanagement
+      und Abschlussprüfung sind internal_audit. Gesellschaftsrecht ist
+      contract_commercial.
+    departments: [Compliance/Interne Revision]
+
+  internal_audit:
+    nr: 23
+    title: Interne Revision und Risikomanagement
+    scope: >-
+      Abschlussprüfung und Unabhängigkeit des Abschlussprüfers, Prüfung der
+      Nachhaltigkeitsberichterstattung, internes Kontrollsystem,
+      Risikomanagementsystem und Risikoberichterstattung, Betrugsprävention
+      im Unternehmen.
+    distinguish: >-
+      Die Prüfung und Kontrolle. Die Aufstellung des Abschlusses ist
+      finance_tax, die Erstellung des Nachhaltigkeitsberichts ist
+      energy_sustainability. Korruption, Kartellrecht und Hinweisgeber sind
+      corporate_compliance.
+    departments: [Compliance/Interne Revision, Qualitätsmanagement]
+
+  communication_media:
+    nr: 24
+    title: Unternehmenskommunikation und Medienrecht
+    scope: >-
+      Unternehmenswerbung, unlautere Geschäftspraktiken und irreführende
+      Angaben, Umweltaussagen und Greenwashing-Verbot, Marken und Designs,
+      Urheberrecht an Plänen, Bildern, Publikationen und Software,
+      Softwarelizenzen, Presse- und Äußerungsrecht, Impressumspflichten,
+      digitale Dienste und Plattformpflichten.
+    distinguish: >-
+      Öffentliche Aussagen und geistiges Eigentum. Inhalt des
+      Nachhaltigkeitsberichts ist energy_sustainability. Personenbezogene
+      Daten sind data_protection. Sicherheit von IT und KI-Pflichten sind
+      cybersecurity.
+    departments: [Corporate Affairs, Public Affairs]
+
+  renewable_energy:
+    nr: 25
+    title: Erneuerbare Energien und Windenergie
+    scope: >-
+      Genehmigung und Beschleunigungsgebiete für Windenergieanlagen und
+      Photovoltaik, Repowering und Rückbau, Ausbauziele, Ausschreibungen und
+      Förderung erneuerbarer Energien, technische Anforderungen an
+      Windenergieanlagen, Netzanschluss und Einspeisung, Pflichten von
+      Stromerzeugern und Speicherbetreibern im Strommarkt, Meldepflichten im
+      Energiegroßhandel, Herkunftsnachweise, Stromabnahmeverträge,
+      Wasserstoff.
+    distinguish: >-
+      Erzeugung und Vermarktung erneuerbarer Energie. Der Turm als Bauwerk und
+      Bauprodukt ist construction_building. Energieverbrauch, Energieaudits
+      und Emissionshandel sind energy_sustainability. Umweltprüfung und
+      Artenschutz als allgemeine Regeln sind environmental_protection.
+    departments: [Produktion Wind, Planung/Montage/Techn. Dienste Wind,
+                  Montage, Technische Dienste Wind, Kfm. Leitung Wind, Energie]
+
+  customs_trade:
+    nr: 26
+    title: Zoll und Außenhandel
+    scope: >-
+      Zollkodex und Zollverfahren, Zollanmeldung und Zollwert, Einreihung von
+      Waren in den Zolltarif, Warenursprung und Präferenzen, Antidumping-,
+      Ausgleichs- und Schutzzölle auf Stahl, Aluminium, Zement, Baustoffe,
+      Maschinen und Bauteile, Einfuhrüberwachung, Einfuhr- und
+      Ausfuhrbeschränkungen für Industrieerzeugnisse, Zollkontingente.
+    distinguish: >-
+      Abgaben und Verfahren beim Überschreiten der EU-Grenze.
+      Einfuhrumsatzsteuer ist finance_tax. Sanktionen und Exportkontrolle für
+      Güter mit doppeltem Verwendungszweck sind corporate_compliance.
+      Meldepflichten im CO2-Grenzausgleich sind energy_sustainability.
+      Sorgfaltspflichten für eingeführte Rohstoffe sind
+      procurement_supply_chain.
+    departments: []
+
+# Die Anker-Dateien nennen je Geschäftsbereich einen Rechtsbereich (Feld
+# "domain"). Diese Liste ersetzt einzelne Einträge, ohne die Anker-Dateien zu
+# ändern. "null" bedeutet: kein fester Rechtsbereich, es gilt die Regel für
+# Förderprogramme.
+anchor_domain_overrides:
+  imports_trade_defence: customs_trade
+  funding_investment: null

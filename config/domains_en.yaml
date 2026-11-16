@@ -1,0 +1,538 @@
+# =============================================================================
+# Legal domains for Legal Radar · English
+# Version domains-v2 · 16 Nov 2026
+#
+# Purpose: the classification assigns every relevant provision to one legal
+# domain. Through the domain, Legal Radar finds the responsible departments.
+#
+# Same keys and same structure as domains_de.yaml.
+# Whoever changes this file changes the German file in the same step and
+# checks both with:  py tools\check_domains.py
+#
+# Fields per domain:
+#   nr           number in the Excel list "Rechtsbereiche / Verantwortliche"
+#   title        English name of the domain
+#   scope        what the domain covers
+#   distinguish  boundary to similar domains (where it belongs instead)
+#   departments  responsible departments from the Excel list (German names).
+#                The names of the responsible persons are only in the Excel
+#                list.
+#
+# Changes from domains-v1:
+#   - new: customs_trade (customs and foreign trade)
+#   - titles and departments aligned with the Excel list
+#   - boundaries added, overlaps resolved (asbestos, pressure equipment, late
+#     payment, environmental liability, emissions trading, AI and data law)
+#
+# OPEN - please clarify:
+#   1. customs_trade: the responsible department is still missing.
+#   2. renewable_energy: the Excel list has 6 departments and 5 names.
+#   3. product_safety: person for Qualitätsmanagement/-sicherung is "tbd.".
+# =============================================================================
+version: domains-v2
+language: en
+
+# Rules for the assignment. They apply to all domains.
+classification_rules:
+  - >-
+    What decides is the subject of the provision: what does it regulate? How
+    strongly Max Bögl is affected does not decide.
+  - >-
+    Exactly one main domain. A second domain only if the provision clearly
+    regulates two subjects.
+  - >-
+    If the subject fits two domains, the boundary (distinguish) of the two
+    domains decides.
+  - >-
+    Funding conditions and funding programmes belong to the domain of what is
+    funded, for example wind energy support to renewable_energy.
+  - >-
+    Formal provisions (entry into force, repeal, addressees) get the domain
+    that the act as a whole regulates.
+  - >-
+    If no domain fits, the answer is no_fitting_domain. No domain is forced.
+
+fallback:
+  no_fitting_domain:
+    title: No fitting legal domain
+    scope: >-
+      The subject of the provision belongs to none of the legal domains. These
+      provisions are collected and checked for a missing domain.
+
+domains:
+
+  occupational_health_safety:
+    nr: 1
+    title: Occupational safety and health
+    scope: >-
+      Employer duties to protect workers: risk assessment, instruction,
+      workplaces, use of personal protective equipment, safety on construction
+      sites with safety and health plan and coordinator, fall protection,
+      scaffolding, occupational exposure limits for hazardous substances,
+      respirable crystalline silica, asbestos, noise and vibration, protection
+      of workers in explosive atmospheres, radon at workplaces, occupational
+      health surveillance and reporting of occupational accidents.
+    distinguish: >-
+      The protection of workers at work. Design and CE marking of a machine
+      and the use and inspection of work equipment are machinery_safety.
+      Classification, labelling, storage and transport of hazardous substances
+      are dangerous_goods. Disposal of asbestos-containing waste is
+      waste_management. Working time is employment_law.
+    departments: [Arbeitssicherheit]
+
+  environmental_protection:
+    nr: 2
+    title: Environmental protection and compliance
+    scope: >-
+      Environmental impact assessment and permitting of installations and
+      construction projects, industrial emissions and best available
+      techniques, emission limit values and air quality, dust, noise and
+      vibration from sites, plants and quarries, environmental noise, nature
+      and species protection in construction projects, soil protection and
+      contaminated land, environmental liability and remediation duties of
+      operators, environmental criminal law, fluorinated greenhouse gases in
+      refrigeration and air-conditioning equipment.
+    distinguish: >-
+      The installation, the project and their effect on the environment.
+      Waste is waste_management, water is water_protection. The substance as
+      a product is dangerous_goods. Emissions trading and carbon pricing are
+      energy_sustainability. Noise and exhaust values of a machine as a
+      product are machinery_safety. Insurance of environmental damage is
+      insurance_liability.
+    departments: [Umweltmanagement, Nachhaltigkeitsmanagement]
+
+  waste_management:
+    nr: 3
+    title: Waste management
+    scope: >-
+      Waste hierarchy and duties of waste producers and holders, separation,
+      transport, recovery and disposal of construction and demolition waste,
+      list of waste and classification of hazardous waste, record-keeping and
+      carrier permits, excavated soil, secondary construction materials and
+      recycled aggregates, end-of-waste status, landfill operation and
+      acceptance criteria, shipments of waste, disposal of asbestos-containing
+      waste.
+    distinguish: >-
+      Everything from the moment something is waste. Waste from quarries and
+      raw material extraction is geotechnical_mining. Protection of workers
+      during demolition is occupational_health_safety. Carriage as dangerous
+      goods is dangerous_goods.
+    departments: [Umweltmanagement]
+
+  water_protection:
+    nr: 4
+    title: Water protection and wastewater
+    scope: >-
+      Permits for water abstraction, groundwater lowering and construction
+      dewatering, discharge of construction and process wastewater,
+      stormwater and site drainage, groundwater protection and water
+      protection areas, management plans and water quality, flood risk and
+      building in flood areas.
+    distinguish: >-
+      The use and protection of waters. Storage of substances hazardous to
+      water is dangerous_goods. The technical execution of excavations and
+      dewatering is geotechnical_mining.
+    departments: [Umweltmanagement]
+
+  energy_sustainability:
+    nr: 5
+    title: Energy and sustainability
+    scope: >-
+      Energy performance of buildings, energy performance certificates,
+      zero-emission buildings and renovation obligations, energy audits and
+      energy management systems, energy consumption and waste heat of plants,
+      ecodesign and energy labelling of products, sustainability reporting
+      and ESRS, EU taxonomy, greenhouse gas accounting, life-cycle assessment
+      and environmental product declarations, emissions trading for
+      installations and fuels, reporting duties under the carbon border
+      adjustment mechanism.
+    distinguish: >-
+      Energy consumption, climate footprint and reports on them. Generation
+      of electricity from wind and sun, grid connection and the electricity
+      market are renewable_energy. Annual accounts are finance_tax, the audit
+      of the reports is internal_audit. Customs duties and customs procedures
+      on import are customs_trade. Supply chain due diligence is
+      procurement_supply_chain.
+    departments: [Energiesysteme, Operatives/Strategisches Energiemanagement,
+                  Nachhaltigkeitsmanagement, Konzernrechnungswesen]
+
+  construction_building:
+    nr: 6
+    title: Construction and building law
+    scope: >-
+      Basic requirements for construction works: mechanical resistance and
+      stability, fire safety, safety in use, noise protection and durability,
+      structural design and Eurocodes for concrete, steel and timber,
+      construction products with declaration of performance and CE marking
+      under the Construction Products Regulation, harmonised standards and
+      performance classes, market surveillance of construction products,
+      factory production control for cement, aggregates, concrete and precast
+      concrete elements, steel construction, modular and serial construction,
+      building permits and planning law.
+    distinguish: >-
+      Construction products belong here, not to product_safety. The structure
+      as a building; bridges, tunnels, roads and railway lines are
+      infrastructure_civil_engineering. Energy requirements for buildings are
+      energy_sustainability. Emissions of a construction material plant are
+      environmental_protection. Construction contracts are
+      contract_commercial.
+    departments: [Recht/Arenen, Technische Dienste Hochbau,
+                  Technische Gebäude Ausrüstung Hochbau,
+                  Planungskoordination Hochbau,
+                  Technische Dienste Infrastruktur, Planung Energietrassen,
+                  Planung Wind, Technische Dienste Wind]
+
+  infrastructure_civil_engineering:
+    nr: 7
+    title: Infrastructure and civil engineering
+    scope: >-
+      Planning, permitting and construction of bridges, tunnels, roads and
+      railway lines, earthworks and sewer construction, trans-European
+      transport networks, road infrastructure safety management, safety
+      requirements for road tunnels, railway infrastructure with slab track
+      and overhead line, technical specifications for interoperability,
+      inspection and maintenance of existing bridges, utility construction
+      and shared use of infrastructure for broadband networks.
+    distinguish: >-
+      Transport routes and engineering structures. Buildings are
+      construction_building. Ground, excavations and tunnel driving as a
+      geotechnical task are geotechnical_mining. Operation of vehicles and
+      trains is transport_fleet.
+    departments: [Technische Dienste Infrastruktur, Infrastruktur Süd]
+
+  geotechnical_mining:
+    nr: 8
+    title: Geotechnics and mining rules
+    scope: >-
+      Ground investigation, soil mechanics, foundations and slope stability,
+      excavations and dewatering, tunnel driving and underground
+      construction, quarries and extraction of sand, gravel and natural
+      stone, mining rights, geological exploration, restoration of extraction
+      sites, waste from extractive industries.
+    distinguish: >-
+      The ground and raw material extraction. Acquisition, storage and use of
+      explosives are dangerous_goods. Dust and noise of a quarry are
+      environmental_protection. Permits for water abstraction are
+      water_protection.
+    departments: [Geotechnik und Grundbau, Geologie und Geotechnik]
+
+  product_safety:
+    nr: 9
+    title: Product safety and technical standards
+    scope: >-
+      Conformity assessment, notified bodies and CE marking of regulated
+      products other than construction products and machinery: electrical
+      equipment, electromagnetic compatibility, equipment for potentially
+      explosive atmospheres, pressure equipment and pressure vessels, lifts
+      and cableways including their operation and inspection, measuring
+      instruments, manufacture of personal protective equipment, general
+      product safety, market surveillance and recalls.
+    distinguish: >-
+      Not construction products - they belong to construction_building. Not
+      machinery, cranes and construction machinery - they belong to
+      machinery_safety. Chemical substances are dangerous_goods. Liability
+      for defective products is insurance_liability. Cybersecurity of
+      connected products is cybersecurity.
+    departments: [Recht/Arenen, Technische Dienste Hochbau,
+                  Technische Dienste Infrastruktur, Technische Dienste Wind,
+                  IT Automation/Netzwerk, Energiesysteme,
+                  Qualitätsmanagement/-sicherung]
+
+  machinery_safety:
+    nr: 10
+    title: Safety of machinery and industrial installations
+    scope: >-
+      Safety and health requirements for the design and placing on the market
+      of machinery, cranes, hoists, mobile elevating work platforms and
+      earth-moving machinery, guards and emergency stop, safe provision, use
+      and periodic inspection of work equipment, noise and exhaust emissions
+      of outdoor construction machinery and non-road mobile machinery,
+      operation of drones for surveying.
+    distinguish: >-
+      The machine and the work equipment. General employer duties and limit
+      values for workers are occupational_health_safety. Pressure equipment,
+      lifts and electrical equipment are product_safety. Lorries and
+      commercial vehicles in road traffic are transport_fleet.
+    departments: [IT Automation/Netzwerk, TuG Geräte, TuG Technischer Service,
+                  TuG Materialtechnologie, TuG Werksinstandhaltung,
+                  TuG Produktionstechnologie]
+
+  transport_fleet:
+    nr: 11
+    title: Transport and fleet rules
+    scope: >-
+      Tachographs, driving times and rest periods, professional driver
+      qualification and checks, roadworthiness tests, registration, type
+      approval and CO2 limits for commercial vehicles, weights and
+      dimensions, abnormal and heavy loads, tolls and road haulage licences,
+      rail freight and train driver licences, infrastructure for alternative
+      fuels and charging of the fleet.
+    distinguish: >-
+      Operation of vehicles and transports. Carriage of dangerous goods is
+      dangerous_goods. Construction of roads and railway lines is
+      infrastructure_civil_engineering. Charging points as a duty at
+      buildings are energy_sustainability. Motor insurance is
+      insurance_liability. Off-road construction machinery is
+      machinery_safety.
+    departments: [TuG Logistik, TuG Flottenmanagement,
+                  TuG Multimodale Logistik]
+
+  dangerous_goods:
+    nr: 12
+    title: Dangerous goods and hazardous substances
+    scope: >-
+      Carriage of dangerous goods by road and rail with classification,
+      packaging, marking and transport documents, registration, authorisation
+      and restriction of chemical substances and safety data sheets,
+      classification, labelling and packaging of substances and mixtures,
+      storage and filling of hazardous substances on sites and in plants,
+      major-accident prevention, acquisition, storage and use of explosives
+      for civil uses.
+    distinguish: >-
+      The substance as a product, its storage and its carriage. Limit values
+      and protection of workers when handling substances, including asbestos,
+      are occupational_health_safety. Permit and emissions of the
+      installation are environmental_protection. Classification and disposal
+      of waste are waste_management.
+    departments: [TuG Logistik, TuG Materialtechnologie, Arbeitssicherheit,
+                  Umweltmanagement]
+
+  public_procurement:
+    nr: 13
+    title: Public procurement and tenders
+    scope: >-
+      Award of public works, supply and service contracts and concessions,
+      thresholds, award procedures, selection, exclusion grounds and award
+      criteria, abnormally low tenders, framework agreements and
+      e-procurement, review procedures, notification duties for foreign
+      subsidies in award procedures.
+    distinguish: >-
+      The procedure up to the award. The contract after the award is
+      contract_commercial. Due diligence towards suppliers is
+      procurement_supply_chain. Competition law and anti-corruption are
+      corporate_compliance.
+    departments: [Einkauf, Technische Dienste Hochbau,
+                  Technische Dienste Infrastruktur, Technische Dienste Wind]
+
+  procurement_supply_chain:
+    nr: 14
+    title: Supplier management
+    scope: >-
+      Due diligence for human rights and the environment in own operations
+      and the supply chain, supplier audits and codes of conduct, responsible
+      sourcing of raw materials, conflict minerals, deforestation-free supply
+      chains, ban on products made with forced labour, traceability and due
+      diligence statements for purchased materials.
+    distinguish: >-
+      Care towards suppliers and the origin of materials. Customs duties,
+      customs procedures and trade defence are customs_trade. Sanctions and
+      export control are corporate_compliance. The award procedure is
+      public_procurement. Sustainability reports are energy_sustainability.
+    departments: [Einkauf, Nachhaltigkeitsmanagement]
+
+  contract_commercial:
+    nr: 15
+    title: Contract and commercial law
+    scope: >-
+      Construction and works contracts, subcontractors, variations and
+      acceptance, payment terms and late payment in commercial transactions,
+      retention and guarantees, warranty and claims for defects, contractual
+      penalties and dispute resolution, commercial agency and distribution
+      contracts, cross-border transactions, company law and restructuring.
+    distinguish: >-
+      Rights and duties from contracts, and company law. Liability towards
+      third parties and insurance are insurance_liability. The award
+      procedure is public_procurement. Employment contracts are
+      employment_law. Accounting and tax are finance_tax.
+    departments: [Recht/Arenen, Gesellschaftsrecht]
+
+  insurance_liability:
+    nr: 16
+    title: Insurance and liability
+    scope: >-
+      Liability for construction defects, collapse and damage caused by
+      construction work, product liability for defective products,
+      contractors' all-risks and project insurance, business and professional
+      liability, compulsory insurance, motor insurance for the fleet,
+      statutory accident insurance and claims handling, insurance and
+      financial security for environmental damage.
+    distinguish: >-
+      Who is liable for damage and how it is insured. Duties to prevent and
+      remedy environmental damage are environmental_protection. Claims for
+      defects under the contract are contract_commercial. Safety requirements
+      for products are product_safety.
+    departments: [Recht/Arenen, Treasury, Gesellschaftsrecht]
+
+  finance_tax:
+    nr: 17
+    title: Finance, accounting and tax
+    scope: >-
+      VAT and reverse charge for construction services, import VAT, corporate
+      tax and global minimum tax, transfer pricing and cross-border taxation,
+      accounting standards, annual and consolidated financial statements and
+      disclosure duties, e-invoicing, tax reporting and record-keeping
+      duties, energy and excise taxes, payroll tax and social security
+      contributions.
+    distinguish: >-
+      Taxes, levies and accounting. The statutory audit is internal_audit.
+      Sustainability reports and taxonomy are energy_sustainability. Customs
+      duties are customs_trade. Late payment is contract_commercial. Social
+      security for posted workers is employment_law. Anti-money laundering is
+      corporate_compliance.
+    departments: [Konzernrechnungswesen, Unternehmenscontrolling]
+
+  employment_law:
+    nr: 18
+    title: Human resources and employment law
+    scope: >-
+      Employment contracts and transparent working conditions, working time,
+      rest periods, leave and overtime, pay transparency and equal treatment,
+      posting of workers and social security for assignments abroad,
+      temporary agency work and use of subcontractors, minimum wage in
+      construction, employment of workers from non-EU countries, parental
+      leave and protection against dismissal, collective redundancies and
+      transfers of undertakings.
+    distinguish: >-
+      The individual employment relationship. Rights of employee
+      representatives are works_council. Occupational safety is
+      occupational_health_safety. Driving times and rest periods of drivers
+      are transport_fleet. Employee data are data_protection. Payroll tax is
+      finance_tax.
+    departments: [Personal, Arbeitsrecht]
+
+  works_council:
+    nr: 19
+    title: Co-determination and works council
+    scope: >-
+      Rights of the works council, information and consultation of employee
+      representatives, co-determination on the supervisory board, European
+      Works Councils, employee involvement in the European Company,
+      collective agreements in construction.
+    distinguish: >-
+      The representation of employees and their participation rights. Rights
+      of the individual employee are employment_law. For collective
+      redundancies and transfers of undertakings, employment_law is the main
+      domain and works_council the second domain.
+    departments: [Betriebsrat freigestellt]
+
+  data_protection:
+    nr: 20
+    title: Data protection and privacy
+    scope: >-
+      Processing of personal data of employees, customers and business
+      partners, data subject rights, processors, data protection impact
+      assessment, records of processing and notification of data breaches,
+      transfers to third countries, workplace monitoring and video
+      surveillance.
+    distinguish: >-
+      Personal data. Security of networks and systems is cybersecurity.
+      Access to machine and industrial data without personal reference and
+      duties when using AI are cybersecurity.
+    departments: [Konzerndatenschutz, Werks-Infrastruktur Neumarkt]
+
+  cybersecurity:
+    nr: 21
+    title: Cybersecurity and information security
+    scope: >-
+      Risk management for network and information systems, incident reporting
+      duties, security requirements for important and critical entities and
+      their supply chain, security of industrial control systems, cyber
+      resilience of connected products, access control, encryption and
+      disaster recovery, duties when using AI systems, access to and use of
+      data from connected machinery, switching of cloud services.
+    distinguish: >-
+      Security and regulation of IT, AI and machine data. Personal data are
+      data_protection. Software copyright and licences are
+      communication_media. Duties of online platforms are
+      communication_media.
+    departments: [Compliance/Interne Revision (Informationssicherheit),
+                  IT Basis, IT Services, Werks-Infrastruktur Neumarkt]
+
+  corporate_compliance:
+    nr: 22
+    title: Compliance and corporate governance
+    scope: >-
+      Anti-corruption, antitrust and competition law with block exemptions,
+      anti-money laundering, whistleblower protection and internal reporting
+      channels, general prohibitions from economic sanctions, export control
+      of dual-use items, corporate governance and reporting duties of
+      management.
+    distinguish: >-
+      The company's compliance with rules. Customs duties and customs
+      procedures are customs_trade. Supply chain due diligence is
+      procurement_supply_chain. Internal control system, risk management and
+      statutory audit are internal_audit. Company law is contract_commercial.
+    departments: [Compliance/Interne Revision]
+
+  internal_audit:
+    nr: 23
+    title: Internal audit and risk management
+    scope: >-
+      Statutory audit and auditor independence, assurance of sustainability
+      reporting, internal control system, risk management system and risk
+      reporting, fraud prevention in the company.
+    distinguish: >-
+      Audit and control. Preparing the financial statements is finance_tax,
+      preparing the sustainability report is energy_sustainability.
+      Corruption, competition law and whistleblowers are
+      corporate_compliance.
+    departments: [Compliance/Interne Revision, Qualitätsmanagement]
+
+  communication_media:
+    nr: 24
+    title: Corporate communication and media law
+    scope: >-
+      Corporate advertising, unfair commercial practices and misleading
+      claims, environmental claims and the ban on greenwashing, trade marks
+      and designs, copyright in plans, images, publications and software,
+      software licences, press law, imprint duties, digital services and
+      platform duties.
+    distinguish: >-
+      Public statements and intellectual property. The content of the
+      sustainability report is energy_sustainability. Personal data are
+      data_protection. IT security and AI duties are cybersecurity.
+    departments: [Corporate Affairs, Public Affairs]
+
+  renewable_energy:
+    nr: 25
+    title: Renewable energy and wind energy
+    scope: >-
+      Permitting and acceleration areas for wind turbines and photovoltaics,
+      repowering and dismantling, expansion targets, auctions and support for
+      renewable energy, technical requirements for wind turbines, grid
+      connection and feed-in, duties of electricity producers and storage
+      operators in the electricity market, reporting in wholesale energy
+      markets, guarantees of origin, power purchase agreements, hydrogen.
+    distinguish: >-
+      Generation and marketing of renewable energy. The tower as a structure
+      and construction product is construction_building. Energy consumption,
+      energy audits and emissions trading are energy_sustainability.
+      Environmental assessment and species protection as general rules are
+      environmental_protection.
+    departments: [Produktion Wind, Planung/Montage/Techn. Dienste Wind,
+                  Montage, Technische Dienste Wind, Kfm. Leitung Wind, Energie]
+
+  customs_trade:
+    nr: 26
+    title: Customs and foreign trade
+    scope: >-
+      Customs code and customs procedures, customs declaration and customs
+      value, tariff classification of goods, origin of goods and preferences,
+      anti-dumping, countervailing and safeguard duties on steel, aluminium,
+      cement, construction materials, machinery and components, import
+      surveillance, import and export restrictions for industrial products,
+      tariff quotas.
+    distinguish: >-
+      Charges and procedures when goods cross the EU border. Import VAT is
+      finance_tax. Sanctions and export control of dual-use items are
+      corporate_compliance. Reporting duties under the carbon border
+      adjustment mechanism are energy_sustainability. Due diligence for
+      imported raw materials is procurement_supply_chain.
+    departments: []
+
+# The anchor files name one legal domain per business area (field "domain").
+# This list replaces single entries without changing the anchor files.
+# "null" means: no fixed domain, the rule for funding programmes applies.
+anchor_domain_overrides:
+  imports_trade_defence: customs_trade
+  funding_investment: null
