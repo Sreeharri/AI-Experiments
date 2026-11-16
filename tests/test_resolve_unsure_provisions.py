@@ -21,11 +21,28 @@ def answer(link="suppliers_prices", **changes):
     return ChatResult(ok=True, finish_reason="stop", content=json.dumps({**value, **changes}))
 
 
-def client_with(*replies):
+def client_with(*replies, discovered=True):
+    """A stand-in for the Qwen client. Like the real one, it refuses requests before discover()."""
     client = Mock()
     client.clean = lambda text: text
-    client.chat.side_effect = list(replies)
-    client.discover.return_value = {"ok": True}
+    queue = list(replies)
+    state = {"ready": discovered}
+
+    def chat(messages, **options):
+        if not state["ready"]:
+            raise RuntimeError("Call discover() first")
+        if not queue:
+            raise AssertionError("More requests than expected.")
+        return queue.pop(0)
+
+    def discover():
+        result = client.discover_results.pop(0) if client.discover_results else {"ok": True}
+        state["ready"] = state["ready"] or result["ok"]
+        return result
+
+    client.discover_results = []
+    client.chat.side_effect = chat
+    client.discover.side_effect = discover
     return client
 
 
@@ -183,7 +200,8 @@ class RunTests(unittest.TestCase):
     def test_outage_waits_and_continues_without_losing_results(self):
         lost = ChatResult(ok=False, error_kind="connection", error="WinError 10060")
         client = client_with(answer(), lost, answer(), answer("NONE"))
-        client.discover.side_effect = [{"ok": False}, {"ok": False}, {"ok": True}]
+        client.discover_results = [{"ok": True}, {"ok": False, "error": "No model list found."},
+                                   {"ok": False, "error": "No model list found."}, {"ok": True}]
         code, sleep = self.main(client)
         self.assertEqual(code, 0)
         self.assertEqual([call.args[0] / 60 for call in sleep.call_args_list], [15, 30])
@@ -206,6 +224,20 @@ class RunTests(unittest.TestCase):
         with patch.object(resolver, "TASK", "TASK: something else."):
             code, _ = self.main(client_with())
         self.assertEqual(code, 1)
+
+    def test_run_starts_by_finding_the_endpoint_and_waits_when_it_is_down(self):
+        client = client_with(answer(), answer(), answer(), discovered=False)
+        client.discover_results = [{"ok": False, "error": "No model list found."}, {"ok": True}]
+        code, sleep = self.main(client)
+        self.assertEqual(code, 0)
+        self.assertEqual([call.args[0] / 60 for call in sleep.call_args_list], [15])
+        self.assertEqual(json.loads((self.out / "summary.json").read_text())["provisions_decided"], 3)
+
+    def test_request_that_fails_once_while_qwen_answers_continues_quickly(self):
+        lost = ChatResult(ok=False, error_kind="timeout", error="Timed out")
+        code, sleep = self.main(client_with(answer(), lost, answer(), answer()))
+        self.assertEqual(code, 0)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [15])
 
     def test_list_only_asks_nothing(self):
         client = client_with()

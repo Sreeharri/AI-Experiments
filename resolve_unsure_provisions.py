@@ -340,14 +340,28 @@ def export(out, items):
     return summary
 
 
-def wait_for_qwen(client, minutes, why):
-    print(f"{datetime.now():%Y-%m-%d %H:%M}  Qwen cannot be reached ({str(why)[:160]}). "
-          f"Waiting {minutes:g} min, then checking again.", flush=True)
-    time.sleep(minutes * 60)
+def reachable(client):
+    """Ask the endpoint for its model list. This also sets the address the client sends requests to."""
     try:
-        return bool(client.discover().get("ok"))
-    except Exception:  # noqa: BLE001 - any failure of the check means "not reachable yet"
-        return False
+        found = client.discover()
+    except Exception as exc:  # noqa: BLE001 - any failure of the check means "not reachable yet"
+        return False, str(exc)
+    return bool(found.get("ok")), str(found.get("error") or "")
+
+
+def wait_until_reachable(client, why, step=0):
+    """Wait 15, 30, 45 minutes, then every 60 minutes, until Qwen answers. Returns nothing."""
+    while True:
+        minutes = WAIT_MINUTES[min(step, len(WAIT_MINUTES) - 1)]
+        step += 1
+        print(f"{datetime.now():%Y-%m-%d %H:%M}  Qwen cannot be reached ({str(why)[:160]}). "
+              f"Waiting {minutes:g} min, then checking again.", flush=True)
+        time.sleep(minutes * 60)
+        ok, error = reachable(client)
+        if ok:
+            print(f"{datetime.now():%Y-%m-%d %H:%M}  Qwen answers again. Continuing.", flush=True)
+            return
+        why = error or why
 
 
 def main():
@@ -390,8 +404,12 @@ def main():
 
     client = QwenClient.from_env(args.env_file, retries=1)
     workers = max(1, min(args.workers, MAX_WORKERS))
-    step = quick = 0
+    quick = 0
     try:
+        # The client learns the address and model name from the endpoint before the first request.
+        ok, error = reachable(client)
+        if not ok:
+            wait_until_reachable(client, error)
         while True:
             counts, todo = Counter(), []
             for item in planned:
@@ -410,24 +428,16 @@ def main():
             export(out, planned)
             if lost is None:
                 break
-            progressed = progress.done > done_before
-            if progressed:
-                step = quick = 0
-            reachable = False
-            if quick < QUICK_RETRIES:
+            if progress.done > done_before:
+                quick = 0
+            ok, error = reachable(client)
+            if ok and quick < QUICK_RETRIES:
                 quick += 1
-                try:
-                    reachable = bool(client.discover().get("ok"))
-                except Exception:  # noqa: BLE001
-                    reachable = False
-                if reachable:
-                    print(f"{datetime.now():%Y-%m-%d %H:%M}  A request failed ({str(lost)[:160]}). "
-                          "Qwen answers, continuing in 15 s.", flush=True)
-                    time.sleep(15)
-            while not reachable:
-                minutes = WAIT_MINUTES[min(step, len(WAIT_MINUTES) - 1)]
-                step += 1
-                reachable = wait_for_qwen(client, minutes, lost)
+                print(f"{datetime.now():%Y-%m-%d %H:%M}  A request failed ({str(lost)[:160]}). "
+                      "Qwen answers, continuing in 15 s.", flush=True)
+                time.sleep(15)
+            else:
+                wait_until_reachable(client, error or lost)
                 quick = 0
     except KeyboardInterrupt:
         export(out, planned)
