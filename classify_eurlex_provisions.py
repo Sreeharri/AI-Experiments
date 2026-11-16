@@ -48,7 +48,7 @@ from lr_ai.qwen_client import QwenClient  # noqa: E402
 PROMPT = ROOT / "prompts/eurlex_provision_classification.md"
 DEFAULT_RUNS = [ROOT / "runs/eurlex_provisions_baseline_v3_2", ROOT / "runs/eurlex_provisions_repair_v1"]
 DEFAULT_UNSURE = ROOT / "runs/eurlex_unsure_resolved_v1"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v2"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v3"
 TASK = "TASK: Assign this provision to a legal domain. Return the JSON object described in the instructions."
 NO_FIT = "no_fitting_domain"
 NO_SECOND = "none"
@@ -115,7 +115,7 @@ def load_domains(english, german, anchors):
         "version": en.get("version"), "ids": list(domains), "rules": [squash(rule) for rule in
                                                                       en.get("classification_rules") or []],
         "hints": [squash(hint) for hint in en.get("routing_hints") or []],
-        "english": {key: {"title": squash(d["title"]), "scope": squash(d["scope"]),
+        "english": {key: {"title": squash(d.get("label") or d["title"]), "scope": squash(d["scope"]),
                           "distinguish": squash(d.get("distinguish"))} for key, d in domains.items()},
         "fallback": squash(((en.get("fallback") or {}).get(NO_FIT) or {}).get("scope"))
         or "The subject of the provision belongs to none of the legal domains.",
@@ -216,9 +216,12 @@ def sample(items, count):
 def reply_schema(ids):
     return {
         "type": "object", "additionalProperties": False,
-        "required": ["subject", "primary_domain", "primary_reason", "secondary_domain", "secondary_reason"],
+        "required": ["subject", "candidates", "primary_domain", "primary_reason", "secondary_domain",
+                     "secondary_reason"],
         "properties": {
             "subject": {"type": "string", "maxLength": LIMITS["subject"]},
+            "candidates": {"type": "array", "items": {"type": "string", "enum": [*ids, NO_FIT]},
+                           "minItems": 1, "maxItems": 3},
             "primary_domain": {"type": "string", "enum": [*ids, NO_FIT]},
             "primary_reason": {"type": "string", "maxLength": LIMITS["primary_reason"]},
             "secondary_domain": {"type": "string", "enum": [*ids, NO_SECOND]},
@@ -230,8 +233,11 @@ def reply_schema(ids):
 def validate(reply, ids):
     """Check one answer and bring it into its simplest correct form."""
     fields = ("subject", "primary_domain", "primary_reason", "secondary_domain", "secondary_reason")
-    if not isinstance(reply, dict) or set(reply) != set(fields):
-        raise Unclassified("The reply must hold exactly " + ", ".join(fields) + ".")
+    if not isinstance(reply, dict) or set(reply) - {"candidates"} != set(fields):
+        raise Unclassified("The reply must hold exactly candidates, " + ", ".join(fields) + ".")
+    candidates = reply.get("candidates", [])
+    if not isinstance(candidates, list) or any(not isinstance(item, str) for item in candidates):
+        raise Unclassified("candidates is a list of domain ids.")
     if any(not isinstance(reply[field], str) for field in fields):
         raise Unclassified("Every field is a text.")
     if reply["primary_domain"] not in (*ids, NO_FIT):
@@ -242,6 +248,7 @@ def validate(reply, ids):
         if len(reply[field]) > limit:
             raise Unclassified(f"{field} has at most {limit} characters.")
     answer = {field: squash(reply[field]) for field in fields}
+    answer["candidates"] = [item for item in candidates if item in ids or item == NO_FIT][:3]
     if not answer["subject"] or not answer["primary_reason"]:
         raise Unclassified("subject and primary_reason must not be empty.")
     if answer["secondary_domain"] == answer["primary_domain"]:
@@ -453,6 +460,24 @@ def one_pass(client, system, domains, out, todo, progress, workers):
     return lost
 
 
+def act_links(celex):
+    """The official EUR-Lex page and PDF of an act."""
+    base = "https://eur-lex.europa.eu/legal-content/EN"
+    return {"eurlex_url": f"{base}/TXT/?uri=CELEX:{celex}", "pdf_url": f"{base}/TXT/PDF/?uri=CELEX:{celex}"}
+
+
+def with_coverage(record):
+    """The saved classification, with a flag when only the first parts of a long provision were read."""
+    result = dict(record["classification"])
+    audit = record.get("audit", {})
+    total, asked = audit.get("parts_total", 1), len({str(part.get("part", "")).split(".")[0]
+                                                      for part in audit.get("parts", [])}) or 1
+    if total > asked:
+        result["parts_read"] = f"first {asked} of {total}"
+        result["check"] = [*result["check"], "long_provision_partly_read"]
+    return result
+
+
 def safe_name(text):
     return re.sub(r"[^A-Za-z0-9ÄÖÜäöüß._-]+", "_", text).strip("_") or "department"
 
@@ -467,10 +492,10 @@ def export(out, items, domains):
         if not path.is_file():
             continue
         record = read_json(path)
-        result = record.get("classification")
-        if result is None:
+        if record.get("classification") is None:
             failures.append({"celex": record["celex"], "target": record["target"], "error": record.get("failure")})
             continue
+        result = with_coverage(record)
         results.setdefault(record["celex"], {})[record["target"]] = result
         primary[result["primary_domain"]] += 1
         levels[result["level"]] += 1
@@ -487,7 +512,8 @@ def export(out, items, domains):
                  result["secondary_departments"])):
             if not domain:
                 continue
-            entry = {"provision": record["target"], "level": result["level"], "role": role, "domain": domain,
+            entry = {"provision": record["target"], "provision_id": record["target_id"],
+                     "level": result["level"], "role": role, "domain": domain,
                      "subject": result["subject"], "reason": reason,
                      **({"to_confirm": result["to_confirm"]} if result.get("to_confirm") else {}),
                      **({"check": result["check"]} if result["check"] else {})}
@@ -512,7 +538,7 @@ def export(out, items, domains):
         }
         write_json(out / "departments" / f"{safe_name(department)}.json", {
             "department": department, "counts": department_counts[department],
-            "acts": [{"celex": celex, "title": act["title"], "provisions": act["provisions"]}
+            "acts": [{"celex": celex, "title": act["title"], **act_links(celex), "provisions": act["provisions"]}
                      for celex, act in sorted(acts.items())],
         })
     decided = sum(primary.values())
@@ -597,7 +623,7 @@ def main():
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
         print("The prompt or the domain files changed since this folder was started. "
-              "Use a new --output-dir, for example runs/eurlex_classification_v3.", file=sys.stderr)
+              "Use a new --output-dir, for example runs/eurlex_classification_v4.", file=sys.stderr)
         return 1
     write_json(config, {"fingerprint": fingerprint, "domain_catalogue": domains["version"],
                         "runs": [str(run) for run in args.runs], "system_prompt": system})

@@ -19,7 +19,7 @@ IDS = DOMAINS["ids"]
 
 
 def answer(primary="energy_sustainability", secondary="none", **changes):
-    value = {"subject": "energy audits for enterprises", "primary_domain": primary,
+    value = {"subject": "energy audits for enterprises", "candidates": [primary], "primary_domain": primary,
              "primary_reason": "The article obliges enterprises to carry out energy audits.",
              "secondary_domain": secondary,
              "secondary_reason": "" if secondary == "none" else "It also sets rules for public tenders."}
@@ -94,6 +94,8 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(system, classifier.system_prompt(instructions, DOMAINS))
         for domain in IDS:
             self.assertIn(f"- {domain} | ", system)
+        self.assertIn("- renewable_energy | Electricity generation, wind and solar, grid connection", system)
+        self.assertIn("WHERE FREQUENT SUBJECTS BELONG\n- ", system)
         self.assertIn("- no_fitting_domain", system)
         self.assertIn("Boundary: ", system)
         self.assertIn("RULES\n- ", system)
@@ -105,11 +107,21 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["primary_domain"]["enum"][-1], "no_fitting_domain")
         self.assertEqual(schema["properties"]["secondary_domain"]["enum"][-1], "none")
         self.assertEqual(list(schema["properties"]), schema["required"])
+        self.assertEqual(schema["properties"]["candidates"]["maxItems"], 3)
 
 
 class ValidateTests(unittest.TestCase):
     def check(self, **changes):
         return classifier.validate(json.loads(answer(**changes).content), IDS)
+
+    def test_candidates_are_kept_for_the_audit_and_optional(self):
+        self.assertEqual(self.check(candidates=["energy_sustainability", "renewable_energy", "steel"])["candidates"],
+                         ["energy_sustainability", "renewable_energy"])
+        reply = json.loads(answer().content)
+        del reply["candidates"]
+        self.assertEqual(classifier.validate(reply, IDS)["candidates"], [])
+        with self.assertRaisesRegex(classifier.Unclassified, "list of domain ids"):
+            self.check(candidates="energy_sustainability")
 
     def test_plain_answer(self):
         result = self.check()
@@ -300,6 +312,9 @@ class RunTests(unittest.TestCase):
         # The department sees the act once, with only its provisions.
         view = json.loads((self.out / "departments" / "Umweltmanagement.json").read_text(encoding="utf-8"))
         self.assertEqual([(act["celex"], act["title"]) for act in view["acts"]], [("B", "Test act B")])
+        self.assertEqual(view["acts"][0]["eurlex_url"], "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:B")
+        self.assertTrue(view["acts"][0]["pdf_url"].endswith("/TXT/PDF/?uri=CELEX:B"))
+        self.assertEqual(view["acts"][0]["provisions"][0]["provision_id"], "B:Article 1")
         self.assertEqual([(p["provision"], p["role"], p["domain"]) for p in view["acts"][0]["provisions"]],
                          [("Article 1", "primary", "waste_management"), ("Article 1", "secondary", "dangerous_goods")])
         open_customs = json.loads((self.out / "departments" / "no_department_yet.json").read_text(encoding="utf-8"))
@@ -308,6 +323,20 @@ class RunTests(unittest.TestCase):
         again = client_with()
         self.assertEqual(self.main(again)[0], 0)
         again.chat.assert_not_called()
+
+    def test_long_provision_read_in_part_is_flagged_in_the_exports(self):
+        text = " ".join(f"Sentence number {n} about the energy audit of enterprises." for n in range(2600))
+        make_run(self.root, "long", [[record("L", "Annex I", text=text)]])
+        argv = ["classify", "--runs", str(self.root / "long"), "--unsure-dir", str(self.unsure),
+                "--output-dir", str(self.out), "--workers", "1"]
+        client = client_with(*[answer() for _ in range(classifier.MAX_PARTS)])
+        with patch.object(sys, "argv", argv), patch.object(classifier.QwenClient, "from_env", return_value=client):
+            self.assertEqual(classifier.main(), 0)
+        result = json.loads((self.out / "results.json").read_text(encoding="utf-8"))["L"]["Annex I"]
+        self.assertEqual(result["check"], ["long_provision_partly_read"])
+        self.assertRegex(result["parts_read"], r"first 5 of \d+")
+        summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
+        self.assertEqual(summary["to_check"], {"long_provision_partly_read": 1})
 
     def test_count_only_levels_and_sample(self):
         client = client_with()

@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 
 CONFIG = Path(__file__).resolve().parent.parent / 'config'
-FIELDS = ['nr', 'title', 'scope', 'distinguish', 'departments']
+FIELDS = ['nr', 'title', 'label', 'scope', 'distinguish', 'departments']
 
 
 def load(path):
@@ -62,7 +62,7 @@ def main():
         for key, domain in domains.items():
             if list(domain) != FIELDS:
                 problems.append(f'{name} domains.{key}: fields are {list(domain)}, expected {FIELDS}')
-            for field in ('title', 'scope', 'distinguish'):
+            for field in ('title', 'label', 'scope', 'distinguish'):
                 if not str(domain.get(field) or '').strip():
                     problems.append(f'{name} domains.{key}: empty {field}')
             for other in re.findall(r'\b[a-z]+(?:_[a-z]+)+\b', str(domain.get('distinguish') or '')):

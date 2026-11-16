@@ -1,6 +1,6 @@
 # =============================================================================
 # Rechtsbereiche für Legal Radar · Deutsch
-# Version domains-v3 · 16.11.2026
+# Version domains-v4 · 16.11.2026
 #
 # Wozu: Die Klassifizierung ordnet jede relevante Vorschrift einem Rechtsbereich
 # zu. Über den Rechtsbereich findet Legal Radar die zuständigen Abteilungen.
@@ -12,6 +12,7 @@
 # Aufbau je Rechtsbereich:
 #   nr           Nummer in der Excel-Liste "Rechtsbereiche / Verantwortliche"
 #   title        Name wie in der Excel-Liste
+#   label        einfache Beschreibung, die der Klassifizierer neben dem Schlüssel sieht
 #   scope        was der Rechtsbereich umfasst
 #   distinguish  Abgrenzung zu ähnlichen Rechtsbereichen (wohin es sonst gehört)
 #   departments  zuständige Bereiche aus der Excel-Liste. Die Namen der
@@ -23,7 +24,7 @@
 #   - Abgrenzungen ergänzt, Überschneidungen aufgelöst (Asbest, Druckgeräte,
 #     Zahlungsverzug, Umwelthaftung, Emissionshandel, KI und Datenrecht)
 #
-# Änderungen in domains-v3 (nach dem ersten Pilotlauf mit 100 Vorschriften):
+# Änderungen in domains-v4 (nach dem ersten Pilotlauf mit 100 Vorschriften):
 #   - routing_hints ergänzt für Themen, die im falschen Rechtsbereich landeten
 #   - communication_media: geistiges Eigentum steht zuerst
 #   - no_fitting_domain: typische Fälle genannt
@@ -33,7 +34,7 @@
 #   2. renewable_energy: In der Excel-Liste stehen 6 Bereiche und 5 Namen.
 #   3. product_safety: Verantwortlicher für Qualitätsmanagement/-sicherung "tbd.".
 # =============================================================================
-version: domains-v3
+version: domains-v4
 language: de
 
 # Regeln für die Zuordnung. Sie gelten für alle Rechtsbereiche.
@@ -87,6 +88,34 @@ routing_hints:
   - >-
     Ökodesign, Energieverbrauchskennzeichnung und Umweltzeichen von Produkten
     gehören zu energy_sustainability.
+  - >-
+    Arbeitgeberpflichten zum Schutz der Beschäftigten in explosionsgefährdeten
+    Bereichen gehören zu occupational_health_safety. Geräte, die für
+    explosionsgefährdete Bereiche verkauft werden, gehören zu product_safety.
+  - >-
+    Gefahrenhinweise, Sicherheitshinweise und Kennzeichnungssätze für
+    Chemikalien gehören zu dangerous_goods, gleich was der Satz erwähnt.
+  - >-
+    Verfahren zu Marken und Designs einschließlich ihrer Kosten und das
+    Tätigwerden des Zolls gegen Waren, die geistiges Eigentum verletzen,
+    gehören zu communication_media.
+  - >-
+    Technische Bahnnormen, Interoperabilität und internationale Regeln für
+    Eisenbahnfahrzeuge gehören zu infrastructure_civil_engineering.
+  - >-
+    Schlussfolgerungen zu den besten verfügbaren Techniken (BVT) für
+    Industrieanlagen gehören zu environmental_protection, auch wenn sie
+    Energieeffizienzwerte festlegen.
+  - >-
+    Transeuropäische Energieinfrastrukturprojekte, Interkonnektoren und
+    Offshore-Netze gehören zu renewable_energy.
+  - >-
+    Kein Bereich passt, die Antwort ist also no_fitting_domain, bei:
+    Funkfrequenzen, Telekommunikationsnetzen und Basisstationen, Satelliten
+    und Raumfahrtprogrammen, Statistik und Erhebungsmerkmalen, Geodaten und
+    Datenmodellen für Karten, Anleihen und anderen Finanzprodukten,
+    Zuschüssen und EU-Programmen, die keinen Gegenstand eines Bereichs
+    fördern, Luftfahrt- und Luftraumregeln außer dem Betrieb von Drohnen.
 
 fallback:
   no_fitting_domain:
@@ -105,6 +134,7 @@ domains:
   occupational_health_safety:
     nr: 1
     title: Arbeitssicherheit und Gesundheitsschutz
+    label: "Schutz der Beschäftigten: Arbeitgeberpflichten, Baustellensicherheit, Grenzwerte"
     scope: >-
       Pflichten des Arbeitgebers zum Schutz der Beschäftigten:
       Gefährdungsbeurteilung, Unterweisung, Arbeitsstätten, Benutzung
@@ -125,6 +155,7 @@ domains:
   environmental_protection:
     nr: 2
     title: Umweltschutz und Compliance
+    label: "Umweltgenehmigungen, Anlagenemissionen, Natur und Boden"
     scope: >-
       Umweltverträglichkeitsprüfung und Genehmigung von Anlagen und
       Bauvorhaben, Industrieemissionen und beste verfügbare Techniken,
@@ -145,6 +176,7 @@ domains:
   waste_management:
     nr: 3
     title: Abfallwirtschaft
+    label: "Abfall: Umgang, Verbringung, Verwertung, Deponie"
     scope: >-
       Abfallhierarchie und Pflichten von Abfallerzeugern und -besitzern,
       Trennung, Transport, Verwertung und Beseitigung von Bau- und
@@ -163,6 +195,7 @@ domains:
   water_protection:
     nr: 4
     title: Gewässerschutz und Abwasser
+    label: "Wassernutzung, Abwasser und Hochwasserschutz"
     scope: >-
       Erlaubnisse für Wasserentnahme, Grundwasserabsenkung und
       Bauwasserhaltung, Einleitung von Bau- und Prozessabwasser,
@@ -178,6 +211,7 @@ domains:
   energy_sustainability:
     nr: 5
     title: Energie & Nachhaltigkeit
+    label: "Energieverbrauch und -effizienz, Klimaberichte, Emissionshandel, Taxonomie"
     scope: >-
       Gesamtenergieeffizienz von Gebäuden, Energieausweise,
       Nullemissionsgebäude und Sanierungspflichten, Energieaudits und
@@ -200,6 +234,7 @@ domains:
   construction_building:
     nr: 6
     title: Bau- und Gebäuderecht
+    label: "Gebäude, Tragwerksplanung und Bauprodukte"
     scope: >-
       Grundanforderungen an Bauwerke: Standsicherheit, Brandschutz,
       Nutzungssicherheit, Schallschutz und Dauerhaftigkeit,
@@ -224,6 +259,7 @@ domains:
   infrastructure_civil_engineering:
     nr: 7
     title: Infrastruktur und Tiefbau
+    label: "Straßen, Brücken, Tunnel und Bahninfrastruktur"
     scope: >-
       Planung, Genehmigung und Bau von Brücken, Tunneln, Straßen und
       Bahnstrecken, Erd- und Kanalbau, transeuropäische Verkehrsnetze,
@@ -242,6 +278,7 @@ domains:
   geotechnical_mining:
     nr: 8
     title: Geotechnik und Bergbauvorschriften
+    label: "Baugrund, Steinbrüche und Rohstoffgewinnung"
     scope: >-
       Baugrunduntersuchung, Bodenmechanik, Gründungen und
       Böschungsstandsicherheit, Baugruben und Wasserhaltung, Tunnelvortrieb
@@ -259,6 +296,7 @@ domains:
   product_safety:
     nr: 9
     title: Produktsicherheit und technische Normen
+    label: "Sicherheit und CE-Kennzeichnung von Elektro-, Druck- und anderen Geräten"
     scope: >-
       Konformitätsbewertung, notifizierte Stellen und CE-Kennzeichnung
       geregelter Produkte außer Bauprodukten und Maschinen: elektrische
@@ -281,6 +319,7 @@ domains:
   machinery_safety:
     nr: 10
     title: Sicherheit von Maschinen und Industrieanlagen
+    label: "Maschinen, Krane, Arbeitsmittel, mobile Maschinen und Drohnen"
     scope: >-
       Sicherheits- und Gesundheitsanforderungen an Konstruktion und
       Inverkehrbringen von Maschinen, Krane, Hebezeuge, Hubarbeitsbühnen und
@@ -301,6 +340,7 @@ domains:
   transport_fleet:
     nr: 11
     title: Transport & Flottenvorgaben
+    label: "Straßenfahrzeuge, Fahrer, Güterverkehr und Bahnbetrieb"
     scope: >-
       Fahrtenschreiber, Lenk- und Ruhezeiten, Berufskraftfahrerqualifikation
       und Kontrollen, Hauptuntersuchung, Zulassung, Typgenehmigung und
@@ -321,6 +361,7 @@ domains:
   dangerous_goods:
     nr: 12
     title: Gefahrgut und gefährliche Stoffe
+    label: "Chemikalien, Gefahrstoffe, Sprengstoffe und Gefahrguttransport"
     scope: >-
       Beförderung gefährlicher Güter auf Straße und Schiene mit Einstufung,
       Verpackung, Kennzeichnung und Beförderungspapieren, Registrierung,
@@ -341,6 +382,7 @@ domains:
   public_procurement:
     nr: 13
     title: Öffentliches Beschaffungswesen und Ausschreibungen
+    label: "Vergabe öffentlicher Aufträge und Konzessionen"
     scope: >-
       Vergabe öffentlicher Bau-, Liefer- und Dienstleistungsaufträge und
       Konzessionen, Schwellenwerte, Vergabeverfahren, Eignungsprüfung,
@@ -359,6 +401,7 @@ domains:
   procurement_supply_chain:
     nr: 14
     title: Lieferantenmanagement
+    label: "Sorgfaltspflichten in der Lieferkette und verantwortungsvolle Beschaffung"
     scope: >-
       Sorgfaltspflichten für Menschenrechte und Umwelt in der eigenen
       Geschäftstätigkeit und der Lieferkette, Lieferantenaudits und
@@ -376,6 +419,7 @@ domains:
   contract_commercial:
     nr: 15
     title: Vertrags- und Handelsrecht
+    label: "Verträge, Zahlungsbedingungen und Gesellschaftsrecht"
     scope: >-
       Bau- und Werkverträge, Nachunternehmer, Nachträge und Abnahme,
       Zahlungsbedingungen und Zahlungsverzug im Geschäftsverkehr,
@@ -393,6 +437,7 @@ domains:
   insurance_liability:
     nr: 16
     title: Versicherungen und Haftung
+    label: "Haftung für Schäden und Versicherung"
     scope: >-
       Haftung für Baumängel, Einsturz und Schäden durch Bauarbeiten,
       Produkthaftung für fehlerhafte Produkte, Bauleistungs- und
@@ -411,6 +456,7 @@ domains:
   finance_tax:
     nr: 17
     title: Finanzen, Rechnungswesen und Steuern
+    label: "Steuern, Umsatzsteuer, Rechnungslegung und Abschlüsse"
     scope: >-
       Umsatzsteuer und Reverse-Charge bei Bauleistungen, Einfuhrumsatzsteuer,
       Körperschaftsteuer und globale Mindeststeuer, Verrechnungspreise und
@@ -430,6 +476,7 @@ domains:
   employment_law:
     nr: 18
     title: Personalwesen und Arbeitsrecht
+    label: "Arbeitsverträge, Arbeitszeit, Entsendung und Entgelt"
     scope: >-
       Arbeitsverträge und transparente Arbeitsbedingungen, Arbeitszeit,
       Ruhezeiten, Urlaub und Überstunden, Entgelttransparenz und
@@ -448,6 +495,7 @@ domains:
   works_council:
     nr: 19
     title: Mitbestimmung und Betriebsrat
+    label: "Arbeitnehmervertretung, Unterrichtung und Anhörung"
     scope: >-
       Rechte des Betriebsrats, Unterrichtung und Anhörung der
       Arbeitnehmervertretung, Mitbestimmung im Aufsichtsrat, Europäische
@@ -463,6 +511,7 @@ domains:
   data_protection:
     nr: 20
     title: Datenschutz und Privatsphäre
+    label: "Personenbezogene Daten"
     scope: >-
       Verarbeitung personenbezogener Daten von Beschäftigten, Kunden und
       Geschäftspartnern, Rechte betroffener Personen, Auftragsverarbeitung,
@@ -478,6 +527,7 @@ domains:
   cybersecurity:
     nr: 21
     title: Cybersicherheit und Informationssicherheit
+    label: "IT- und Netzsicherheit, KI-Systeme, Maschinendaten"
     scope: >-
       Risikomanagement für Netz- und Informationssysteme, Meldepflichten bei
       Sicherheitsvorfällen, Sicherheitsanforderungen für wichtige und
@@ -497,6 +547,7 @@ domains:
   corporate_compliance:
     nr: 22
     title: Compliance und Corporate Governance
+    label: "Korruption, Kartellrecht, Geldwäsche, Sanktionen, Hinweisgeber"
     scope: >-
       Korruptionsprävention, Kartell- und Wettbewerbsrecht mit
       Gruppenfreistellungen, Geldwäscheprävention, Hinweisgeberschutz und
@@ -514,6 +565,7 @@ domains:
   internal_audit:
     nr: 23
     title: Interne Revision und Risikomanagement
+    label: "Abschlussprüfung, internes Kontrollsystem und Risikomanagement"
     scope: >-
       Abschlussprüfung und Unabhängigkeit des Abschlussprüfers, Prüfung der
       Nachhaltigkeitsberichterstattung, internes Kontrollsystem,
@@ -529,6 +581,7 @@ domains:
   communication_media:
     nr: 24
     title: Unternehmenskommunikation und Medienrecht
+    label: "Geistiges Eigentum (Marken, Designs, Urheberrecht), Werbung und Medien"
     scope: >-
       Geistiges Eigentum: Marken, eingetragene Designs, Patente, Urheberrecht
       an Plänen, Bildern, Publikationen und Software, Softwarelizenzen,
@@ -547,6 +600,7 @@ domains:
   renewable_energy:
     nr: 25
     title: Erneuerbare Energien und Windenergie
+    label: "Stromerzeugung, Wind und Solar, Netzanschluss und Energiemärkte"
     scope: >-
       Genehmigung und Beschleunigungsgebiete für Windenergieanlagen und
       Photovoltaik, Repowering und Rückbau, Ausbauziele, Ausschreibungen und
@@ -566,6 +620,7 @@ domains:
   customs_trade:
     nr: 26
     title: Zoll und Außenhandel
+    label: "Zölle, Zollverfahren und Handelsschutz"
     scope: >-
       Zollkodex und Zollverfahren, Zollanmeldung und Zollwert, Einreihung von
       Waren in den Zolltarif, Warenursprung und Präferenzen, Antidumping-,

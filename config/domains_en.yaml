@@ -1,6 +1,6 @@
 # =============================================================================
 # Legal domains for Legal Radar · English
-# Version domains-v3 · 16 Nov 2026
+# Version domains-v4 · 16 Nov 2026
 #
 # Purpose: the classification assigns every relevant provision to one legal
 # domain. Through the domain, Legal Radar finds the responsible departments.
@@ -12,6 +12,7 @@
 # Fields per domain:
 #   nr           number in the Excel list "Rechtsbereiche / Verantwortliche"
 #   title        English name of the domain
+#   label        plain description that the classifier sees next to the id
 #   scope        what the domain covers
 #   distinguish  boundary to similar domains (where it belongs instead)
 #   departments  responsible departments from the Excel list (German names).
@@ -24,7 +25,7 @@
 #   - boundaries added, overlaps resolved (asbestos, pressure equipment, late
 #     payment, environmental liability, emissions trading, AI and data law)
 #
-# Changes in domains-v3 (after the first pilot of 100 provisions):
+# Changes in domains-v4 (after the first pilot of 100 provisions):
 #   - routing_hints added for subjects that went to a wrong domain
 #   - communication_media: intellectual property named first
 #   - no_fitting_domain: typical cases listed
@@ -34,7 +35,7 @@
 #   2. renewable_energy: the Excel list has 6 departments and 5 names.
 #   3. product_safety: person for Qualitätsmanagement/-sicherung is "tbd.".
 # =============================================================================
-version: domains-v3
+version: domains-v4
 language: en
 
 # Rules for the assignment. They apply to all domains.
@@ -85,6 +86,34 @@ routing_hints:
   - >-
     Ecodesign, energy labelling and environmental labels of products belong
     to energy_sustainability.
+  - >-
+    Employer duties to protect workers in explosive atmospheres belong to
+    occupational_health_safety. Equipment sold for explosive atmospheres
+    belongs to product_safety.
+  - >-
+    Hazard statements, precautionary statements and label phrases for
+    chemicals belong to dangerous_goods, whatever the phrase mentions.
+  - >-
+    Proceedings about trade marks and designs, including their costs, and
+    customs action against goods infringing intellectual property belong to
+    communication_media.
+  - >-
+    Railway technical standards, interoperability and international rules on
+    railway rolling stock belong to infrastructure_civil_engineering.
+  - >-
+    Best available techniques (BAT) conclusions for industrial installations
+    belong to environmental_protection, also where they set energy
+    efficiency levels.
+  - >-
+    Trans-European energy infrastructure projects, interconnectors and
+    offshore grids belong to renewable_energy.
+  - >-
+    No domain fits, so the answer is no_fitting_domain, for: radio spectrum,
+    telecom networks and base stations, satellites and space programmes,
+    statistics and survey variables, spatial data and map data models, bonds
+    and other financial products, grants and EU programmes that fund no
+    subject of a domain, aviation and airspace rules other than drone
+    operation.
 
 fallback:
   no_fitting_domain:
@@ -102,6 +131,7 @@ domains:
   occupational_health_safety:
     nr: 1
     title: Occupational safety and health
+    label: "Protection of workers: employer duties, site safety, exposure limits"
     scope: >-
       Employer duties to protect workers: risk assessment, instruction,
       workplaces, use of personal protective equipment, safety on construction
@@ -121,6 +151,7 @@ domains:
   environmental_protection:
     nr: 2
     title: Environmental protection and compliance
+    label: "Environmental permits, plant emissions, nature and soil"
     scope: >-
       Environmental impact assessment and permitting of installations and
       construction projects, industrial emissions and best available
@@ -142,6 +173,7 @@ domains:
   waste_management:
     nr: 3
     title: Waste management
+    label: "Waste: handling, shipment, recovery, landfill"
     scope: >-
       Waste hierarchy and duties of waste producers and holders, separation,
       transport, recovery and disposal of construction and demolition waste,
@@ -160,6 +192,7 @@ domains:
   water_protection:
     nr: 4
     title: Water protection and wastewater
+    label: "Water use, wastewater and flood protection"
     scope: >-
       Permits for water abstraction, groundwater lowering and construction
       dewatering, discharge of construction and process wastewater,
@@ -175,6 +208,7 @@ domains:
   energy_sustainability:
     nr: 5
     title: Energy and sustainability
+    label: "Energy use and efficiency, climate reporting, emissions trading, taxonomy"
     scope: >-
       Energy performance of buildings, energy performance certificates,
       zero-emission buildings and renovation obligations, energy audits and
@@ -197,6 +231,7 @@ domains:
   construction_building:
     nr: 6
     title: Construction and building law
+    label: "Buildings, structural design and construction products"
     scope: >-
       Basic requirements for construction works: mechanical resistance and
       stability, fire safety, safety in use, noise protection and durability,
@@ -223,6 +258,7 @@ domains:
   infrastructure_civil_engineering:
     nr: 7
     title: Infrastructure and civil engineering
+    label: "Roads, bridges, tunnels and railway infrastructure"
     scope: >-
       Planning, permitting and construction of bridges, tunnels, roads and
       railway lines, earthworks and sewer construction, trans-European
@@ -241,6 +277,7 @@ domains:
   geotechnical_mining:
     nr: 8
     title: Geotechnics and mining rules
+    label: "Ground engineering, quarries and raw material extraction"
     scope: >-
       Ground investigation, soil mechanics, foundations and slope stability,
       excavations and dewatering, tunnel driving and underground
@@ -257,6 +294,7 @@ domains:
   product_safety:
     nr: 9
     title: Product safety and technical standards
+    label: "Safety and CE marking of electrical, pressure and other equipment"
     scope: >-
       Conformity assessment, notified bodies and CE marking of regulated
       products other than construction products and machinery: electrical
@@ -279,6 +317,7 @@ domains:
   machinery_safety:
     nr: 10
     title: Safety of machinery and industrial installations
+    label: "Machinery, cranes, work equipment, non-road machines and drones"
     scope: >-
       Safety and health requirements for the design and placing on the market
       of machinery, cranes, hoists, mobile elevating work platforms and
@@ -298,6 +337,7 @@ domains:
   transport_fleet:
     nr: 11
     title: Transport and fleet rules
+    label: "Road vehicles, drivers, freight transport and rail operation"
     scope: >-
       Tachographs, driving times and rest periods, professional driver
       qualification and checks, roadworthiness tests, registration, type
@@ -318,6 +358,7 @@ domains:
   dangerous_goods:
     nr: 12
     title: Dangerous goods and hazardous substances
+    label: "Chemicals, hazardous substances, explosives and dangerous goods transport"
     scope: >-
       Carriage of dangerous goods by road and rail with classification,
       packaging, marking and transport documents, registration, authorisation
@@ -338,6 +379,7 @@ domains:
   public_procurement:
     nr: 13
     title: Public procurement and tenders
+    label: "Award of public contracts and concessions"
     scope: >-
       Award of public works, supply and service contracts and concessions,
       thresholds, award procedures, selection, exclusion grounds and award
@@ -355,6 +397,7 @@ domains:
   procurement_supply_chain:
     nr: 14
     title: Supplier management
+    label: "Supply chain due diligence and responsible sourcing"
     scope: >-
       Due diligence for human rights and the environment in own operations
       and the supply chain, supplier audits and codes of conduct, responsible
@@ -371,6 +414,7 @@ domains:
   contract_commercial:
     nr: 15
     title: Contract and commercial law
+    label: "Contracts, payment terms and company law"
     scope: >-
       Construction and works contracts, subcontractors, variations and
       acceptance, payment terms and late payment in commercial transactions,
@@ -387,6 +431,7 @@ domains:
   insurance_liability:
     nr: 16
     title: Insurance and liability
+    label: "Liability for damage and insurance"
     scope: >-
       Liability for construction defects, collapse and damage caused by
       construction work, product liability for defective products,
@@ -404,6 +449,7 @@ domains:
   finance_tax:
     nr: 17
     title: Finance, accounting and tax
+    label: "Taxes, VAT, accounting and financial statements"
     scope: >-
       VAT and reverse charge for construction services, import VAT, corporate
       tax and global minimum tax, transfer pricing and cross-border taxation,
@@ -422,6 +468,7 @@ domains:
   employment_law:
     nr: 18
     title: Human resources and employment law
+    label: "Employment contracts, working time, posting and pay"
     scope: >-
       Employment contracts and transparent working conditions, working time,
       rest periods, leave and overtime, pay transparency and equal treatment,
@@ -441,6 +488,7 @@ domains:
   works_council:
     nr: 19
     title: Co-determination and works council
+    label: "Employee representation, information and consultation"
     scope: >-
       Rights of the works council, information and consultation of employee
       representatives, co-determination on the supervisory board, European
@@ -456,6 +504,7 @@ domains:
   data_protection:
     nr: 20
     title: Data protection and privacy
+    label: "Personal data"
     scope: >-
       Processing of personal data of employees, customers and business
       partners, data subject rights, processors, data protection impact
@@ -471,6 +520,7 @@ domains:
   cybersecurity:
     nr: 21
     title: Cybersecurity and information security
+    label: "IT and network security, AI systems, machine data"
     scope: >-
       Risk management for network and information systems, incident reporting
       duties, security requirements for important and critical entities and
@@ -489,6 +539,7 @@ domains:
   corporate_compliance:
     nr: 22
     title: Compliance and corporate governance
+    label: "Anti-corruption, competition law, money laundering, sanctions, whistleblowing"
     scope: >-
       Anti-corruption, antitrust and competition law with block exemptions,
       anti-money laundering, whistleblower protection and internal reporting
@@ -505,6 +556,7 @@ domains:
   internal_audit:
     nr: 23
     title: Internal audit and risk management
+    label: "Statutory audit, internal control and risk management"
     scope: >-
       Statutory audit and auditor independence, assurance of sustainability
       reporting, internal control system, risk management system and risk
@@ -519,6 +571,7 @@ domains:
   communication_media:
     nr: 24
     title: Corporate communication and media law
+    label: "Intellectual property (trade marks, designs, copyright), advertising and media"
     scope: >-
       Intellectual property: trade marks, registered designs, patents,
       copyright in plans, images, publications and software, software
@@ -536,6 +589,7 @@ domains:
   renewable_energy:
     nr: 25
     title: Renewable energy and wind energy
+    label: "Electricity generation, wind and solar, grid connection and energy markets"
     scope: >-
       Permitting and acceleration areas for wind turbines and photovoltaics,
       repowering and dismantling, expansion targets, auctions and support for
@@ -555,6 +609,7 @@ domains:
   customs_trade:
     nr: 26
     title: Customs and foreign trade
+    label: "Customs duties, customs procedures and trade defence"
     scope: >-
       Customs code and customs procedures, customs declaration and customs
       value, tariff classification of goods, origin of goods and preferences,

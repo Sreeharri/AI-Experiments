@@ -10,8 +10,9 @@ WHAT YOU GET
 HOW TO DECIDE
 
 1. Find the subject. What does the target regulate, and for whom? Use the words of the target.
-2. Choose the primary domain: the one whose scope covers this subject. When two domains seem to fit, read the Boundary of both. It says where the subject belongs.
-3. Check WHERE FREQUENT SUBJECTS BELONG. If the subject is listed there, that line decides.
+2. Check WHERE FREQUENT SUBJECTS BELONG. If the subject is listed there, that line decides, also when it says no_fitting_domain.
+3. Otherwise list the candidates: the one to three domains whose "Covers" text names this subject. Go by what "Covers" and "Boundary" say. The id of a domain is only a name; do not guess from it what the domain contains.
+   Choose the primary domain among the candidates. When two fit, the Boundary of both says where the subject belongs.
 4. If no domain covers the subject, answer no_fitting_domain. Do not force the nearest domain. A provision about statistics, map data, telecom networks or financial products does not become a construction, product or cybersecurity matter because it mentions a building, a product or data.
 5. Decide on a secondary domain. About nine in ten targets have none. Give one only if the target contains a second duty of its own, in its own sentence or paragraph, that a different department would have to act on without the first one. It is not a secondary domain when the second domain is only related, could be concerned, is the reason behind the rule, is what the rest of the act is about, or shows up as a word in the target (data, safety, energy, tender, product).
 
@@ -29,6 +30,7 @@ YOUR ANSWER
 Return one JSON object with these fields, in this order:
 
 - subject: what the target regulates, in at most 15 words taken from the target.
+- candidates: one to three domain ids that could cover the subject, best first. Only no_fitting_domain when none does.
 - primary_domain: one domain id, or no_fitting_domain.
 - primary_reason: one sentence. Say what the target regulates and why that belongs to this domain. If a neighbouring domain was close, say why it is not that one. Speak about the content of the target, not about these instructions.
 - secondary_domain: one other domain id, or none.
