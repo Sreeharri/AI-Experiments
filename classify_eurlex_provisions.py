@@ -2,10 +2,15 @@
 
 Input: every provision that the relevance screening kept as DIRECT or INDIRECT
 (including the UNSURE provisions that the UNSURE pass turned into INDIRECT).
-For each one Qwen names
 
-    primary domain   + reason
-    secondary domain + reason   (only when the provision regulates a second, separate thing)
+Two steps, both with Qwen:
+
+1. Each legal act gets one domain from its title and the first words of its
+   provisions. Most provisions belong to the domain of their act.
+2. Each provision is classified with the act's domain as the starting point:
+
+       primary domain   + reason
+       secondary domain + reason   (only for a second duty of its own)
 
 Qwen sees the provision text and the domain list. It does not see the relevance
 reason or the business area; the code uses the business area afterwards as an
@@ -13,11 +18,11 @@ independent check. The code also adds the departments of each domain.
 
 Nothing in the screening run folders is changed. The results go to a new
 folder. The command can be stopped with Ctrl+C and started again; finished
-provisions are not asked again. When Qwen cannot be reached it waits 15, 30
-and 45 minutes, then every 60 minutes, and continues by itself.
+acts and provisions are not asked again. When Qwen cannot be reached it waits
+15, 30 and 45 minutes, then every 60 minutes, and continues by itself.
 
     python classify_eurlex_provisions.py --count-only        # how many provisions, no Qwen
-    python classify_eurlex_provisions.py --sample 100        # pilot
+    python classify_eurlex_provisions.py --sample 200        # pilot
     python classify_eurlex_provisions.py --levels DIRECT     # all DIRECT provisions
     python classify_eurlex_provisions.py                     # everything (continues)
 """
@@ -46,14 +51,20 @@ from eurlex_provision.simple import (MIN_PART_CHARS, OPENING_CHARS, TARGET_CHARS
 from lr_ai.qwen_client import QwenClient  # noqa: E402
 
 PROMPT = ROOT / "prompts/eurlex_provision_classification.md"
+ACT_PROMPT = ROOT / "prompts/eurlex_act_domain.md"
 DEFAULT_RUNS = [ROOT / "runs/eurlex_provisions_baseline_v3_2", ROOT / "runs/eurlex_provisions_repair_v1"]
 DEFAULT_UNSURE = ROOT / "runs/eurlex_unsure_resolved_v1"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v3"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_classification_v4"
 TASK = "TASK: Assign this provision to a legal domain. Return the JSON object described in the instructions."
+ACT_TASK = "TASK: Assign this legal act to a legal domain. Return the JSON object described in the instructions."
 NO_FIT = "no_fitting_domain"
+MIXED = "mixed_act"
+ACT_PROVISIONS = 12      # openings of this many provisions describe the act
+ACT_OPENING_CHARS = 260
 NO_SECOND = "none"
 NO_DEPARTMENT = "(no department yet)"
 LIMITS = {"subject": 200, "primary_reason": 450, "secondary_reason": 450}
+ACT_LIMITS = {"act_subject": 260, "reason": 450}
 MAX_PARTS = 5            # a long annex is classified from its first parts
 MAX_REQUESTS = 12        # per provision, including parts that had to be made smaller
 WAIT_MINUTES = (15, 30, 45, 60)
@@ -102,8 +113,8 @@ def load_domains(english, german, anchors):
     for key, domain in domains.items():
         if not squash(domain.get("scope")) or not squash(domain.get("title")):
             raise ValueError(f"Domain {key} needs a title and a scope.")
-    if NO_FIT in domains or NO_SECOND in domains:
-        raise ValueError(f"{NO_FIT} and {NO_SECOND} are reserved words and cannot be domain IDs.")
+    if {NO_FIT, NO_SECOND, MIXED} & set(domains):
+        raise ValueError(f"{NO_FIT}, {NO_SECOND} and {MIXED} are reserved words and cannot be domain IDs.")
     catalog = yaml.safe_load(Path(anchors).read_text(encoding="utf-8-sig")).get("anchors") or {}
     overrides = en.get("anchor_domain_overrides") or {}
     anchor_domain = {}
@@ -216,12 +227,9 @@ def sample(items, count):
 def reply_schema(ids):
     return {
         "type": "object", "additionalProperties": False,
-        "required": ["subject", "candidates", "primary_domain", "primary_reason", "secondary_domain",
-                     "secondary_reason"],
+        "required": ["subject", "primary_domain", "primary_reason", "secondary_domain", "secondary_reason"],
         "properties": {
             "subject": {"type": "string", "maxLength": LIMITS["subject"]},
-            "candidates": {"type": "array", "items": {"type": "string", "enum": [*ids, NO_FIT]},
-                           "minItems": 1, "maxItems": 3},
             "primary_domain": {"type": "string", "enum": [*ids, NO_FIT]},
             "primary_reason": {"type": "string", "maxLength": LIMITS["primary_reason"]},
             "secondary_domain": {"type": "string", "enum": [*ids, NO_SECOND]},
@@ -233,11 +241,8 @@ def reply_schema(ids):
 def validate(reply, ids):
     """Check one answer and bring it into its simplest correct form."""
     fields = ("subject", "primary_domain", "primary_reason", "secondary_domain", "secondary_reason")
-    if not isinstance(reply, dict) or set(reply) - {"candidates"} != set(fields):
-        raise Unclassified("The reply must hold exactly candidates, " + ", ".join(fields) + ".")
-    candidates = reply.get("candidates", [])
-    if not isinstance(candidates, list) or any(not isinstance(item, str) for item in candidates):
-        raise Unclassified("candidates is a list of domain ids.")
+    if not isinstance(reply, dict) or set(reply) != set(fields):
+        raise Unclassified("The reply must hold exactly " + ", ".join(fields) + ".")
     if any(not isinstance(reply[field], str) for field in fields):
         raise Unclassified("Every field is a text.")
     if reply["primary_domain"] not in (*ids, NO_FIT):
@@ -248,7 +253,6 @@ def validate(reply, ids):
         if len(reply[field]) > limit:
             raise Unclassified(f"{field} has at most {limit} characters.")
     answer = {field: squash(reply[field]) for field in fields}
-    answer["candidates"] = [item for item in candidates if item in ids or item == NO_FIT][:3]
     if not answer["subject"] or not answer["primary_reason"]:
         raise Unclassified("subject and primary_reason must not be empty.")
     if answer["secondary_domain"] == answer["primary_domain"]:
@@ -266,14 +270,41 @@ def validate(reply, ids):
     return answer
 
 
-def ask(client, system, sent, ids, log):
-    """One classification with at most one correction request."""
+def act_schema(ids):
+    return {
+        "type": "object", "additionalProperties": False, "required": ["act_subject", "reason", "act_domain"],
+        "properties": {
+            "act_subject": {"type": "string", "maxLength": ACT_LIMITS["act_subject"]},
+            "reason": {"type": "string", "maxLength": ACT_LIMITS["reason"]},
+            "act_domain": {"type": "string", "enum": [*ids, NO_FIT, MIXED]},
+        },
+    }
+
+
+def validate_act(reply, ids):
+    if not isinstance(reply, dict) or set(reply) != {"act_subject", "reason", "act_domain"}:
+        raise Unclassified("The reply must hold exactly act_subject, reason and act_domain.")
+    if any(not isinstance(value, str) for value in reply.values()):
+        raise Unclassified("Every field is a text.")
+    if reply["act_domain"] not in (*ids, NO_FIT, MIXED):
+        raise Unclassified(f"act_domain must be a domain id, {NO_FIT} or {MIXED}.")
+    for field, limit in ACT_LIMITS.items():
+        if len(reply[field]) > limit:
+            raise Unclassified(f"{field} has at most {limit} characters.")
+    answer = {field: squash(reply[field]) for field in ("act_subject", "reason", "act_domain")}
+    if not answer["act_subject"] or not answer["reason"]:
+        raise Unclassified("act_subject and reason must not be empty.")
+    return answer
+
+
+def ask(client, system, sent, task, schema, name, check, log):
+    """One question to Qwen with at most one correction request. `check` validates the parsed reply."""
     evidence = json.dumps(sent, ensure_ascii=False)
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": f"{evidence}\n\n{TASK}"}]
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": f"{evidence}\n\n{task}"}]
     for attempt in range(2):
         try:
             reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
-                                schema=reply_schema(ids), schema_name="provision_classification", max_tokens=500)
+                                schema=schema, schema_name=name, max_tokens=500)
         except Exception as exc:  # noqa: BLE001 - the client could not send the request at all
             raise ConnectionLost(str(exc)) from exc
         usage = reply.usage or {}
@@ -287,12 +318,45 @@ def ask(client, system, sent, ids, log):
         try:
             if error:
                 raise Unclassified(error)
-            return validate(candidate, ids)
+            return check(candidate)
         except Unclassified as exc:
             if attempt:
                 raise Unclassified(f"Invalid answer after one correction request: {exc}") from exc
-            messages[1]["content"] = (f"{evidence}\n\n{TASK}\n\nCORRECTION: your previous reply was rejected. "
+            messages[1]["content"] = (f"{evidence}\n\n{task}\n\nCORRECTION: your previous reply was rejected. "
                                       f"{exc} Return the complete JSON object again.")
+
+
+def act_evidence(celex, sources):
+    """What describes an act: its title and the first words of some of its provisions."""
+    step = max(1, math.ceil(len(sources) / ACT_PROVISIONS))
+    title, provisions = "", []
+    for source in sources[::step][:ACT_PROVISIONS]:
+        try:
+            pack = read_json(source)["evidence_pack"]
+        except (OSError, ValueError, KeyError):
+            continue
+        title = title or squash(pack["document"].get("title"))
+        provisions.append({"locator": pack["provision"].get("locator", ""),
+                           "opening": squash(" ".join(target_text(pack["provision"])))[:ACT_OPENING_CHARS]})
+    if not title and not provisions:
+        raise Unclassified("No saved provision of this act could be read.")
+    return {"act": {"celex": celex, "title": title}, "provisions": provisions}
+
+
+def classify_act(client, system, ids, celex, sources):
+    """The domain of one act as a whole. Returns (answer, evidence title, request log)."""
+    sent, log = act_evidence(celex, sources), []
+    try:
+        answer = ask(client, system, sent, ACT_TASK, act_schema(ids), "act_domain",
+                     lambda reply: validate_act(reply, ids), log)
+    except OverflowError:
+        sent["provisions"] = sent["provisions"][:3]
+        try:
+            answer = ask(client, system, sent, ACT_TASK, act_schema(ids), "act_domain",
+                         lambda reply: validate_act(reply, ids), log)
+        except OverflowError:
+            raise Unclassified("The act description is too long for the model.") from None
+    return answer, sent["act"]["title"], log
 
 
 def combine(answers):
@@ -325,8 +389,11 @@ def combine(answers):
             "parts_disagree": len(votes) > 1}
 
 
-def classify(client, system, ids, pack):
-    """Classify one provision, from its first parts when it is long. Returns (classification, audit)."""
+def classify(client, system, ids, pack, act=None):
+    """Classify one provision, from its first parts when it is long. Returns (classification, audit).
+
+    `act` is the saved act-level answer; its domain is the starting point for the provision.
+    """
     provision = pack["provision"]
     parts = split_target(provision, TARGET_CHARS)
     opening = squash(" ".join(target_text(provision)))[:OPENING_CHARS]
@@ -336,9 +403,14 @@ def classify(client, system, ids, pack):
         if len(log) >= MAX_REQUESTS:
             return
         label = f"{part_id} of {len(parts)}" if len(parts) > 1 or "." in part_id else None
-        sent, _, _ = request_pack(pack, part, label, opening if label and part_id != "1" else None)
+        packed, _, _ = request_pack(pack, part, label, opening if label and part_id != "1" else None)
+        sent = {"act": packed.pop("act")}
+        if act and act.get("act_domain"):
+            sent["act_domain"] = {"domain": act["act_domain"], "act_subject": act.get("act_subject", "")}
+        sent.update(packed)
         try:
-            answer = ask(client, system, sent, ids, log)
+            answer = ask(client, system, sent, TASK, reply_schema(ids), "provision_classification",
+                         lambda reply: validate(reply, ids), log)
         except OverflowError:
             smaller = split_target(part, max(budget // 2, MIN_PART_CHARS))
             if len(smaller) < 2:
@@ -357,7 +429,7 @@ def classify(client, system, ids, pack):
     return result, audit
 
 
-def finish(classification, item, domains):
+def finish(classification, item, domains, act=None):
     """Add what the code knows: departments, German titles and the check flags."""
     primary, secondary = classification["primary_domain"], classification["secondary_domain"]
     expected = sorted({domains["anchor_domain"][a] for a in item["area"] if a in domains["anchor_domain"]})
@@ -377,7 +449,8 @@ def finish(classification, item, domains):
         "secondary_reason": classification["secondary_reason"],
         "departments": domains["departments"].get(primary, []),
         "secondary_departments": domains["departments"].get(secondary, []),
-        "check": check, "business_area": item["area"], "business_area_domains": expected,
+        "check": check, "act_domain": (act or {}).get("act_domain"),
+        "business_area": item["area"], "business_area_domains": expected,
         **({"to_confirm": item["to_confirm"]} if item.get("to_confirm") else {}),
     }
 
@@ -385,8 +458,8 @@ def finish(classification, item, domains):
 # ------------------------------------------------------------------ the run
 
 class Progress:
-    def __init__(self, total, done, failed):
-        self.total, self.done, self.failed, self.flagged = total, done, failed, 0
+    def __init__(self, total, done, name="Provisions"):
+        self.total, self.done, self.failed, self.flagged, self.name = total, done, 0, 0, name
         self.start, self.start_done, self.lock = time.monotonic(), done, threading.Lock()
 
     def step(self, failed=False, flagged=False):
@@ -404,7 +477,7 @@ class Progress:
         left = self.total - self.done
         end = (datetime.now() + timedelta(hours=left / rate)).strftime("%a %H:%M") if rate and left else "-"
         filled = round(24 * self.done / self.total) if self.total else 24
-        print(f"[{'#' * filled}{'.' * (24 - filled)}] {self.done / max(self.total, 1):6.1%}  "
+        print(f"{self.name:<10} [{'#' * filled}{'.' * (24 - filled)}] {self.done / max(self.total, 1):6.1%}  "
               f"{self.done:,}/{self.total:,}  to check {self.flagged:,}  failed {self.failed:,}  "
               f"{rate:,.0f}/h  ends about {end}", flush=True)
 
@@ -414,40 +487,31 @@ def record_path(out, item):
     return out / "targets" / item["celex"] / name
 
 
-def one_pass(client, system, domains, out, todo, progress, workers):
-    """Ask Qwen for every open provision. Returns the connection error that stopped the pass, if any."""
+def act_path(out, celex):
+    return out / "acts" / f"{safe_name(celex)}.json"
+
+
+def read_act(out, celex):
+    path = act_path(out, celex)
+    return read_json(path) if path.is_file() else None
+
+
+def run_pool(todo, work, workers):
+    """Run `work` for every item. Returns the connection error that stopped the pass, if any."""
     stop = threading.Event()
 
-    def work(item):
+    def guarded(item):
         if stop.is_set():
             return
-        record = {key: item[key] for key in ("celex", "target", "kind", "target_id", "run", "level", "area")}
-        failed = flagged = False
         try:
-            saved = read_json(item["source"])
-            pack = saved["evidence_pack"]
-            record["title"] = squash(pack["document"].get("title"))
-            record["text"] = squash(" ".join(target_text(pack["provision"])))[:600]
-            classification, audit = classify(client, system, domains["ids"], pack)
+            work(item)
         except ConnectionLost:
             stop.set()
             raise
-        except Unclassified as exc:
-            record["failure"], failed = str(exc), True
-        except Exception as exc:  # noqa: BLE001 - one unreadable provision must not stop the run
-            record["failure"], failed = f"{type(exc).__name__}: {exc}"[:400], True
-        else:
-            record["classification"] = finish(classification, item, domains)
-            record["audit"] = audit
-            flagged = bool(record["classification"]["check"])
-        if failed:
-            print(f"Could not classify {item['celex']} {item['target']}: {record['failure']}", flush=True)
-        write_json(record_path(out, item), record)
-        progress.step(failed, flagged)
 
     lost = None
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(work, item) for item in todo]
+        futures = [pool.submit(guarded, item) for item in todo]
         try:
             for future in as_completed(futures):
                 try:
@@ -458,6 +522,85 @@ def one_pass(client, system, domains, out, todo, progress, workers):
             stop.set()  # Ctrl+C: running requests finish and are saved, the rest is skipped.
             raise
     return lost
+
+
+def act_worker(client, system, domains, out, progress):
+    def work(job):
+        celex, sources = job
+        record, failed = {"celex": celex}, False
+        try:
+            answer, title, log = classify_act(client, system, domains["ids"], celex, sources)
+        except ConnectionLost:
+            raise
+        except Unclassified as exc:
+            record["failure"], failed = str(exc), True
+        except Exception as exc:  # noqa: BLE001 - one unreadable act must not stop the run
+            record["failure"], failed = f"{type(exc).__name__}: {exc}"[:400], True
+        else:
+            record.update(answer, title=title, requests=log)
+        if failed:
+            print(f"Could not classify the act {celex}: {record['failure']}", flush=True)
+        write_json(act_path(out, celex), record)
+        progress.step(failed)
+    return work
+
+
+def provision_worker(client, system, domains, out, progress):
+    def work(item):
+        record = {key: item[key] for key in ("celex", "target", "kind", "target_id", "run", "level", "area")}
+        failed = flagged = False
+        try:
+            saved = read_json(item["source"])
+            pack = saved["evidence_pack"]
+            record["title"] = squash(pack["document"].get("title"))
+            record["text"] = squash(" ".join(target_text(pack["provision"])))[:600]
+            act = read_act(out, item["celex"])
+            classification, audit = classify(client, system, domains["ids"], pack, act)
+        except ConnectionLost:
+            raise
+        except Unclassified as exc:
+            record["failure"], failed = str(exc), True
+        except Exception as exc:  # noqa: BLE001 - one unreadable provision must not stop the run
+            record["failure"], failed = f"{type(exc).__name__}: {exc}"[:400], True
+        else:
+            record["classification"] = finish(classification, item, domains, act)
+            record["audit"] = audit
+            flagged = bool(record["classification"]["check"])
+        if failed:
+            print(f"Could not classify {item['celex']} {item['target']}: {record['failure']}", flush=True)
+        write_json(record_path(out, item), record)
+        progress.step(failed, flagged)
+    return work
+
+
+def run_until_done(client, name, open_items, make_work, workers, after_pass=lambda: None):
+    """Run one step until every item was asked once, waiting through outages.
+
+    open_items() returns (items still to ask, number already done). Items that Qwen answered badly are
+    saved as failed and tried again the next time the command is started.
+    """
+    quick = 0
+    while True:
+        todo, done = open_items()
+        if not todo:
+            return
+        progress = Progress(done + len(todo), done, name)
+        progress.show()
+        lost = run_pool(todo, make_work(progress), workers)
+        after_pass()
+        if lost is None:
+            return
+        if progress.done > done:
+            quick = 0
+        ok, error = reachable(client)
+        if ok and quick < QUICK_RETRIES:
+            quick += 1
+            print(f"{datetime.now():%Y-%m-%d %H:%M}  A request failed ({str(lost)[:160]}). "
+                  "Qwen answers, continuing in 15 s.", flush=True)
+            time.sleep(15)
+        else:
+            wait_until_reachable(client, error or lost)
+            quick = 0
 
 
 def act_links(celex):
@@ -503,7 +646,8 @@ def export(out, items, domains):
             secondary[result["secondary_domain"]] += 1
         checks.update(result["check"])
         rows.append([record["celex"], record["target"], result["level"], ", ".join(result["business_area"]),
-                     result["subject"], result["primary_domain"], result["primary_reason"],
+                     result.get("act_domain") or "", result["subject"], result["primary_domain"],
+                     result["primary_reason"],
                      result["secondary_domain"] or "", result["secondary_reason"], ", ".join(result["check"]),
                      record.get("text", "")[:400]])
         for role, domain, reason, departments in (
@@ -522,9 +666,18 @@ def export(out, items, domains):
                 act["title"] = record.get("title", "")
                 act["provisions"].append(entry)
     write_json(out / "results.json", results)
+    act_records, act_domains = {}, Counter()
+    for celex in sorted({item["celex"] for item in items}):
+        act = read_act(out, celex)
+        if act and act.get("act_domain"):
+            act_records[celex] = {key: act.get(key, "") for key in ("title", "act_domain", "act_subject", "reason")}
+            act_domains[act["act_domain"]] += 1
+    write_json(out / "acts.json", act_records)
+    differs = sum(1 for provisions in results.values() for result in provisions.values()
+                  if result.get("act_domain") in domains["ids"] and result["primary_domain"] != result["act_domain"])
     with (out / "review.csv").open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
-        writer.writerow(["celex", "provision", "level", "business_area", "subject", "primary_domain",
+        writer.writerow(["celex", "provision", "level", "business_area", "act_domain", "subject", "primary_domain",
                          "primary_reason", "secondary_domain", "secondary_reason", "check", "text_start",
                          "primary correct (yes/no)", "right domain if wrong", "comment"])
         writer.writerows(rows)
@@ -546,6 +699,8 @@ def export(out, items, domains):
         "domain_catalogue": domains["version"],
         "provisions_planned": len(items), "provisions_classified": decided, "provisions_failed": len(failures),
         "provisions_open": len(items) - decided - len(failures), "levels": dict(levels),
+        "acts_classified": len(act_records), "act_domains": dict(act_domains.most_common()),
+        "provisions_outside_their_act_domain": differs,
         "primary_domains": dict(primary.most_common()), "secondary_domains": dict(secondary.most_common()),
         "with_secondary_domain": sum(secondary.values()),
         "share_with_secondary_domain": round(sum(secondary.values()) / decided, 3) if decided else 0,
@@ -602,6 +757,7 @@ def main():
     try:
         domains = load_domains(args.domains, args.domains_de, args.anchors)
         system = system_prompt(PROMPT.read_text(encoding="utf-8"), domains)
+        act_system = system_prompt(ACT_PROMPT.read_text(encoding="utf-8"), domains)
         items, facts = collect([run.resolve() for run in args.runs], args.unsure_dir)
     except (OSError, ValueError, KeyError, yaml.YAMLError) as exc:
         print(f"Stopped: {exc}", file=sys.stderr)
@@ -612,6 +768,9 @@ def main():
     if facts["unsure_without_decision"]:
         print(f"Note: {facts['unsure_without_decision']:,} UNSURE provisions have no decision from the UNSURE "
               f"pass in {args.unsure_dir} and are left out.", flush=True)
+    sources = defaultdict(list)          # every kept provision of an act helps to describe the act
+    for item in items:
+        sources[item["celex"]].append(item["source"])
     items = [item for item in items if item["level"] in args.levels]
     if args.count_only:
         return 0
@@ -619,52 +778,46 @@ def main():
         print("Nothing to classify.", file=sys.stderr)
         return 1
 
-    fingerprint = sha([system, TASK, reply_schema(domains["ids"]), MAX_PARTS])
+    fingerprint = sha([system, TASK, reply_schema(domains["ids"]), MAX_PARTS,
+                       act_system, ACT_TASK, act_schema(domains["ids"]), ACT_PROVISIONS, ACT_OPENING_CHARS])
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
         print("The prompt or the domain files changed since this folder was started. "
-              "Use a new --output-dir, for example runs/eurlex_classification_v4.", file=sys.stderr)
+              "Use a new --output-dir, for example runs/eurlex_classification_v5.", file=sys.stderr)
         return 1
     write_json(config, {"fingerprint": fingerprint, "domain_catalogue": domains["version"],
-                        "runs": [str(run) for run in args.runs], "system_prompt": system})
+                        "runs": [str(run) for run in args.runs], "system_prompt": system,
+                        "act_system_prompt": act_system})
     planned = sample(items, args.sample) if args.sample else items
     print(f"Planned: {len(planned):,} provisions" + (" (sample)." if args.sample else "."), flush=True)
 
     client = QwenClient.from_env(args.env_file, retries=1)
     workers = max(1, min(args.workers, MAX_WORKERS))
-    quick = 0
+    planned_acts = sorted({item["celex"] for item in planned})
+
+    def open_acts():
+        todo = [(celex, sources[celex]) for celex in planned_acts
+                if not (read_act(out, celex) or {}).get("act_domain")]
+        return todo, len(planned_acts) - len(todo)
+
+    def open_provisions():
+        todo = []
+        for item in planned:
+            path = record_path(out, item)
+            if not (path.is_file() and "classification" in read_json(path)):
+                todo.append(item)  # New, or failed before: failed ones get one more try per start.
+        return todo, len(planned) - len(todo)
+
     try:
         # The client learns the address and model name from the endpoint before the first request.
         ok, error = reachable(client)
         if not ok:
             wait_until_reachable(client, error)
-        while True:
-            todo, done, failed = [], 0, 0
-            for item in planned:
-                path = record_path(out, item)
-                if path.is_file() and "classification" in read_json(path):
-                    done += 1
-                else:
-                    todo.append(item)  # New, or failed before: failed ones get one more try per start.
-            if not todo:
-                break
-            progress = Progress(len(planned), done, failed)
-            progress.show()
-            lost = one_pass(client, system, domains, out, todo, progress, workers)
-            export(out, planned, domains)
-            if lost is None:
-                break
-            if progress.done > done:
-                quick = 0
-            ok, error = reachable(client)
-            if ok and quick < QUICK_RETRIES:
-                quick += 1
-                print(f"{datetime.now():%Y-%m-%d %H:%M}  A request failed ({str(lost)[:160]}). "
-                      "Qwen answers, continuing in 15 s.", flush=True)
-                time.sleep(15)
-            else:
-                wait_until_reachable(client, error or lost)
-                quick = 0
+        run_until_done(client, "Acts", open_acts,
+                       lambda progress: act_worker(client, act_system, domains, out, progress), workers)
+        run_until_done(client, "Provisions", open_provisions,
+                       lambda progress: provision_worker(client, system, domains, out, progress), workers,
+                       after_pass=lambda: export(out, planned, domains))
     except KeyboardInterrupt:
         export(out, planned, domains)
         print("\nStopped by Ctrl+C. Run the same command to continue.", flush=True)

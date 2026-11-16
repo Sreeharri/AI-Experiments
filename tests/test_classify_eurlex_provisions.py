@@ -19,10 +19,16 @@ IDS = DOMAINS["ids"]
 
 
 def answer(primary="energy_sustainability", secondary="none", **changes):
-    value = {"subject": "energy audits for enterprises", "candidates": [primary], "primary_domain": primary,
+    value = {"subject": "energy audits for enterprises", "primary_domain": primary,
              "primary_reason": "The article obliges enterprises to carry out energy audits.",
              "secondary_domain": secondary,
              "secondary_reason": "" if secondary == "none" else "It also sets rules for public tenders."}
+    return ChatResult(ok=True, finish_reason="stop", content=json.dumps({**value, **changes}))
+
+
+def act(domain="energy_sustainability", **changes):
+    value = {"act_subject": "energy efficiency of enterprises", "reason": "The act sets energy audit duties.",
+             "act_domain": domain}
     return ChatResult(ok=True, finish_reason="stop", content=json.dumps({**value, **changes}))
 
 
@@ -107,21 +113,13 @@ class CatalogueTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["primary_domain"]["enum"][-1], "no_fitting_domain")
         self.assertEqual(schema["properties"]["secondary_domain"]["enum"][-1], "none")
         self.assertEqual(list(schema["properties"]), schema["required"])
-        self.assertEqual(schema["properties"]["candidates"]["maxItems"], 3)
+        self.assertEqual(classifier.act_schema(IDS)["properties"]["act_domain"]["enum"][-2:],
+                         ["no_fitting_domain", "mixed_act"])
 
 
 class ValidateTests(unittest.TestCase):
     def check(self, **changes):
         return classifier.validate(json.loads(answer(**changes).content), IDS)
-
-    def test_candidates_are_kept_for_the_audit_and_optional(self):
-        self.assertEqual(self.check(candidates=["energy_sustainability", "renewable_energy", "steel"])["candidates"],
-                         ["energy_sustainability", "renewable_energy"])
-        reply = json.loads(answer().content)
-        del reply["candidates"]
-        self.assertEqual(classifier.validate(reply, IDS)["candidates"], [])
-        with self.assertRaisesRegex(classifier.Unclassified, "list of domain ids"):
-            self.check(candidates="energy_sustainability")
 
     def test_plain_answer(self):
         result = self.check()
@@ -152,6 +150,40 @@ class ValidateTests(unittest.TestCase):
             classifier.validate({"primary_domain": "waste_management"}, IDS)
 
 
+class ActTests(unittest.TestCase):
+    def write(self, root, name, saved):
+        path = root / name
+        path.write_text(json.dumps(saved), encoding="utf-8")
+        return str(path)
+
+    def test_act_is_described_by_title_and_openings_and_gets_one_domain(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            sources = [self.write(root, f"{n}.json", record("A", f"Article {n}")) for n in range(1, 31)]
+            sources.append(str(root / "missing.json"))
+            client = client_with(act())
+            answer_, title, log = classifier.classify_act(client, "ACT SYSTEM", IDS, "A", sources)
+            self.assertEqual((answer_["act_domain"], title, len(log)), ("energy_sustainability", "Test act A", 1))
+            messages = client.chat.call_args.args[0]
+            evidence, _, task = messages[1]["content"].partition("\n\nTASK:")
+            sent = json.loads(evidence)
+            self.assertEqual(messages[0]["content"], "ACT SYSTEM")
+            self.assertEqual(sent["act"], {"celex": "A", "title": "Test act A"})
+            self.assertLessEqual(len(sent["provisions"]), classifier.ACT_PROVISIONS)
+            self.assertEqual(sent["provisions"][0]["locator"], "Article 1")
+            self.assertIn("Assign this legal act", task)
+            self.assertEqual(client.chat.call_args.kwargs["schema"], classifier.act_schema(IDS))
+
+    def test_act_answers_are_checked(self):
+        ok = classifier.validate_act(json.loads(act("mixed_act").content), IDS)
+        self.assertEqual(ok["act_domain"], "mixed_act")
+        for changes, message in (({"act_domain": "steel"}, "act_domain"), ({"reason": ""}, "must not be empty")):
+            with self.assertRaisesRegex(classifier.Unclassified, message):
+                classifier.validate_act(json.loads(act(**changes).content), IDS)
+        with self.assertRaisesRegex(classifier.Unclassified, "No saved provision"):
+            classifier.classify_act(client_with(), "S", IDS, "A", ["/nowhere/x.json"])
+
+
 class ClassifyTests(unittest.TestCase):
     def test_request_holds_text_and_task_but_no_relevance_result(self):
         client = client_with(answer())
@@ -167,6 +199,22 @@ class ClassifyTests(unittest.TestCase):
         self.assertNotIn("Screening reason", evidence)
         self.assertTrue(task.strip().endswith("described in the instructions."))
         self.assertEqual((audit["parts_total"], audit["parts_asked"]), (1, 1))
+        self.assertNotIn("act_domain", sent)
+
+    def test_act_domain_is_given_as_the_starting_point(self):
+        client = client_with(answer())
+        saved_act = {"act_domain": "dangerous_goods", "act_subject": "registration of chemicals"}
+        classifier.classify(client, "S", IDS, pack(), saved_act)
+        sent = json.loads(client.chat.call_args.args[0][1]["content"].partition("\n\nTASK:")[0])
+        self.assertEqual(sent["act_domain"], {"domain": "dangerous_goods", "act_subject": "registration of chemicals"})
+        self.assertEqual(list(sent)[:3], ["act", "act_domain", "target"])
+        done = classifier.finish(classifier.combine([classifier.validate(json.loads(answer().content), IDS)]),
+                                 {"level": "DIRECT", "area": []}, DOMAINS, saved_act)
+        self.assertEqual(done["act_domain"], "dangerous_goods")
+        failed_act = {"celex": "A", "failure": "no answer"}
+        client = client_with(answer())
+        classifier.classify(client, "S", IDS, pack(), failed_act)
+        self.assertNotIn("act_domain", client.chat.call_args.args[0][1]["content"])
 
     def test_one_correction_then_failure(self):
         bad = answer(secondary="public_procurement", secondary_reason="")
@@ -289,7 +337,8 @@ class RunTests(unittest.TestCase):
                           facts["unsure_without_decision"]), (2, 2, 1, 1))
 
     def test_full_run_writes_all_outputs(self):
-        client = client_with(answer(), answer("customs_trade"),
+        client = client_with(act(), act("waste_management"), act("public_procurement"),
+                             answer(), answer("customs_trade"),
                              answer("waste_management", "dangerous_goods"), answer("energy_sustainability"))
         code, _ = self.main(client)
         self.assertEqual(code, 0)
@@ -300,15 +349,21 @@ class RunTests(unittest.TestCase):
         self.assertEqual(results["A"]["Article 3"]["to_confirm"], "Does Max Bögl import steel itself?")
         self.assertEqual(results["B"]["Article 1"]["secondary_domain"], "dangerous_goods")
         self.assertEqual(results["C"]["Article 9"]["check"], ["differs_from_business_area"])
+        self.assertEqual((results["B"]["Article 1"]["act_domain"], results["C"]["Article 9"]["act_domain"]),
+                         ("waste_management", "public_procurement"))
+        acts = json.loads((self.out / "acts.json").read_text(encoding="utf-8"))
+        self.assertEqual({celex: a["act_domain"] for celex, a in acts.items()},
+                         {"A": "energy_sustainability", "B": "waste_management", "C": "public_procurement"})
         summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
         self.assertEqual((summary["provisions_classified"], summary["provisions_failed"],
                           summary["with_secondary_domain"], summary["to_check"]),
                          (4, 0, 1, {"differs_from_business_area": 1}))
+        self.assertEqual((summary["acts_classified"], summary["provisions_outside_their_act_domain"]), (3, 2))
         self.assertEqual(summary["departments"]["Umweltmanagement"],
                          {"acts": 1, "provisions": 2, "direct": 0, "indirect": 2})
         with (self.out / "review.csv").open(encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.reader(handle, delimiter=";"))
-        self.assertEqual((len(rows), rows[0][5]), (5, "primary_domain"))
+        self.assertEqual((len(rows), rows[0][4], rows[0][6]), (5, "act_domain", "primary_domain"))
         # The department sees the act once, with only its provisions.
         view = json.loads((self.out / "departments" / "Umweltmanagement.json").read_text(encoding="utf-8"))
         self.assertEqual([(act["celex"], act["title"]) for act in view["acts"]], [("B", "Test act B")])
@@ -329,7 +384,7 @@ class RunTests(unittest.TestCase):
         make_run(self.root, "long", [[record("L", "Annex I", text=text)]])
         argv = ["classify", "--runs", str(self.root / "long"), "--unsure-dir", str(self.unsure),
                 "--output-dir", str(self.out), "--workers", "1"]
-        client = client_with(*[answer() for _ in range(classifier.MAX_PARTS)])
+        client = client_with(act(), *[answer() for _ in range(classifier.MAX_PARTS)])
         with patch.object(sys, "argv", argv), patch.object(classifier.QwenClient, "from_env", return_value=client):
             self.assertEqual(classifier.main(), 0)
         result = json.loads((self.out / "results.json").read_text(encoding="utf-8"))["L"]["Annex I"]
@@ -343,11 +398,11 @@ class RunTests(unittest.TestCase):
         self.assertEqual(self.main(client, "--count-only")[0], 0)
         client.chat.assert_not_called()
         self.assertFalse(self.out.exists())
-        client = client_with(answer(), answer())
+        client = client_with(act(), act(), answer(), answer())
         self.assertEqual(self.main(client, "--levels", "DIRECT")[0], 0)
         self.assertEqual(json.loads((self.out / "summary.json").read_text())["levels"], {"DIRECT": 2})
-        client = client_with(answer(), answer())
-        self.assertEqual(self.main(client)[0], 0)                      # the two INDIRECT ones are added
+        client = client_with(act(), answer(), answer())
+        self.assertEqual(self.main(client)[0], 0)                      # act B and the two INDIRECT ones are added
         self.assertEqual(json.loads((self.out / "summary.json").read_text())["provisions_classified"], 4)
 
     def test_sample_mixes_levels_and_is_stable(self):
@@ -359,7 +414,7 @@ class RunTests(unittest.TestCase):
 
     def test_outage_waits_then_continues(self):
         lost = ChatResult(ok=False, error_kind="connection", error="WinError 10060")
-        client = client_with(answer(), lost, answer(), answer(), answer())
+        client = client_with(act(), act(), act(), answer(), lost, answer(), answer(), answer())
         client.discover_results = [{"ok": True}, {"ok": False, "error": "No model list found."},
                                    {"ok": False, "error": "No model list found."}, {"ok": True}]
         code, sleep = self.main(client)
@@ -368,7 +423,7 @@ class RunTests(unittest.TestCase):
         self.assertEqual(json.loads((self.out / "summary.json").read_text())["provisions_classified"], 4)
 
     def test_endpoint_down_at_the_start_waits(self):
-        client = client_with(answer(), answer(), answer(), answer(), discovered=False)
+        client = client_with(act(), act(), act(), answer(), answer(), answer(), answer(), discovered=False)
         client.discover_results = [{"ok": False, "error": "No model list found."}, {"ok": True}]
         code, sleep = self.main(client)
         self.assertEqual((code, [call.args[0] / 60 for call in sleep.call_args_list]), (0, [15]))
@@ -377,16 +432,33 @@ class RunTests(unittest.TestCase):
         bad = answer(primary_reason="")
         source = next((self.first / "batches" / "0001" / "audit" / "B").glob("*.json"))
         source.write_text("{not json", encoding="utf-8")
-        code, _ = self.main(client_with(answer(), bad, bad, answer()))
+        code, _ = self.main(client_with(act(), act(), answer(), bad, bad, answer()))
         self.assertEqual(code, 0)
         summary = json.loads((self.out / "summary.json").read_text())
         self.assertEqual((summary["provisions_classified"], summary["provisions_failed"]), (2, 2))
+        self.assertEqual(summary["acts_classified"], 2)            # the act with the unreadable file has no domain
         self.assertEqual({f["celex"] for f in summary["failures"]}, {"A", "B"})
 
     def test_changed_domains_need_a_new_folder(self):
-        self.main(client_with(answer(), answer(), answer(), answer()))
+        self.main(client_with(act(), act(), act(), answer(), answer(), answer(), answer()))
         with patch.object(classifier, "TASK", "TASK: something else."):
             self.assertEqual(self.main(client_with())[0], 1)
+
+    def test_outage_during_the_act_step_and_a_failed_act_do_not_block_provisions(self):
+        lost = ChatResult(ok=False, error_kind="timeout", error="Timed out")
+        bad_act = act(reason="")
+        client = client_with(act(), lost, bad_act, bad_act, act(), answer(), answer(), answer(), answer())
+        code, sleep = self.main(client)
+        self.assertEqual(code, 0)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [15])     # Qwen answered the check
+        summary = json.loads((self.out / "summary.json").read_text())
+        self.assertEqual((summary["acts_classified"], summary["provisions_classified"]), (2, 4))
+        results = json.loads((self.out / "results.json").read_text(encoding="utf-8"))
+        self.assertIsNone(results["B"]["Article 1"]["act_domain"])
+        # The next start asks again only for the act that failed.
+        client = client_with(act("waste_management"))
+        self.assertEqual(self.main(client)[0], 0)
+        self.assertEqual(client.chat.call_count, 1)
 
     def test_missing_run_folder_is_reported(self):
         argv = ["classify", "--runs", str(self.root / "nothing"), "--output-dir", str(self.out)]
