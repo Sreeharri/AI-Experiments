@@ -6,6 +6,7 @@ import re
 from .document_recovery import recover_document
 from .pdf_source import pdf_tables
 from .references import Resolver
+from .repair import merge_false_headings
 from .xhtml import AnnexLocatorError, XHTML, payload_type
 
 STOP_WORDS = set("""
@@ -49,6 +50,9 @@ class NoUsableProvisions(ValueError):
 def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False, recover_document_text=False):
     is_pdf = recover_from_database and payload_type(raw_xhtml) == "PDF"
     xhtml = None if is_pdf else XHTML(raw_xhtml)
+    # Sentences that begin with "Annex II to ..." or "Article 15 of ..." were stored as new provisions.
+    repaired_rows, merged_headings = merge_false_headings(data["legal_elements"])
+    data = {**data, "legal_elements": repaired_rows}
     additions, recovery = [], None
     if recover_document_text and not any(row["element_type"] in {"ARTICLE", "ANNEX"}
                                          for row in data["legal_elements"]):
@@ -370,11 +374,12 @@ def build(data, raw_xhtml, xhtml_origin, *, recover_from_database=False, recover
                     if is_pdf else
                     "Source tables, footnotes, and images are unverified in annexes using stored text."
                 ] + (["Targets were recovered from headings in full text. Check provision boundaries and source layout."]
-                     if recovery == "HEADING_RECOVERY" else
+                     if recovery in {"HEADING_RECOVERY", "INLINE_HEADING_RECOVERY"} else
                      ["Full text is available for document-level review. No article or annex targets were assigned."]
                      if recovery else [])
                   + (["German citation resolution requires review."] if version["language"] == "DE" else []),
             }} if partial else {}),
+            **({"provision_repair": {"merged_false_headings": merged_headings}} if merged_headings else {}),
         },
         "summary": {
             "articles": counts["ARTICLE"], "annexes": counts["ANNEX"],

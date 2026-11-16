@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import re
 
 from .pdf_source import pdf_text
+from .repair import decode_glyph_codes, inline_provisions
 from .xhtml import NS, tag, text
 
 
@@ -51,7 +52,7 @@ def html_lines(xhtml):
 
 def stored_lines(rows):
     for row in rows:
-        for number, line in enumerate((row.get("body_text") or "").splitlines(), 1):
+        for number, line in enumerate(decode_glyph_codes(row.get("body_text") or "").splitlines(), 1):
             yield Line(line, {"kind": "POSTGRESQL_LEGAL_ELEMENT", "element_id": row["id"], "line": number})
 
 
@@ -102,7 +103,7 @@ def recover_document(data, raw, xhtml):
     additions, source_text = [], ""
     if xhtml is None:
         locations = [] if correction and body else pdf_text(raw)
-        native = [Line(value, {"kind": "PDF_TEXT", "page": page, "line": number})
+        native = [Line(decode_glyph_codes(value), {"kind": "PDF_TEXT", "page": page, "line": number})
                   for page, number, value in locations]
         source_text = "\n".join(line.text for line in native).strip()
     else:
@@ -124,8 +125,24 @@ def recover_document(data, raw, xhtml):
                 })
             if additions:
                 return additions, "HEADING_RECOVERY"
+        # No heading stands on a line of its own (text stored as one block, or columns read across).
+        # Cut the longer text at headings that follow the end of a sentence.
+        inline = max((inline_provisions(" ".join(value.split())) for value in (source_text, body)), key=len)
+        for kind, number, label, value, start, end in inline:
+            ordinal += 1
+            additions.append({
+                "id": f"{celex}:recovered:{kind.lower()}:{number}",
+                "element_type": kind, "identifier": label, "number": number,
+                "parent_id": None, "ordinal": ordinal, "path": f"/{kind.lower()}/{number}",
+                "body_text": value, "details": {"aggregate_body": True},
+                "recovery_source": {"start": start, "end": end},
+            })
+        if additions:
+            return additions, "INLINE_HEADING_RECOVERY"
 
-    value = body or source_text
+    # The stored text can be one page of a longer act. Prefer the source text when it is clearly longer.
+    use_source = len(source_text) > 2 * len(body)
+    value = source_text if use_source else body
     if not any(character.isalpha() for character in value):
         return [], None
     return [{
@@ -134,6 +151,6 @@ def recover_document(data, raw, xhtml):
         "identifier": "Corrigendum (full text)" if correction else "Document (full text)",
         "number": None, "parent_id": None, "ordinal": ordinal + 1, "path": "/document-text/recovered",
         "body_text": value, "details": {"aggregate_body": True},
-        "recovery_source": {"kind": "POSTGRESQL_LEGAL_ELEMENT" if body else "SOURCE_SNAPSHOT",
-                            "element_ids": [row["id"] for row in rows] if body else []},
+        "recovery_source": {"kind": "POSTGRESQL_LEGAL_ELEMENT" if body and not use_source else "SOURCE_SNAPSHOT",
+                            "element_ids": [row["id"] for row in rows] if body and not use_source else []},
     }], "CORRIGENDUM_TEXT" if correction else "DOCUMENT_TEXT"

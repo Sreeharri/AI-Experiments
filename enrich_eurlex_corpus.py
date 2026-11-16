@@ -143,6 +143,7 @@ def process(args, manifest, dsn):
     parser_counts = Counter()
     partial_coverage = {}
     annex_recovery_acts = 0
+    repaired_acts = []
     no_targets = []
     document_text_only = []
     stopped = None
@@ -185,6 +186,8 @@ def process(args, manifest, dsn):
             document = enriched["document"]
             parser_counts[document.get("source_parser") or "PREVIOUS_RUN"] += 1
             annex_recovery_acts += bool(document.get("annex_locator_recoveries"))
+            if document.get("provision_repair"):
+                repaired_acts.append(celex)
             if coverage := document.get("source_coverage"):
                 partial_coverage[celex] = coverage
             if not any(metrics[field] for field in PROVISION_METRICS):
@@ -216,6 +219,7 @@ def process(args, manifest, dsn):
                 coverage["document_recovery"] for coverage in partial_coverage.values()
                 if "document_recovery" in coverage
             )),
+            "acts_with_repaired_provision_boundaries": len(repaired_acts),
             "acts_with_partial_source_coverage": len(partial_coverage),
             "annexes_using_database_text": sum(len(c["database_annex_ids"]) for c in partial_coverage.values()),
             "missing_structured_targets": sum(len(c["missing_targets"]) for c in partial_coverage.values()),
