@@ -1,6 +1,6 @@
 # Legal Radar – Summaries step (guide)
 
-Status 2026-11-17 (v4.2). Step after classification. Script: `summarize_eurlex_provisions.py`.
+Status 2026-11-17 (v4.3). Step after classification. Script: `summarize_eurlex_provisions.py`.
 
 ## What it does
 
@@ -22,6 +22,7 @@ Code checks (one correction request, otherwise the item is marked failed and ret
 - numbers that only point to a part of a text or to another act (Artikel 5, Absatz 1, Anhang II, Nr. 451/2008, 2008/98/EG) are references, not facts, and are not checked.
 - **language:** a summary in the wrong language (English instead of German) gets a correction request;
 - **empty statements** ("Eine Frist wird nicht genannt", "no specific deadline") are removed by code.
+- **no text:** a provision whose stored text has almost no words (for example only "(7-146)") is not sent to Qwen; the card says the text is missing (`text_missing`).
 
 What Qwen sees for a provision summary: only the act title and the provision itself (for long provisions also the opening words). Since v4.2, surrounding articles and referenced texts are no longer sent: in the first pilot Qwen summarised them as if they were part of the provision.
 
@@ -48,7 +49,7 @@ If you already started a summaries folder with an older version, the script refu
 ## Commands (PowerShell, in the project folder)
 
 ```
-# 1. code test, no Qwen needed – must end with OK (23 tests)
+# 1. code test, no Qwen needed – must end with OK (25 tests)
 & .\.venv\Scripts\python.exe -m unittest tests.test_summarize_eurlex_provisions
 
 # 2. count only, nothing is sent

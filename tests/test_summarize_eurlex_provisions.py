@@ -149,7 +149,7 @@ class ProvisionTests(unittest.TestCase):
         self.assertEqual((summary["headline"], summary["overview"]), ("Energy audit rules", "Covers both pieces."))
         self.assertEqual([b["kind"] for b in summary["bullets"]], ["DUTY", "CONDITION"])
         self.assertEqual(client.chat.call_args.args[0][0]["content"], "MERGE")
-        alone = record("A", "Annex I", text="Short text that is still refused by the model.")
+        alone = record("A", "Annex I", text="A short text that the model still refuses to read in this test.")
         with self.assertRaisesRegex(summariser.Unclassified, "No part"):
             summariser.summarise_provision(client_with(too_long), "S", alone)
 
@@ -176,6 +176,22 @@ class ProvisionTests(unittest.TestCase):
         sentences = ["Die Richtlinie regelt Energieaudits.", "Es gibt keine konkrete Frist."]
         self.assertEqual(summariser.without_empty_statements(sentences, lambda x: x), sentences[:1])
 
+    def test_english_overview_is_not_hidden_by_german_bullets(self):
+        english = reply({"headline": "Compliance simulations for type C modules",
+                         "overview": "The owner must carry out the simulations and give the results to the operator.",
+                         "bullets": [{"kind": "DUTY", "text": "Der Betreiber muss die Simulationen durchführen.",
+                                      "passages": ["P1"]}]})
+        with patch.object(summariser, "OUTPUT_LANGUAGE", "de"), \
+                self.assertRaisesRegex(summariser.Unclassified, "after one correction"):
+            summariser.summarise_provision(client_with(english, english), "S", record("A", "Article 1", text=TEXT))
+
+    def test_a_provision_without_words_is_not_sent(self):
+        client = client_with()
+        summary, audit = summariser.summarise_provision(client, "S", record("A", "Annex VII", text="(7-146)"))
+        client.chat.assert_not_called()
+        self.assertTrue(summary["text_missing"])
+        self.assertEqual((summary["bullets"], audit["requests"]), ([], []))
+
     def test_long_provision_reads_only_kept_parts_and_balances_the_bullets(self):
         text = " ".join(f"Sentence number {n} about the energy audit of enterprises." for n in range(1500))
         saved = record("A", "Annex I", text=text)
@@ -195,7 +211,9 @@ class ProvisionTests(unittest.TestCase):
         self.assertEqual({item["reason"] for item in summary["not_read"]}, {"NOT_RELEVANT"})
         self.assertEqual(len(summary["not_read"]), total - 2)
         self.assertEqual(summary["overview_covers"], "2")          # the join failed: say what the overview covers
-        self.assertIn("Teil 2, 4 von", summariser.parts_note(summary, "de"))
+        note = summariser.parts_note(summary, "de")
+        self.assertIn("Teil 2, 4 von", note)
+        self.assertEqual(note.count("bei der Prüfung nicht relevant"), 1)     # one line, not one per part
         sent = json.loads(client.chat.call_args_list[0].args[0][1]["content"].partition("\n\nTASK:")[0])
         self.assertEqual(sent["target"]["part"], f"2 of {total}")
 

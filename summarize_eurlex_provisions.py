@@ -69,6 +69,9 @@ DEPARTMENT_KINDS = ("WHY_MAX_BOEGL", "WHY_DEPARTMENT", "ATTENTION", "TO_CONFIRM"
 MAX_BULLETS = 4
 MAX_PARTS = 3                 # a long provision is summarised from the parts the screening kept
 MAX_PART_REQUESTS = 8         # requests for the parts of one provision, including smaller pieces
+MIN_LETTERS = 40              # a stored text with fewer letters is not sent to Qwen
+NO_TEXT = {"de": "Der gespeicherte Text dieser Vorschrift enthält kaum Wörter. Bitte den Originaltext öffnen.",
+           "en": "The stored text of this provision has almost no words. Please open the original text."}
 MAX_ACT_HEADLINES = 12        # provisions shown to Qwen for one act summary
 MAX_SENTENCES = 5
 MAX_CARD_PROVISIONS = 15      # provisions shown to Qwen for one department summary
@@ -175,7 +178,8 @@ def validate_provision(reply, passages, source, locator=""):
         seen.add(text.casefold())
         result.append({"kind": bullet["kind"], "text": text, "passages": list(dict.fromkeys(cited))[:3]})
     result = without_empty_statements(result, lambda bullet: bullet["text"])
-    check_language([squash(headline), squash(overview), *(bullet["text"] for bullet in result)])
+    check_language([squash(headline), squash(overview)])          # each group on its own: a German bullet list
+    check_language([bullet["text"] for bullet in result])         # must not hide an English overview
     check_numbers([squash(headline), squash(overview), *(bullet["text"] for bullet in result)], source)
     for bullet in result:
         cite_numbers(bullet, passages, locator)
@@ -251,6 +255,11 @@ def summarise_provision(client, system, saved, merge_system=None):
     """
     pack = saved["evidence_pack"]
     provision = pack["provision"]
+    full_text = squash(" ".join(target_text(provision)))
+    if len(re.findall(r"[^\W\d_]", full_text)) < MIN_LETTERS:
+        # Nothing to summarise (for example only "(7-146)"): no request, so Qwen cannot fill the gap from the title.
+        return ({"headline": str(provision.get("locator", "")), "overview": NO_TEXT[OUTPUT_LANGUAGE or "en"],
+                 "bullets": [], "text_missing": True}, {"parts_total": 0, "parts": [], "not_read": [], "requests": []})
     parts = split_target(provision, TARGET_CHARS)
     kept = kept_parts(saved, len(parts))
     opening = squash(" ".join(target_text(provision)))[:OPENING_CHARS]
@@ -487,11 +496,11 @@ def groups_of(celex, records):
 LEVEL_LABEL = {"de": {"DIRECT": "Direkt relevant", "INDIRECT": "Indirekt relevant"},
                "en": {"DIRECT": "Directly relevant", "INDIRECT": "Indirectly relevant"}}
 PART_TEXT = {
-    "de": {"read": "Gelesen: Teil {read} von {total}.", "NOT_RELEVANT": "Teil {part}: bei der Prüfung nicht relevant",
-           "LIMIT": "Teil {part}: nicht gelesen (Grenze erreicht)", "TOO_LONG": "Teil {part}: zu lang, nicht gelesen",
+    "de": {"read": "Gelesen: Teil {read} von {total}.", "NOT_RELEVANT": "Teile {part}: bei der Prüfung nicht relevant.",
+           "LIMIT": "Teile {part}: nicht gelesen (Grenze erreicht).", "TOO_LONG": "Teile {part}: zu lang, nicht gelesen.",
            "covers": "Überblick nur aus Teil {part}.", "more": "Weitere Punkte ({count})"},
-    "en": {"read": "Read: part {read} of {total}.", "NOT_RELEVANT": "Part {part}: not relevant in the screening",
-           "LIMIT": "Part {part}: not read (limit reached)", "TOO_LONG": "Part {part}: too long, not read",
+    "en": {"read": "Read: part {read} of {total}.", "NOT_RELEVANT": "Parts {part}: not relevant in the screening.",
+           "LIMIT": "Parts {part}: not read (limit reached).", "TOO_LONG": "Parts {part}: too long, not read.",
            "covers": "Overview from part {part} only.", "more": "More points ({count})"},
 }
 KIND_LABEL = {
@@ -519,7 +528,12 @@ a{color:#2f6fb3}"""
 def parts_note(p, language):
     words = PART_TEXT[language]
     lines = [words["read"].format(read=", ".join(p.get("parts_read", [])), total=p["parts_total"])]
-    lines += [words[item["reason"]].format(part=item["part"]) for item in p.get("not_read", [])]
+    by_reason = defaultdict(list)
+    for item in p.get("not_read", []):
+        by_reason[item["reason"]].append(item["part"])
+    for reason, numbers in by_reason.items():  # a list of 70 parts becomes one line
+        shown = ", ".join(numbers[:6]) + (f" … (+{len(numbers) - 6})" if len(numbers) > 6 else "")
+        lines.append(words[reason].format(part=shown))
     if p.get("overview_covers"):
         lines.append(words["covers"].format(part=p["overview_covers"]))
     return " ".join(lines)
