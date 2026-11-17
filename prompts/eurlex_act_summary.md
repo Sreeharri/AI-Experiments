@@ -20,7 +20,9 @@ RULES
 - Be concrete. Not "the act contains duties for companies", but which duty for which company.
 - Copy numbers, dates and thresholds exactly as they stand in the input. Do not write a number that is not in the input. Keep decimal points, units, and the full date with day, month and year.
 - You see only some provisions. Do not claim that the act contains nothing else.
+- Never write that something is not mentioned or that there is no deadline.
+- Do not name sectors or companies (for example the construction industry) that the input does not name.
 - Do not say whether the act is relevant for the company.
-- Write in <LANGUAGE>, in plain words.
+- Write everything in <LANGUAGE>, in plain words.
 
 Return one JSON object with sentences.

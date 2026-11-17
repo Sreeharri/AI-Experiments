@@ -1,6 +1,6 @@
 # Legal Radar – Summaries step (guide)
 
-Status 2026-11-17 (v4). Step after classification. Script: `summarize_eurlex_provisions.py`.
+Status 2026-11-17 (v4.2). Step after classification. Script: `summarize_eurlex_provisions.py`.
 
 ## What it does
 
@@ -18,7 +18,12 @@ Code checks (one correction request, otherwise the item is marked failed and ret
 - **numbers:** every number must occur in the text with the same value. Other notation is fine (1.000 / 1,000 / 1 000, 1.5 / 1,5), another value is not (1.5 MW is never 15 MW);
 - **dates:** day, month and year must match a date in the text (31.12.2027 = 31 December 2027; 31.01.2027 is rejected). A date without day (Dezember 2027) must match month and year;
 - **units:** a number with a unit (MW, kWh, TJ, t, kg, %, EUR …) must stand with the same unit in the text;
-- **a number in a key point must stand in the passage that point names**, not just somewhere in the provision.
+- a number in a key point must stand in the text that was sent. If it is not in the passage the point names, the code adds the passage that holds it. If it stands only outside the passages (act title, opening words of a long annex), the point is marked `number_outside_passages`;
+- numbers that only point to a part of a text or to another act (Artikel 5, Absatz 1, Anhang II, Nr. 451/2008, 2008/98/EG) are references, not facts, and are not checked.
+- **language:** a summary in the wrong language (English instead of German) gets a correction request;
+- **empty statements** ("Eine Frist wird nicht genannt", "no specific deadline") are removed by code.
+
+What Qwen sees for a provision summary: only the act title and the provision itself (for long provisions also the opening words). Since v4.2, surrounding articles and referenced texts are no longer sent: in the first pilot Qwen summarised them as if they were part of the provision.
 
 ## Long provisions
 
@@ -43,7 +48,7 @@ If you already started a summaries folder with an older version, the script refu
 ## Commands (PowerShell, in the project folder)
 
 ```
-# 1. code test, no Qwen needed – must end with OK (20 tests)
+# 1. code test, no Qwen needed – must end with OK (23 tests)
 & .\.venv\Scripts\python.exe -m unittest tests.test_summarize_eurlex_provisions
 
 # 2. count only, nothing is sent

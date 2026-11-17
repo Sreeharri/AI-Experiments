@@ -114,18 +114,26 @@ class ProvisionTests(unittest.TestCase):
             with self.assertRaisesRegex(summariser.Unclassified, message):
                 summariser.validate_provision(value, passages, source)
 
-    def test_a_number_in_a_bullet_must_stand_in_the_passage_it_names(self):
+    def test_a_bullet_gets_the_passage_that_holds_its_number(self):
         passages = {"P1": "Enterprises using more than 85 TJ shall carry out an energy audit.",
                     "P2": "The audit shall be repeated every four years."}
-        source = " ".join(passages.values())
-        wrong = {"headline": "Audits", "overview": "Large users are audited.",
-                 "bullets": [{"kind": "CONDITION", "text": "Applies above 85 TJ.", "passages": ["P2"]}]}
-        with self.assertRaisesRegex(summariser.Unclassified, "passage that holds the number"):
-            summariser.validate_provision(wrong, passages, source, "Article 11")
-        wrong["bullets"][0]["passages"] = ["P1"]
-        self.assertEqual(len(summariser.validate_provision(wrong, passages, source, "Article 11")["bullets"]), 1)
-        locator = {**wrong, "bullets": [{"kind": "OTHER", "text": "See Article 11.", "passages": ["P2"]}]}
-        summariser.validate_provision(locator, passages, source, "Article 11")
+        source = "Directive (EU) 2023/1791, existing plants before 27 November 2002. " + " ".join(passages.values())
+        reply_ = {"headline": "Audits", "overview": "Large users are audited.",
+                  "bullets": [{"kind": "CONDITION", "text": "Applies above 85 TJ.", "passages": ["P2"]}]}
+        bullet = summariser.validate_provision(reply_, passages, source, "Article 11")["bullets"][0]
+        self.assertEqual((bullet["passages"], "number_outside_passages" in bullet), (["P2", "P1"], False))
+        reply_["bullets"] = [{"kind": "OTHER", "text": "Plants before 27.11.2002 count as existing.", "passages": ["P2"]}]
+        bullet = summariser.validate_provision(reply_, passages, source, "Article 11")["bullets"][0]
+        self.assertTrue(bullet["number_outside_passages"])        # the date stands in the text, outside the passages
+        reply_["bullets"] = [{"kind": "OTHER", "text": "Plants before 27.11.2001 count as existing.", "passages": ["P2"]}]
+        with self.assertRaisesRegex(summariser.Unclassified, "date 27.11.2001"):
+            summariser.validate_provision(reply_, passages, source, "Article 11")
+
+    def test_references_to_parts_and_acts_are_not_numbers_to_check(self):
+        summariser.check_numbers(["nach Artikel 15 Absatz 4", "Verordnung (EG) Nr. 451/2008", "Anhang II Teil 3",
+                                  "Richtlinie 2008/98/EG", "Angaben nach Absatz 1 Buchstabe a"], "No numbers here.")
+        with self.assertRaisesRegex(summariser.Unclassified, "number 30"):
+            summariser.check_numbers(["innerhalb von 30 Tagen nach Artikel 5"], "No numbers here.")
 
     def test_a_part_too_long_for_the_model_is_read_in_pieces_and_joined(self):
         text = " ".join(f"Sentence about the energy audit of enterprises, item {n}." for n in range(180))
@@ -144,6 +152,29 @@ class ProvisionTests(unittest.TestCase):
         alone = record("A", "Annex I", text="Short text that is still refused by the model.")
         with self.assertRaisesRegex(summariser.Unclassified, "No part"):
             summariser.summarise_provision(client_with(too_long), "S", alone)
+
+    def test_only_the_target_is_sent_not_the_surrounding_articles(self):
+        saved = record("A", "Article 1", text=TEXT)
+        saved["evidence_pack"]["essential_context"] = [{"locator": "Article 2", "text": "Article 2 says other things."}]
+        saved["evidence_pack"]["direct_references"] = [{"locator": "Annex II", "text": "Annex II procedure."}]
+        client = client_with(provision())
+        summariser.summarise_provision(client, "S", saved)
+        sent = json.loads(client.chat.call_args.args[0][1]["content"].partition("\n\nTASK:")[0])
+        self.assertEqual(set(sent) - {"source_notes"}, {"act", "target"})
+
+    def test_wrong_language_gets_a_correction_and_empty_statements_are_dropped(self):
+        english = provision(("DUTY", "Enterprises must carry out an energy audit of the site.", ["P1"]))
+        german = reply({"headline": "Energieaudit", "overview": "Große Energieverbraucher müssen ein Audit machen.",
+                        "bullets": [{"kind": "DUTY", "text": "Unternehmen müssen ein Energieaudit durchführen.",
+                                     "passages": ["P1"]},
+                                    {"kind": "DEADLINE", "text": "Eine Frist wird nicht genannt.", "passages": ["P1"]}]})
+        client = client_with(english, german)
+        with patch.object(summariser, "OUTPUT_LANGUAGE", "de"):
+            summary, _ = summariser.summarise_provision(client, "S", record("A", "Article 1", text=TEXT))
+        self.assertIn("Write everything in German", client.chat.call_args.args[0][1]["content"])
+        self.assertEqual([b["kind"] for b in summary["bullets"]], ["DUTY"])
+        sentences = ["Die Richtlinie regelt Energieaudits.", "Es gibt keine konkrete Frist."]
+        self.assertEqual(summariser.without_empty_statements(sentences, lambda x: x), sentences[:1])
 
     def test_long_provision_reads_only_kept_parts_and_balances_the_bullets(self):
         text = " ".join(f"Sentence number {n} about the energy audit of enterprises." for n in range(1500))
@@ -252,6 +283,8 @@ class RunTests(unittest.TestCase):
         self.out = self.root / "out"
 
     def main(self, client, *options):
+        if "--language" not in options:
+            options = ("--language", "en", *options)   # the stand-in answers are English
         argv = ["summarise", "--runs", str(self.run_folder), "--unsure-dir", str(self.root / "none"),
                 "--classification-dir", str(self.cls), "--output-dir", str(self.out), "--workers", "1", *options]
         with patch.object(sys, "argv", argv), patch.object(summariser.QwenClient, "from_env", return_value=client), \
@@ -277,15 +310,15 @@ class RunTests(unittest.TestCase):
         self.assertEqual([p["locator"] for p in first["provisions"]], ["Article 1", "Article 2"])
         self.assertEqual(first["provisions"][1]["to_confirm"], "Imports itself?")
         self.assertEqual(first["provisions"][0]["bullets"][0]["quotes"], [TEXT])
-        self.assertEqual(first["note"], summariser.NOTE["de"])
+        self.assertEqual(first["note"], summariser.NOTE["en"])
         same = json.loads((self.out / "inbox" / "Konzernrechnungswesen.json").read_text(encoding="utf-8"))
         self.assertEqual(same["cards"][0]["department_summary"], first["department_summary"])
         nobody = json.loads((self.out / "inbox" / "no_department_yet.json").read_text(encoding="utf-8"))
         self.assertEqual((nobody["cards"][0]["celex"], nobody["cards"][0]["department_summary"]), ("B", []))
         page = (self.out / "preview" / "Energiesysteme.html").read_text(encoding="utf-8")
         self.assertIn("Energy audits concern you.", page)
-        self.assertIn("Direkt relevant", page)
-        self.assertNotIn("Aufgabe", page)
+        self.assertIn("Directly relevant", page)
+        self.assertNotIn("Task", page)
         self.assertIn("Energiesysteme.html", (self.out / "preview" / "index.html").read_text(encoding="utf-8"))
         with (self.out / "review.csv").open(encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.reader(handle, delimiter=";"))
@@ -327,7 +360,7 @@ class RunTests(unittest.TestCase):
 
     def test_changed_language_needs_a_new_folder_and_missing_classification_is_reported(self):
         self.main(client_with(provision(), provision(), provision(), act(), act(), card()))
-        self.assertEqual(self.main(client_with(), "--language", "en")[0], 1)
+        self.assertEqual(self.main(client_with(), "--language", "de")[0], 1)
         argv = ["summarise", "--runs", str(self.run_folder), "--classification-dir", str(self.root / "nothing"),
                 "--output-dir", str(self.out)]
         with patch.object(sys, "argv", argv):

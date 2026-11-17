@@ -61,6 +61,14 @@ UNIT = "(" + "|".join(sorted((re.escape(name) for name in UNITS), key=len, rever
 SPACED = r"\d{1,3}(?:[   ]\d{3})+(?![\d.,]\d)"
 NUMBER = re.compile(rf"(?<![\d.,])(?:{SPACED}|\d+(?:[.,]\d+)*)(?![\d])")
 UNIT_AFTER = re.compile(rf"\s?{UNIT}", re.I)
+# A number right after one of these words points to a part of a text (Artikel 5, Absatz 1, Annex II, Nr. 451),
+# it is not a fact such as a threshold or a deadline. Act numbers like 2008/98/EG are references too.
+REFERENCE_BEFORE = re.compile(
+    r"(?:\bArtikels?|\bArticles?|\bArt\.|\bAbsatz|\bAbs\.|\bparagraphs?|\bUnterabsatz|\bsubparagraphs?|"
+    r"\bBuchstaben?|\bNummer|\bNr\.|\bNo\.?|\bAnhang|\bAnnex(?:es)?|\bTeil|\bPart|\bKapitel|\bChapter|"
+    r"\bAbschnitt|\bSection|\bSatz|\bSpalte|\bcolumn|\bZeile|\brow|\bTabelle|\bTable|\bPunkt|\bpoints?|"
+    r"\bZiffer|\bUnterpunkt|\bAnlage|\bRandnummer)\s*(?:\(\w+\)\s*)?$", re.I)
+ACT_NUMBER = re.compile(r"\b\d{1,4}/\d{2,4}(?:/(?:EU|EG|EWG|EC|EEC|Euratom|GASP|CFSP|JI|JHA))?\b", re.I)
 CURRENCY_BEFORE = re.compile(r"(?:\bEUR|€|\bEuro)\s?$", re.I)   # EUR 1 500
 
 
@@ -122,10 +130,17 @@ def dates(text: str) -> tuple[list[tuple[int, int, int | None]], str]:
     return found, text
 
 
-def numbers_with_units(text: str, *, lenient: bool = False) -> list[tuple[str, set[str], str | None]]:
-    """(token, its possible values, canonical unit or None) for every number in a text without dates."""
+def numbers_with_units(text: str, *, lenient: bool = False, references: bool = True):
+    """(token, its possible values, canonical unit or None) for every number in a text without dates.
+
+    With references=False, numbers that only point to a part of a text or to another act are left out.
+    """
     found = []
+    if not references:
+        text = ACT_NUMBER.sub(" ", text)
     for match in NUMBER.finditer(text):
+        if not references and REFERENCE_BEFORE.search(text[max(0, match.start() - 25):match.start()]):
+            continue
         unit = UNIT_AFTER.match(text, match.end())
         if unit:
             canonical = UNITS[unit.group(1).casefold()]
@@ -168,7 +183,7 @@ def number_problems(texts, source) -> list[str]:
                 shown = f"{day}.{month}.{year}" if day else f"{month}/{year}"
                 problems.append(f"The date {shown} does not occur in the text. Copy dates with day, month and year "
                                 "exactly as they stand in the text.")
-        for token, possible, unit in numbers_with_units(rest):
+        for token, possible, unit in numbers_with_units(rest, references=False):
             if not possible & known.values:
                 problems.append(f"The number {token} does not occur in the text. Keep the decimal point or comma "
                                 "where it is (1.5 is not 15), or leave the number out.")
@@ -176,3 +191,30 @@ def number_problems(texts, source) -> list[str]:
                 problems.append(f"'{token} {unit}' does not occur in the text with this unit. Write the number with "
                                 "the unit the text uses.")
     return list(dict.fromkeys(problems))
+
+
+# ------------------------------------------------------------------ language and empty statements
+
+FUNCTION_WORDS = {
+    "de": re.compile(r"\b(der|die|das|den|dem|des|und|oder|muss|müssen|für|mit|ist|sind|von|nicht|eine?|einen|wird|werden|bei|auf|zu|im|nach)\b", re.I),
+    "en": re.compile(r"\b(the|and|or|must|shall|for|with|is|are|of|not|an?|will|be|at|on|to|in|by|which|that)\b", re.I),
+}
+NOTHING_STATED = re.compile(
+    r"(no specific|not (?:specified|mentioned|stated|given|provided)|does not (?:specify|mention|state|provide)|"
+    r"there is no (?:specific |explicit )?(?:deadline|time limit|date)|"
+    r"keine (?:konkrete|spezifische|bestimmte|ausdrückliche|explizite)?\s*(?:Frist|Angabe|Zeitangabe|Termin)|"
+    r"nicht (?:genannt|angegeben|festgelegt|erwähnt|spezifiziert|bestimmt)|wird nicht (?:genannt|angegeben|erwähnt))",
+    re.I)
+
+
+def wrong_language(texts, language: str) -> bool:
+    """True when the texts are clearly in the other language (more of its function words)."""
+    text = " ".join(texts)
+    other = "en" if language == "de" else "de"
+    own, foreign = len(FUNCTION_WORDS[language].findall(text)), len(FUNCTION_WORDS[other].findall(text))
+    return foreign >= 4 and foreign > 1.5 * own
+
+
+def states_nothing(text: str) -> bool:
+    """True for a sentence whose point is that the text does not say something."""
+    return bool(NOTHING_STATED.search(text))

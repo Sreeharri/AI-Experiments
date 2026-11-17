@@ -30,7 +30,9 @@ RULES
 - Use only what the input says. Add no knowledge, advice or new facts.
 - Copy numbers, dates and thresholds exactly. Keep decimal points, units, and the full date with day, month and year.
 - Do not call an INDIRECT provision a duty of Max Bögl.
+- For WHY_MAX_BOEGL use why_relevant. Do not guess what Max Bögl does beyond what why_relevant says.
+- When a provision addresses Member States or authorities, say so; do not present it as a duty of Max Bögl.
 - Do not repeat a point. Do not fill a bullet with general words when the input gives no fact for it.
-- Write in <LANGUAGE>.
+- Write everything in <LANGUAGE>.
 
 Return one JSON object with bullets.

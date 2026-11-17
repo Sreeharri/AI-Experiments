@@ -47,7 +47,7 @@ from classify_eurlex_provisions import (  # noqa: E402
     DEFAULT_RUNS, DEFAULT_UNSURE, KEPT, MAX_WORKERS, MIN_PART_CHARS, NO_DEPARTMENT, OPENING_CHARS, TARGET_CHARS,
     ConnectionLost, Unclassified, act_links, collect, reachable, read_json, record_path, request_pack,
     run_until_done, safe_name, sample, sha, split_target, squash, target_text, wait_until_reachable, write_json)
-from eurlex_summary_checks import Source, number_problems  # noqa: E402
+from eurlex_summary_checks import number_problems, states_nothing, wrong_language  # noqa: E402
 from lr_ai.qwen_client import QwenClient  # noqa: E402
 
 PROMPTS = {name: ROOT / f"prompts/eurlex_{name}_summary.md" for name in ("provision", "merge", "act", "department")}
@@ -61,6 +61,7 @@ TASKS = {
     "department": "TASK: Write the department summary. Return the JSON object described in the instructions.",
 }
 LANGUAGES = {"de": "German", "en": "English"}
+OUTPUT_LANGUAGE = None   # set by main(); the summaries must be written in it
 NOTE = {"de": "KI-generierte Zusammenfassung. Maßgeblich ist der Originaltext.",
         "en": "AI-generated summary. The original text decides."}
 BULLET_KINDS = ("WHO", "DUTY", "DEADLINE", "CONDITION", "OTHER")
@@ -75,6 +76,18 @@ LIMITS = {"headline": 140, "overview": 700, "bullet": 380, "sentence": 340, "dep
 
 
 # ------------------------------------------------------------------ checks shared by all steps
+
+def check_language(texts):
+    if OUTPUT_LANGUAGE and wrong_language(texts, OUTPUT_LANGUAGE):
+        raise Unclassified(f"Write everything in {LANGUAGES[OUTPUT_LANGUAGE]}: headline, overview and every bullet. "
+                           "Translate the content of the text.")
+
+
+def without_empty_statements(items, text_of):
+    """Drop points whose message is only that the text does not say something (no deadline given ...)."""
+    kept = [item for item in items if not states_nothing(text_of(item))]
+    return kept or items[:1]
+
 
 def check_numbers(texts, source):
     """Every number, date and number with unit in a summary must occur in the text it was written from."""
@@ -161,13 +174,33 @@ def validate_provision(reply, passages, source, locator=""):
             continue  # the same sentence twice is one bullet
         seen.add(text.casefold())
         result.append({"kind": bullet["kind"], "text": text, "passages": list(dict.fromkeys(cited))[:3]})
-    check_numbers([squash(headline), squash(overview)], source)
-    for bullet in result:  # a number in a bullet must stand in the passages the bullet names
-        problems = number_problems([bullet["text"]], " ".join([locator, *(passages[m] for m in bullet["passages"])]))
-        if problems:
-            raise Unclassified(f"Bullet '{bullet['text'][:60]}': {problems[0]} Name in passages the passage "
-                               "that holds the number.")
+    result = without_empty_statements(result, lambda bullet: bullet["text"])
+    check_language([squash(headline), squash(overview), *(bullet["text"] for bullet in result)])
+    check_numbers([squash(headline), squash(overview), *(bullet["text"] for bullet in result)], source)
+    for bullet in result:
+        cite_numbers(bullet, passages, locator)
     return {"headline": squash(headline), "overview": squash(overview), "bullets": result}
+
+
+def cite_numbers(bullet, passages, locator):
+    """Make the passages of a bullet hold its numbers.
+
+    Every number is already known to be in the text that was sent. If it is not in the passages the bullet names,
+    the passages that hold it are added (at most 3 in all). If it stands only outside the passages (title, opening
+    words of a long annex), the bullet is marked so that the reader knows where the number comes from.
+    """
+    def missing(marks):
+        return number_problems([bullet["text"]], " ".join([locator, *(passages[mark] for mark in marks)]))
+
+    if not missing(bullet["passages"]):
+        return
+    for mark in passages:
+        if len(bullet["passages"]) >= 3 or not missing(bullet["passages"]):
+            break
+        if mark not in bullet["passages"] and len(missing(bullet["passages"] + [mark])) < len(missing(bullet["passages"])):
+            bullet["passages"].append(mark)
+    if missing(bullet["passages"]):
+        bullet["number_outside_passages"] = True
 
 
 MERGE_SCHEMA = {
@@ -183,6 +216,7 @@ def validate_merge(reply, source):
     headline, overview = (squash(reply[key]) if isinstance(reply[key], str) else "" for key in ("headline", "overview"))
     if not headline or not overview or len(headline) > LIMITS["headline"] or len(overview) > LIMITS["overview"]:
         raise Unclassified("headline and overview must be texts within their limits.")
+    check_language([headline, overview])
     check_numbers([headline, overview], source)
     return {"headline": headline, "overview": overview}
 
@@ -227,7 +261,13 @@ def summarise_provision(client, system, saved, merge_system=None):
             not_read.append({"part": part_id, "reason": "LIMIT"})
             return
         label = f"{part_id} of {len(parts)}" if len(parts) > 1 or "." in part_id else None
-        sent, passages, _ = request_pack(pack, part, label, opening if label and part_id != "1" else None)
+        packed, passages, _ = request_pack(pack, part, label, opening if label and part_id != "1" else None)
+        # Only the act and the target: surrounding articles and references made Qwen summarise them as well.
+        sent = {key: packed[key] for key in ("act", "source_notes", "target") if key in packed}
+        opening_words = [item for item in packed.get("position", [])
+                         if item.get("relation") == "opening words of the whole target"]
+        if opening_words:
+            sent["position"] = opening_words
         source, locator = json.dumps(sent, ensure_ascii=False), str(sent["target"].get("locator", ""))
         try:
             answer = ask(client, system, sent, TASKS["provision"], provision_schema(passages), "provision_summary",
@@ -304,6 +344,8 @@ def validate_act(reply, source):
     cleaned = [squash(sentence) for sentence in sentences if isinstance(sentence, str) and squash(sentence)]
     if len(cleaned) != len(sentences) or any(len(sentence) > LIMITS["sentence"] for sentence in cleaned):
         raise Unclassified(f"Every sentence is a text of 1 to {LIMITS['sentence']} characters.")
+    cleaned = without_empty_statements(cleaned, lambda sentence: sentence)
+    check_language(cleaned)
     check_numbers(cleaned, source)
     return cleaned
 
@@ -361,6 +403,8 @@ def validate_department(reply, provisions, source):
         result.append({"kind": bullet["kind"], "text": text, "provisions": list(dict.fromkeys(cited))})
     if not result:
         raise Unclassified("No usable bullet. Write at least one bullet of kind WHY_MAX_BOEGL or WHY_DEPARTMENT.")
+    result = without_empty_statements(result, lambda bullet: bullet["text"])
+    check_language([bullet["text"] for bullet in result])
     check_numbers([bullet["text"] for bullet in result], source)
     return sorted(result, key=lambda bullet: DEPARTMENT_KINDS.index(bullet["kind"]))
 
@@ -604,6 +648,8 @@ def main():
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--count-only", action="store_true")
     args = parser.parse_args()
+    global OUTPUT_LANGUAGE
+    OUTPUT_LANGUAGE = args.language
     out = args.output_dir.resolve()
 
     try:
