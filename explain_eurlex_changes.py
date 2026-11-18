@@ -50,7 +50,7 @@ TASKS = {"change": "TASK: Explain what changed. Return the JSON object described
          "act": "TASK: Write the paragraph. Return the JSON object described in the instructions."}
 DEFAULT_EXPORT = ROOT / "runs/eurlex_changes_export_v4"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v4"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v5"
 LANGUAGES = {"de": "German", "en": "English"}
 SIGNIFICANCE = ("SUBSTANTIVE", "EDITORIAL", "UNCLEAR")
 AFFECTS = ("NUMBER", "DATE", "DUTY", "ADDRESSEE", "SCOPE", "WORDING_ONLY")
@@ -175,7 +175,7 @@ def item_facts(item: dict) -> dict:
             "provision": provision_name(root) if root else None, "root": list(root) if root else None,
             "provisions": [r.get("provision") for r in item["records"] if r.get("provision")],
             "operations": sorted({r.get("operation") or first["relation"] for r in item["records"]}),
-            "effective_from": days[0] if days else None,
+            "effective_from": days[0] if len(days) == 1 and all(r.get("effective_from") for r in item["records"]) else None,
             "wording": best_wording(item["records"]),
             "instruction_locator": next((r.get("instruction_locator") for r in item["records"]
                                          if r.get("instruction_locator")), None),
@@ -188,6 +188,7 @@ def item_facts(item: dict) -> dict:
                          "old_wording": bool(r.get("old_text")), "new_wording": bool(r.get("new_text"))}
                         for r in item["records"]],
             "dates_differ": len(days) > 1,
+            "correction_locations": [c.get("location") for c in first.get("corrections") or []],
             "correction_roots": [list(r) for r in dict.fromkeys(
                 root for c in first.get("corrections") or [] for root in [root_of(c.get("location") or "")] if root)],
             "relationship_id": first.get("relationship_id"),
@@ -209,6 +210,10 @@ def text_situation(item: dict) -> dict:
             "instruction": bool(instruction.strip()), "pair": bool(WORD_PAIR.search(instruction)),
             "finals": bool(records[0].get("final_articles")), "operations": operations,
             "removal": removal, "trimmed": any(r.get("trimmed") for r in records)}
+
+
+def needs_scope_review(item):
+    return item["kind"] == "ACT" and item["records"][0]["relation"] == "IMPLICITLY_REPEALS"
 
 
 def missing_reason(item: dict) -> str | None:
@@ -316,7 +321,7 @@ def request_for(item: dict, routing: dict | None = None) -> tuple[str, dict, dic
     instruction = " ".join(dict.fromkeys(r["instruction"] for r in item["records"] if r.get("instruction")))
     texts = [r for r in item["records"] if r.get("old_text") or r.get("new_text")]
     share = max(1500, TEXT_BUDGET // max(1, len(texts)))
-    changes, old_passages, new_passages, old_part, new_part = [], {}, {}, "", ""
+    changes, old_passages, new_passages, change_dates, old_part, new_part = [], {}, {}, {}, "", ""
     used = 0
     for record in item["records"][:MAX_CHANGES_LISTED]:
         old, new = record.get("old_text"), record.get("new_text")
@@ -330,8 +335,14 @@ def request_for(item: dict, routing: dict | None = None) -> tuple[str, dict, dic
         old_passages.update(old_found)
         new_passages.update(new_found)
         old_part, new_part = old_part + old_text, new_part + new_text
+        day = str(record["effective_from"])[:10] if record.get("effective_from") else None
+        source = record.get("effective_source") or "CHANGE"
         change = {"place": record.get("provision") or "", "operation": record.get("operation") or first["relation"],
-                  "applies_from": str(record["effective_from"])[:10] if record.get("effective_from") else None}
+                  "applies_from": day if source in {"CHANGE", "ANNOTATION"} else None}
+        if day:
+            mark = f"D{len(changes) + 1}"
+            change["date_evidence"] = f"[{mark}] {source}: {day}"
+            change_dates[mark] = change["date_evidence"]
         if old_text:
             change["old_text"] = old_text
         if new_text:
@@ -341,18 +352,20 @@ def request_for(item: dict, routing: dict | None = None) -> tuple[str, dict, dic
     facts = item_facts(item)
     have = text_situation(item)
     changing = first["changing"]
+    effective_from = facts["effective_from"] if all(c["effective_source"] in {"CHANGE", "ANNOTATION"}
+                                                    for c in facts["changes"]) else None
     meta = [f"{label}: {value}" for label, value in (
         ("Date of the changing act", changing.get("date")), ("Entry into force of the changing act",
                                                              changing.get("entry_into_force")),
         ("Application of the changing act", changing.get("application")),
-        ("The change applies from", facts["effective_from"])) if value]
+        ("The change applies from", effective_from)) if value]
     meta_part, meta_passages = passages_of(". ".join(meta) + "." if meta else "", "M")
     sent = {**acts, "changing_act": {"celex": first["changing"]["celex"], "title": first["changing"]["title"],
                                      "date": first["changing"].get("date")},
             "provision": facts["provision"] or ("several places, see the instruction" if item["kind"] == "PROVISION"
                                                 else "the whole act"),
             "operations": facts["operations"],
-            "effective_from": facts["effective_from"] if not facts["dates_differ"] else "different dates, see changes"}
+            "effective_from": "different dates, see changes" if facts["dates_differ"] else effective_from}
     sent["changes"] = changes
     for key, value in (("instruction", instruction_part), ("final_articles", final_part), ("dates_known", meta_part),
                        ("why_relevant", relevance)):
@@ -373,7 +386,7 @@ def request_for(item: dict, routing: dict | None = None) -> tuple[str, dict, dic
     if notes:
         sent["notes"] = notes
     return "change", sent, {**old_passages, **new_passages, **instruction_passages, **final_passages,
-                            **meta_passages, **relevance_passages}
+                            **meta_passages, **change_dates, **relevance_passages}
 
 
 # ------------------------------------------------------------------ schemas and checks
@@ -465,14 +478,16 @@ def clean_facts(reply, passages, old_marks, new_marks):
         before, after = squash(fact["before"]), squash(fact["after"])
         if not squash(fact["what"]) or not (before or after):
             raise Unclassified("A fact needs what, and before or after.")
-        old_text = " ".join(passages[m] for m in passages if m[0] in old_marks)
-        new_text = " ".join(passages[m] for m in passages if m[0] in new_marks)
+        old_text = " ".join(passages[m] for m in cited if m[0] in old_marks)
+        new_text = " ".join(passages[m] for m in cited if m[0] in new_marks)
         if before and not old_text:
             raise Unclassified("before must stay empty: the old wording is not given.")
         if before and after and signature(before) == signature(after):
             raise Unclassified(f"before and after of '{fact['what']}' are the same: name only real differences.")
         if before:
             check([before], old_text, f"before of '{fact['what']}'")
+        if after and not new_text:
+            raise Unclassified("after needs a cited passage from the new wording or instruction.")
         if after:
             check([after], new_text, f"after of '{fact['what']}'")
         facts.append({"what": squash(fact["what"]), "before": before, "after": after, "passages": cited})
@@ -492,7 +507,7 @@ def validate_change(reply, passages, sent, have=None):
     check([headline, text], every, "headline or what_changed")
     have = have or {}
     old_marks = {"O"} | ({"I"} if have.get("pair") else set())
-    facts = clean_facts(reply, passages, old_marks, {"N", "I", "F", "M"})
+    facts = clean_facts(reply, passages, old_marks, {"N", "I", "F", "M", "D"})
     if compares_without_old(have, sent) and (word := COMPARING.search(f"{headline} {text}")):
         raise Unclassified(f"'{word.group(0)}' compares with the old wording, which is not given. "
                            "Describe only what applies now.")
@@ -512,9 +527,11 @@ def validate_change(reply, passages, sent, have=None):
         value = squash(item["date"])
         if not value or not re.search(r"\d", value):
             raise Unclassified("date must be a date from the text, for example 31. Dezember 2027.")
-        check([value], every, "dates")
-        dates.append({"what": squash(item["what"]), "date": value,
-                      "passages": [mark for mark in item["passages"] if mark in passages]})
+        cited = item["passages"]
+        if not cited or any(mark not in passages or mark == "K1" for mark in cited):
+            raise Unclassified("Dates need valid source passages.")
+        check([value], " ".join(passages[mark] for mark in cited), "dates")
+        dates.append({"what": squash(item["what"]), "date": value, "passages": cited})
     importance, to_confirm = check_importance(reply, passages, every)
     check_language([headline, text, importance, *(f["what"] for f in facts)])
     return {"headline": headline, "what_changed": text, "facts": facts, "dates": dates,
@@ -589,8 +606,8 @@ def validate_act(reply, source):
     return cleaned
 
 
-def explain(client, systems, item, log, routing=None):
-    name, sent, passages = request_for(item, routing)
+def explain(client, systems, item, log):
+    name, sent, passages = request_for(item)
     have = text_situation(item)
     if name == "corrigendum":
         schema, check_reply = corrigendum_schema(passages), lambda reply: validate_corrigendum(reply, passages, sent)
@@ -604,6 +621,8 @@ def explain(client, systems, item, log, routing=None):
         raise Unclassified("The texts of this change are too long for the model.") from None
     for fact in answer["facts"]:
         fact["quotes"] = [passages[mark][:400] for mark in fact["passages"]]
+    if (have["operations"] & REMOVALS or have["removal"]) and answer.get("significance") == "EDITORIAL":
+        answer["significance"] = "UNCLEAR"
     return name, answer
 
 
@@ -629,7 +648,7 @@ def best(found):
     top = max(found, key=lambda pair: LEVELS[pair[1]["level"]])[1]
     return {"level": level, "departments": departments, "domain": top.get("primary_domain"),
             "domain_title": top.get("primary_title"), "subject": top.get("subject"),
-            "reason": top.get("primary_reason"), "matched": [locator for locator, _ in found][:5]}
+            "reason": top.get("primary_reason"), "matched": [locator for locator, _ in found]}
 
 
 def route(facts, results, index):
@@ -660,15 +679,75 @@ def route(facts, results, index):
             "route": "NOT_SCREENED"}
 
 
-def goes_to_inbox(record) -> bool:
-    explanation, routing = record.get("explanation") or {}, record.get("routing") or {}
-    if routing.get("level") not in LEVELS:
+def locator_key(value):
+    return re.sub(r"\s+", " ", (value or "").strip().casefold()).rstrip(".")
+
+
+def exact_routing(facts, routing):
+    if routing.get("route") == "CHANGED_PROVISION":
+        positions = [row.get("provision") for row in facts.get("changes", [])]
+    elif routing.get("route") == "CORRECTED_PROVISION":
+        positions = facts.get("correction_locations") or []
+    else:
         return False
-    if record["kind"] == "CORRIGENDUM":
-        return bool(explanation) and explanation.get("affects") != "WORDING_ONLY"
-    if record["kind"] == "ACT" and record["relation"] in {"REPEALS", "IMPLICITLY_REPEALS"}:
-        return True
-    return explanation.get("significance") != "EDITORIAL"
+    matched = {locator_key(value) for value in routing.get("matched", [])}
+    # A root match can include a different paragraph, table or duplicate label.
+    return bool(positions and all(locator_key(value) and locator_key(value) in matched for value in positions)
+                and len(routing.get("matched", [])) == 1)
+
+
+def business_context(facts, routing, language):
+    if not exact_routing(facts, routing):
+        return ""
+    locator = routing["matched"][0]
+    domain = routing.get("domain_title") or routing.get("domain")
+    subject = (routing.get("subject") or "").rstrip(".")
+    if language == "de":
+        return (f"{locator} ist für Max Bögl als {routing['level']} eingestuft."
+                + (f" Themenbereich: {domain}." if domain else "")
+                + (f" Thema laut Einstufung: {subject}." if subject else ""))
+    return (f"{locator} is classified as {routing['level']} for Max Bögl."
+            + (f" Business area: {domain}." if domain else "")
+            + (f" Classified subject: {subject}." if subject else ""))
+
+
+def review_reasons(record):
+    facts, routing = record["facts"], record["routing"]
+    explanation = record.get("explanation") or {}
+    significance = explanation.get("significance") or explanation.get("affects")
+    reasons = []
+    if record.get("scope_review"):
+        reasons.append("REPEAL_SCOPE_UNVERIFIED")
+    elif not explanation:
+        reasons.append("MISSING_CHANGE_EVIDENCE" if record.get("no_text") else "EXPLANATION_FAILED")
+    if significance == "UNCLEAR":
+        reasons.append("EFFECT_UNCLEAR")
+    if not exact_routing(facts, routing):
+        reasons.append("PROVISION_RELEVANCE_UNVERIFIED")
+    if not routing.get("departments"):
+        reasons.append("NO_DEPARTMENT")
+    if record["kind"] == "PROVISION":
+        if any(c.get("effective_source") in {"RELATIONSHIP", "ENTRY_INTO_FORCE", "MISSING"}
+               for c in facts.get("changes", [])):
+            reasons.append("CHANGE_DATE_REVIEW_REQUIRED")
+        if len(facts.get("changes", [])) > MAX_CHANGES_LISTED:
+            reasons.append("PARTIAL_EXPLANATION")
+        for change in facts.get("changes", []):
+            operation = change["operation"]
+            has_pair = (change["old_wording"] or operation in ADDITIONS) and (
+                change["new_wording"] or operation in REMOVALS)
+            if not has_pair or change.get("comparison_status") not in {
+                None, "REVIEWED_MAPPING", "MATCHED_STORED_EVIDENCE",
+            }:
+                reasons.append("WORDING_REVIEW_REQUIRED")
+                break
+    return reasons
+
+
+def goes_to_inbox(record) -> bool:
+    explanation = record.get("explanation") or {}
+    significance = explanation.get("significance") or explanation.get("affects")
+    return bool(significance and significance not in {"EDITORIAL", "WORDING_ONLY"} and not review_reasons(record))
 
 
 # ------------------------------------------------------------------ export
@@ -685,8 +764,13 @@ MISSING_NOTE = {"de": {"NEW_WORDING_MISSING": "Der neue Wortlaut liegt nicht vor
 
 def code_line(facts, language):
     """A short line built by code when there is no text to explain: what, where, by which act, from when."""
+    if facts["kind"] == "ACT" and facts["relation"] == "IMPLICITLY_REPEALS":
+        source, target = facts["changing"]["celex"], facts["changed"]["celex"]
+        if language == "de":
+            return f"Mögliche stillschweigende Aufhebung von {target} durch {source}. Umfang und Datum offen."
+        return f"Possible implicit repeal of {target} by {source}. Scope and date are unverified."
     label = KIND_LABEL[language].get(facts["relation"], facts["relation"])
-    day = facts["effective_from"] or facts["changing"].get("application") or facts["changing"].get("entry_into_force")
+    day = facts["effective_from"]
     operations = ", ".join(OPERATION_LABEL[language].get(o, "") for o in facts["operations"]
                            if OPERATION_LABEL[language].get(o))
     place = f"{facts['provision']} " if facts.get("provision") else ""
@@ -738,7 +822,8 @@ def entry(record, language):
             "text": explanation.get("what_changed") or explanation.get("what_was_wrong") or "",
             "facts": explanation.get("facts", []), "dates": explanation.get("dates", []),
             "significance": explanation.get("significance") or explanation.get("affects"),
-            "importance": explanation.get("importance") or "", "to_confirm": explanation.get("to_confirm") or "",
+            "importance": business_context(facts, record["routing"], language) if explanation else "", "to_confirm": "",
+            "review_reasons": review_reasons(record),
             "changes": lines, "dates_differ": facts.get("dates_differ", False),
             "level": record["routing"].get("level"), "route": record["routing"].get("route"),
             "old_text": (first.get("old") or "")[:4000], "new_text": (first.get("new") or "")[:4000]}
@@ -770,7 +855,7 @@ def card_html(card, language):
                        + (f' <i>{e(change["to_confirm"])}</i>' if change.get("to_confirm") else "") + "</p>")
         for line in change.get("changes") or []:
             out.append(f'<div class="fact">{e(line.get("provision") or "")} · {e(line.get("operation_label") or "")}'
-                       f'{" · ab " + e(line["effective_from"]) if line.get("effective_from") else ""}'
+                       f'{" · " + e(line["effective_from"]) + " (" + e(line["effective_source"]) + ")" if line.get("effective_from") else ""}'
                        + "".join(f' · <span class="note">{e(n)}</span>' for n in line.get("wording_notes") or [])
                        + "</div>")
         for fact in change["facts"]:
@@ -906,6 +991,7 @@ def page_html(page, language):
             f'<div class="change"><span class="tag {e(i["label"])}">{e(i["label"])}</span>'
             f'<b>{e(i[other]["celex"])} {e(i["provision"] or "")}</b> — {e(i["headline"])}'
             f'{" · " + e(i["effective_from"]) if i["effective_from"] else ""}<div>{e(i["short"])}</div>'
+            + (f'<p class="note">{e(", ".join(i["review_reasons"]))}</p>' if i.get("review_reasons") else "")
             + (f'<a href="{e(i["link"])}">{e(words["open"])}</a>' if i["link"] else "") + "</div>" for i in items)
 
     parts = [f'<!doctype html><html lang="{language}"><head><meta charset="utf-8"><title>{e(page["celex"])}</title>'
@@ -931,19 +1017,21 @@ def export(out, planned, language, template="", roles=None):
         path = out / "items" / f"{item['id']}.json"
         if path.is_file():
             records.append(read_json(path))
-    done = [r for r in records if "explanation" in r or r.get("no_text")]
+    done = [r for r in records if "explanation" in r or r.get("no_text") or r.get("scope_review")]
     failed = [r for r in records if "failure" in r]
-    acts = {}
+    acts, act_failures = {}, []
     for path in (out / "acts").glob("*.json") if (out / "acts").is_dir() else []:
         saved = read_json(path)
         acts[saved["celex"]] = saved.get("sentences", [])
+        if saved.get("failure"):
+            act_failures.append({"celex": saved["celex"], "error": saved["failure"]})
     inbox = defaultdict(lambda: defaultdict(list))
     rows, to_screen = [], []
     titles = {r["facts"]["changed"]["celex"]: r["facts"]["changed"]["title"] for r in done}
     for record in done:
         item = entry(record, language)
-        if record["routing"]["route"] == "NOT_SCREENED" or not precise(record["routing"], record["kind"]):
-            to_screen.append(record)        # no department yet, or only via the changing act: screen the new text
+        if item["review_reasons"]:
+            to_screen.append(record)
         if goes_to_inbox(record):
             for department in record["routing"]["departments"] or ["(no department yet)"]:
                 inbox[department][record["facts"]["changed"]["celex"]].append(item)
@@ -967,8 +1055,8 @@ def export(out, planned, language, template="", roles=None):
             for change in changes:
                 change["changing"]["role"] = role_of(roles, change["changing"]["celex"], language)
             cards.append({"celex": celex, "title": titles.get(celex, ""), **act_links(celex),
-                          "role": role_of(roles, celex, language), "changes": changes, "changing_acts": {c["changing"]["celex"]: acts.get(c["changing"]["celex"], [])
-                                                                for c in changes},
+                          "role": role_of(roles, celex, language), "changes": changes, "changing_acts": {source: [c["headline"] for c in changes if c["changing"]["celex"] == source]
+                                            for source in dict.fromkeys(c["changing"]["celex"] for c in changes)},
                           "note": NOTE[language]})
         cards.sort(key=lambda c: max((ch["effective_from"] or "") for ch in c["changes"]), reverse=True)
         cards_total += len(cards)
@@ -999,16 +1087,22 @@ def export(out, planned, language, template="", roles=None):
                 writer.writerow([record["facts"]["changed"]["celex"], record["facts"]["provision"] or "",
                                  record["facts"]["changing"]["celex"], record["facts"]["relation"], record["kind"],
                                  record["facts"]["wording"], record["facts"].get("missing") or ""])
+    to_screen.extend(failed)
     with (out / "to_screen.csv").open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
-        writer.writerow(["changed_act", "provision", "changing_act", "relation", "route", "significance", "headline"])
+        writer.writerow(["changed_act", "provision", "changing_act", "relation", "route", "significance", "headline", "item_id", "change_ids", "review_reasons"])
         for record in to_screen:
             ex = record.get("explanation") or {}
             writer.writerow([record["facts"]["changed"]["celex"], record["facts"]["provision"] or "",
                              record["facts"]["changing"]["celex"], record["facts"]["relation"],
                              record["routing"]["route"], ex.get("significance") or ex.get("affects") or "",
-                             ex.get("headline", "")])
-    summary = {"language": language, "items_planned": len(planned), "explained": len(done), "failed": len(failed),
+                             ex.get("headline", "") or code_line(record["facts"], language),
+                             record["facts"]["id"], ", ".join(record["facts"]["change_ids"]),
+                             ", ".join(review_reasons(record))])
+    summary = {"language": language, "items_planned": len(planned), "explained": sum("explanation" in r for r in done), "failed": len(failed),
+               "missing_evidence": sum(bool(r.get("no_text")) for r in done),
+               "scope_review": sum(bool(r.get("scope_review")) for r in done),
+               "review_queue": len(to_screen), "act_summary_failures": act_failures,
                "open": len(planned) - len(done) - len(failed),
                "by_kind": dict(Counter(r["kind"] for r in done)),
                "significance": dict(Counter((r.get("explanation") or {}).get("significance")
@@ -1050,7 +1144,9 @@ def main(argv=None):
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--language", choices=tuple(LANGUAGES), default="de")
-    parser.add_argument("--sample", type=int, help="Explain only this many items (a fixed mix of kinds).")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--sample", type=int, help="Explain only this many items (a fixed mix of kinds).")
+    selection.add_argument("--item-ids", type=Path, help="Replay these item IDs, one per line.")
     parser.add_argument("--celex", nargs="+", default=[], help="Only changes of these acts (changed or changing).")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--link-template", default="",
@@ -1082,30 +1178,43 @@ def main(argv=None):
           f"{dict(Counter(i['kind'] for i in items))}", flush=True)
     routes = Counter(route(item_facts(i), results, index)["route"] for i in items)
     print(f"Routing: {dict(routes)}", flush=True)
+    planned = pick_sample(items, args.sample) if args.sample else items
+    if args.item_ids:
+        try:
+            ids = args.item_ids.read_text(encoding="utf-8-sig").split()
+        except OSError as exc:
+            parser.error(str(exc))
+        by_id = {item["id"]: item for item in items}
+        if not ids or len(ids) != len(set(ids)):
+            parser.error("--item-ids must contain distinct IDs")
+        missing = set(ids) - by_id.keys()
+        if missing:
+            parser.error(f"{len(missing)} requested item IDs are absent from the export")
+        planned = [by_id[item_id] for item_id in ids]
     if args.count_only:
+        print(f"Planned: {len(planned):,} items.", flush=True)
         return 0
     if not items:
         print("Nothing to explain.", file=sys.stderr)
         return 1
     fingerprint = sha([systems, TASKS, change_schema(["O1"]), change_schema(["N1"], False), corrigendum_schema(["W1"]),
-                       ACT_SCHEMA, args.language, "v1.4"])
+                       ACT_SCHEMA, args.language, "v1.5", planned, results, args.link_template])
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
-        print("The prompts or the language changed since this folder was started. Use a new --output-dir.",
+        print("The inputs or settings changed since this folder was started. Use a new --output-dir.",
               file=sys.stderr)
         return 1
     write_json(config, {"fingerprint": fingerprint, "language": args.language, "export": str(args.export_dir),
                         "system_prompts": systems})
-    planned = pick_sample(items, args.sample) if args.sample else items
     print(f"Planned: {len(planned):,} items.", flush=True)
 
-    client = QwenClient.from_env(args.env_file, retries=1)
+    client = None
     workers = max(1, min(args.workers, MAX_WORKERS))
 
     def saved(item):
         path = out / "items" / f"{item['id']}.json"
         record = read_json(path) if path.is_file() else {}
-        return record if ("explanation" in record or record.get("no_text")) else None
+        return record if ("explanation" in record or record.get("no_text") or record.get("scope_review")) else None
 
     def open_items():
         todo = [item for item in planned if saved(item) is None]
@@ -1119,12 +1228,14 @@ def main(argv=None):
                       "texts": [{"change_id": r.get("change_id"), "old": r.get("old_text"), "new": r.get("new_text")}
                                 for r in item["records"]]}
             failed = False
-            if facts["missing"]:
+            if needs_scope_review(item):
+                record["scope_review"] = True
+            elif facts["missing"]:
                 record["no_text"] = True       # nothing to explain: a line built by code, listed in missing_text.csv
             else:
                 log = []
                 try:
-                    record["prompt"], record["explanation"] = explain(client, systems, item, log, record["routing"])
+                    record["prompt"], record["explanation"] = explain(client, systems, item, log)
                 except ConnectionLost:
                     raise
                 except Unclassified as exc:
@@ -1187,9 +1298,12 @@ def main(argv=None):
         return work
 
     try:
-        ok, error = reachable(client)        # also tells the client the address and model name
-        if not ok:
-            wait_until_reachable(client, error)
+        pending, _ = open_items()
+        if open_acts()[0] or any(not needs_scope_review(item) and missing_reason(item) is None for item in pending):
+            client = QwenClient.from_env(args.env_file, retries=1)
+            ok, error = reachable(client)
+            if not ok:
+                wait_until_reachable(client, error)
         save = lambda: export(out, planned, args.language, args.link_template, roles)  # noqa: E731
         run_until_done(client, "Changes", open_items, item_worker, workers, after_pass=save)
         run_until_done(client, "Acts", open_acts, act_worker, workers)
@@ -1203,8 +1317,11 @@ def main(argv=None):
           f"({summary['cards']:,} cards).")
     print(f"Open in a browser: {out / 'preview' / 'index.html'}\nTo check by hand: {out / 'review.csv'}\n"
           f"For the act pages: {out / 'act_pages'} ({summary['act_pages']:,} acts)")
-    if summary["failed"]:
+    print(f"{summary['missing_evidence']:,} missing evidence, {summary['scope_review']:,} repeal scope reviews, "
+          f"{summary['review_queue']:,} total items in the review queue.")
+    if summary["failed"] or summary["act_summary_failures"]:
         print("Run the same command again to retry what failed.")
+        return 2
     return 0
 
 

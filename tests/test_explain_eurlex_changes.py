@@ -40,7 +40,7 @@ RECORDS = [
               "(1) Article 3 point 2 is replaced.", "FULL", 4),
     {"kind": "CORRIGENDUM", "id": "c1", "relation": "CORRECTS",
      "changing": {**CHANGING, "celex": "32010L0075R(01)", "title": "Corrigendum"}, "changed": CHANGED,
-     "final_articles": [], "corrections": [{"location": "On page 22, Article 3(2)", "wrong": "100 TJ", "correct": "85 TJ"}],
+     "final_articles": [], "corrections": [{"location": "Article 3", "wrong": "100 TJ", "correct": "85 TJ"}],
      "instruction": ""},
     {"kind": "ACT", "id": "a1", "relation": "REPEALS", "changing": {**CHANGING, "celex": "32010L0075", "title": "IED"},
      "changed": {"celex": "32008L0001", "title": "IPPC Directive", "url": None}, "final_articles": [],
@@ -82,8 +82,12 @@ def plain_answer(messages):
                 "facts": [{"what": "Schwellenwert", "before": "100 TJ", "after": "85 TJ", "passages": ["W1", "R1"]}],
                 "affects": "NUMBER"}
     if "Write the paragraph" in user:
-        return {"sentences": ["Die Richtlinie ändert die Industrieemissions-Richtlinie.",
-                              "Der Schwellenwert sinkt auf 85 TJ."]}
+        sentences = ["Die Richtlinie ändert die Industrieemissions-Richtlinie."]
+        if "85 TJ" in user:
+            sentences.append("Der Schwellenwert sinkt auf 85 TJ.")
+        else:
+            sentences.append("Die Änderungen werden in den jeweiligen Artikeln erläutert.")
+        return {"sentences": sentences}
     provision_ = sent.get("provision")
     if provision_ == "Article 15":
         return {"headline": "Schwellenwert gesenkt", "what_changed": "Der Grenzwert sinkt von 100 TJ auf 85 TJ pro Jahr.",
@@ -321,6 +325,7 @@ class HelperTests(unittest.TestCase):
         item = explain.build_items([early, late])[0]
         facts = explain.item_facts(item)
         self.assertTrue(facts["dates_differ"])
+        self.assertIsNone(facts["effective_from"])
         self.assertEqual([(c["provision"], c["effective_from"], c["effective_source"]) for c in facts["changes"]],
                          [("Article 5 paragraph 5", "2025-01-01", "CHANGE"), ("Article 5 paragraph 6", "2027-01-01",
                                                                              "ANNOTATION")])
@@ -358,24 +363,18 @@ class RunTests(unittest.TestCase):
         client = Client()
         self.assertEqual(self.run_main(client, "--link-template", "/acts/{changed_document_id}/changes?change={change_id}"), 0)
         summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
-        self.assertEqual((summary["explained"], summary["failed"]), (5, 0))
+        self.assertEqual((summary["explained"], summary["failed"], summary["missing_evidence"]), (4, 0, 1))
         self.assertEqual(summary["by_kind"], {"ACT": 1, "CORRIGENDUM": 1, "PROVISION": 3})
         self.assertEqual(summary["significance"]["NO_TEXT"], 1)          # the repeal without text: line by code
         self.assertEqual(summary["route"]["CHANGED_PROVISION"], 2)
         inbox = json.loads((self.out / "inbox" / "Umweltmanagement.json").read_text(encoding="utf-8"))
         changes = inbox["cards"][0]["changes"]
         headlines = {c["headline"] for c in changes}
-        self.assertIn("Schwellenwert gesenkt", headlines)
+        self.assertNotIn("Schwellenwert gesenkt", headlines)
         self.assertIn("Schwellenwert berichtigt", headlines)
         self.assertNotIn("Begriff neu gefasst", headlines)               # EDITORIAL stays out of the inbox
-        article15 = next(c for c in changes if c["headline"] == "Schwellenwert gesenkt")
-        self.assertEqual(article15["facts"][0]["quotes"][0][:15], "Emission limit ")
-        self.assertEqual(article15["dates"][0]["date"], "1. Juli 2026")
-        self.assertIn("100 TJ", article15["old_text"])
-        recht = json.loads((self.out / "inbox" / "Recht.json").read_text(encoding="utf-8"))
-        self.assertEqual([c["headline"] for c in recht["cards"][0]["changes"]], ["Neue Pflicht zum Umweltmanagementsystem"])
-        repeal = next(c for c in inbox["cards"] if c["celex"] == "32008L0001")["changes"][0]
-        self.assertEqual((repeal["label"], repeal["headline"][:9]), ("Aufhebung", "Aufhebung"))
+        self.assertFalse((self.out / "inbox" / "Recht.json").exists())
+        self.assertIn("WORDING_REVIEW_REQUIRED", (self.out / "to_screen.csv").read_text(encoding="utf-8-sig"))
         page = (self.out / "preview" / "Umweltmanagement.html").read_text(encoding="utf-8")
         self.assertIn("Berichtigung", page)
         self.assertIn('class="before">100 TJ', page)
@@ -405,20 +404,51 @@ class RunTests(unittest.TestCase):
         self.assertIn("Änderungen durch diesen Rechtsakt", (self.out / "preview" / "acts" / "32024L1785.html")
                       .read_text(encoding="utf-8"))
         calls = len(client.calls)
-        self.assertEqual(self.run_main(client), 0)                        # nothing is asked twice
+        self.assertEqual(self.run_main(client, "--link-template",
+                                       "/acts/{changed_document_id}/changes?change={change_id}"), 0)
         self.assertEqual(len(client.calls), calls)
 
     def test_failed_item_is_retried_and_language_change_needs_new_folder(self):
         wrong = reply({"headline": "x", "what_changed": "Der Grenzwert sinkt auf 70 TJ.", "facts": [], "dates": [],
                        "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""})
         client = Client(injected=[wrong, wrong])
-        self.assertEqual(self.run_main(client), 0)
+        self.assertEqual(self.run_main(client), 2)
         summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
         self.assertEqual(summary["failed"], 1)
         self.assertIn("70", summary["failures"][0]["error"])
         self.assertEqual(self.run_main(Client()), 0)
         self.assertEqual(json.loads((self.out / "summary.json").read_text(encoding="utf-8"))["failed"], 0)
         self.assertEqual(self.run_main(Client(), "--language", "en"), 1)
+
+    def test_replay_keeps_implicit_repeal_in_review_without_calling_model(self):
+        implicit = {**RECORDS[-1], "relation": "IMPLICITLY_REPEALS",
+                    "operation": "IMPLICITLY_REPEALS", "instruction": ""}
+        (self.root / "export" / "records.jsonl").write_text(json.dumps(implicit), encoding="utf-8")
+        ids = self.root / "ids.txt"
+        ids.write_text("a1\n", encoding="utf-8")
+        client = Client()
+        self.assertEqual(self.run_main(client, "--item-ids", str(ids)), 0)
+        self.assertEqual(client.calls, [])
+        summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
+        self.assertEqual((summary["items_planned"], summary["scope_review"], summary["failed"],
+                          summary["in_inbox"]), (1, 1, 0, 0))
+        queue = (self.out / "to_screen.csv").read_text(encoding="utf-8-sig")
+        self.assertIn("REPEAL_SCOPE_UNVERIFIED", queue)
+        self.assertIn("Mögliche stillschweigende Aufhebung", queue)
+
+    def test_publication_requires_exact_affected_locator_and_wording(self):
+        item = explain.build_items([RECORDS[0]])[0]
+        facts = explain.item_facts(item)
+        routing = explain.route(facts, RESULTS, explain.locator_index(RESULTS))
+        record = {"facts": facts, "kind": "PROVISION", "routing": routing,
+                  "explanation": {"significance": "SUBSTANTIVE"}}
+        self.assertTrue(explain.goes_to_inbox(record))
+        facts["changes"][0]["provision"] = "Article 15 paragraph 3"
+        self.assertIn("PROVISION_RELEVANCE_UNVERIFIED", explain.review_reasons(record))
+        self.assertFalse(explain.goes_to_inbox(record))
+        facts["changes"][0]["provision"] = "Article 15"
+        record["explanation"] = {}
+        self.assertFalse(explain.goes_to_inbox(record))
 
     def test_count_only_and_sample(self):
         client = Client()

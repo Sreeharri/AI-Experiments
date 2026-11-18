@@ -9,7 +9,7 @@ WHAT YOU GET
 - changes: every single change to this provision, each with place (for example "Article 7 paragraph 2"), operation, applies_from, and where available old_text (the wording before, marks [O1], [O2] ...) and new_text (the wording after, marks [N1], [N2] ...). These are exactly the wordings the user sees next to your explanation. old_text is missing when the old wording is not available; new_text when the place is deleted or the new wording is not available.
 - instruction: the words of the changing act that make the change. Passage marks [I1], [I2] ...
 - final_articles: the changing act's articles on entry into force, application, transposition and transition. Passage marks [F1], [F2] ...
-- dates_known: the dates of the changing act (its date, entry into force, application) and the date from which the change applies. Passage mark [M1].
+- dates_known: the dates of the changing act (its date, entry into force, application) and the date from which the change applies. Passage mark [M1]. Individual change dates have marks [D1], [D2] and a source. Entry into force of the changing act is distinct from application of an individual change.
 - why_relevant: why the affected provision matters for Max Bögl, from the earlier classification: legal area, subject, reason and departments. Passage mark [K1]. Missing when the provision was not classified as relevant.
 - notes: what is missing or shortened in the texts given. Follow them.
 - "…" marks text that was left out because it did not change.
@@ -43,3 +43,6 @@ RULES
 - Write everything in <LANGUAGE>. Keep legal terms precise; if unsure of the term, add the original in brackets.
 
 Return one JSON object with headline, what_changed, facts, dates, significance, importance and to_confirm.
+
+A deletion or repeal with an uncertain effect is UNCLEAR. Cite the old passage for each before value and the new passage or instruction for each after value. Dates must be supported by the passages cited for that date.
+ For a removal, describe the exact provision or option named in the evidence. Do not infer what the rest of the act allows, what replaces it, or whether an implementing rule also ends.
