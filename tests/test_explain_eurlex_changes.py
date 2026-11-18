@@ -33,7 +33,7 @@ RECORDS = [
     provision("1", "15", "REPLACE", "Emission limit values. 3. Levels shall not exceed 100 TJ per year.",
               "Emission limit values. 3. Emission levels shall not exceed 85 TJ per year.",
               "(2) Article 15 is amended as follows: paragraph 3 is replaced by the following.", "FULL"),
-    provision("2", "15", "REPLACE", None, None, "(2) Article 15 paragraph 4 is deleted.", "INSTRUCTION_ONLY", 2),
+    provision("2", "15", "REPLACE", None, None, "(2) Article 15 paragraph 4 is replaced: Reports shall be published.", "INSTRUCTION_ONLY", 2),
     provision("3", "14a", "INSERT", None, "Operators shall prepare an environmental management system by 31 December 2027.",
               "(3) the following Article 14a is inserted.", "NEW_ONLY", 3),
     provision("4", "3", "REPLACE", "(2) pollution means emissions.", "(2) pollution means the introduction of substances.",
@@ -89,6 +89,10 @@ def plain_answer(messages):
             sentences.append("Die Änderungen werden in den jeweiligen Artikeln erläutert.")
         return {"sentences": sentences}
     provision_ = sent.get("provision")
+    if provision_ == "Article 15" and "100 TJ" not in user:
+        return {"headline": "Veröffentlichung von Berichten", "what_changed": "Berichte müssen veröffentlicht werden.",
+                "facts": [{"what": "Berichte", "before": "", "after": "Reports shall be published", "passages": ["I1"]}],
+                "dates": [], "significance": "SUBSTANTIVE"}
     if provision_ == "Article 15":
         return {"headline": "Schwellenwert gesenkt", "what_changed": "Der Grenzwert sinkt von 100 TJ auf 85 TJ pro Jahr.",
                 "facts": [{"what": "Grenzwert", "before": "100 TJ", "after": "85 TJ", "passages": ["O1", "N1"]}],
@@ -271,6 +275,52 @@ class HelperTests(unittest.TestCase):
         with self.assertRaisesRegex(explain.Unclassified, "are the same"):
             explain.validate_change(same, passages, sent, explain.text_situation(long_item))
 
+    def test_article_14_citations_and_comparisons(self):
+        unchanged = "The competent authority shall carry out surveillance."
+        added = "Surveillance may continue after the end of exposure."
+        passages = {"O1": unchanged, "N1": unchanged, "N2": added}
+        answer = {"significance": "SUBSTANTIVE", "facts": [
+            {"what": "Überwachung", "before": "", "after": added, "passages": ["N1"]}]}
+        with self.assertRaisesRegex(explain.Unclassified, "exact words"):
+            explain.check_fact_quotes(answer, passages)
+        answer["facts"][0].update(after=unchanged)
+        with self.assertRaisesRegex(explain.Unclassified, "unchanged"):
+            explain.check_fact_quotes(answer, passages)
+        answer["facts"][0].update(after=added, passages=["N2"])
+        explain.check_fact_quotes(answer, passages)
+        later = {"id": "x", "kind": "PROVISION", "records": [
+            provision("8", "14", "REPLACE", None, "Cancer cases are notified.", "", "NEW_ONLY")]}
+        _, sent, passages = explain.request_for(later)
+        reply = {"headline": "Meldung von Krebsfällen", "what_changed": "Die Meldepflicht wird konkretisiert.",
+                 "facts": [], "dates": [], "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""}
+        with self.assertRaisesRegex(explain.Unclassified, "konkretisiert"):
+            explain.validate_change(reply, passages, sent, explain.text_situation(later))
+
+    def test_date_uses_cited_purpose_and_accepts_equivalent_format(self):
+        explain.check_date_purpose("Umsetzungsfrist", "1.1.2026",
+                                   ["Member States shall apply measures transposing these amendments from 1 January 2026."])
+        explain.check_date_purpose("Berichtsfrist", "30.6.2025",
+                                   ["The report shall be submitted by 30 June 2025."])
+        with self.assertRaisesRegex(explain.Unclassified, "purpose"):
+            explain.check_date_purpose("gilt ab", "30.6.2025",
+                                       ["The report shall be submitted by 30 June 2025."])
+
+    def test_threshold_point_scope_and_display_terms(self):
+        rec = {"provision": "Article 13 point (b) TXT",
+               "instruction": "in point (a), ‘EUR 5 382 000’ is replaced by ‘EUR 5 538 000’;"
+                              " (b) in point (b), ‘EUR 215 000’ is replaced by ‘EUR 221 000’."}
+        scoped = explain.one_change(rec)["instruction"]
+        self.assertIn("221 000", scoped)
+        self.assertNotIn("5 538 000", scoped)
+        answer = {"headline": "Schwellenwert für Bauaufträge", "what_changed": "Der Wert liegt bei EUR 221 000.",
+                  "facts": [{"what": "Bauaufträge", "passages": ["I1"], "before": "", "after": "EUR 221 000"}]}
+        with self.assertRaisesRegex(explain.Unclassified, "contract type"):
+            explain.check_contract_labels(answer, {"I1": scoped})
+        for text, operation in (("Es gilt ab [D1]", "REPLACE"), ("Rücktritt der Richtlinie", "REPEALS"),
+                                ("Innen- und Außentiegel", "REPLACE")):
+            with self.assertRaises(explain.Unclassified):
+                explain.check_public_text([text], {operation})
+
     def test_importance_for_max_boegl_comes_from_the_classification(self):
         item = next(i for i in explain.build_items(RECORDS) if explain.item_facts(i)["provision"] == "Article 15")
         routing = {"level": "DIRECT", "route": "CHANGED_PROVISION", "domain": "environmental_protection",
@@ -390,7 +440,7 @@ class RunTests(unittest.TestCase):
         self.assertIsNone(amending["changed_by"])
         first = next(i for i in made["items"] if i["provision"] == "Article 15")
         self.assertEqual((first["headline"], first["short"]), ("Schwellenwert gesenkt",
-                                                               "Der Grenzwert sinkt von 100 TJ auf 85 TJ pro Jahr."))
+                                                               "Article 15 — Der Grenzwert sinkt von 100 TJ auf 85 TJ pro Jahr."))
         self.assertEqual(first["change_ids"], ["1", "2"])
         self.assertEqual(first["link"], "/acts/doc-ied/changes?change=1")
         card = json.loads(next((self.out / "inbox").glob("Umweltmanagement*.json")).read_text(encoding="utf-8"))["cards"][0]
@@ -449,6 +499,30 @@ class RunTests(unittest.TestCase):
         facts["changes"][0]["provision"] = "Article 15"
         record["explanation"] = {}
         self.assertFalse(explain.goes_to_inbox(record))
+
+    def test_group_retries_only_failed_subchange(self):
+        item = next(item for item in explain.build_items(RECORDS) if len(item["records"]) == 2)
+        checkpoints = self.root / "parts"
+        def response(client, systems, unit, log, routing):
+            change_id = unit["records"][0]["change_id"]
+            return "change", {"headline": "Änderung", "what_changed": f"Änderung {change_id}",
+                              "significance": "SUBSTANTIVE", "facts": [], "dates": [],
+                              "importance": "", "to_confirm": ""}
+
+        calls = []
+        def interrupted(client, systems, unit, log, routing):
+            calls.append(unit["records"][0]["change_id"])
+            if calls[-1] == "2" and len(calls) == 2:
+                raise explain.Unclassified("Answer cut off.")
+            return response(client, systems, unit, log, routing)
+
+        with patch.object(explain, "explain_one", side_effect=interrupted):
+            with self.assertRaisesRegex(explain.Unclassified, "Answer cut off"):
+                explain.explain(None, {}, item, [], part_dir=checkpoints)
+            _, answer = explain.explain(None, {}, item, [], part_dir=checkpoints)
+        self.assertEqual(calls, ["1", "2", "2"])
+        self.assertIn("Änderung 1", answer["what_changed"])
+        self.assertIn("Änderung 2", answer["what_changed"])
 
     def test_count_only_and_sample(self):
         client = Client()

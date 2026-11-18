@@ -23,3 +23,5 @@ RULES
 - Write everything in <LANGUAGE>, in plain words.
 
 Return one JSON object with sentences.
+
+Keep passage identifiers out of sentences. Describe only the amendments represented by the supplied items, and keep reporting, transposition, and application dates distinct.

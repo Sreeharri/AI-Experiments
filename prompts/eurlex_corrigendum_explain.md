@@ -29,3 +29,5 @@ RULES
 - Write everything in <LANGUAGE>.
 
 Return one JSON object with headline, what_was_wrong, facts, affects, importance and to_confirm.
+
+Quote short, exact original-language excerpts in before and after. Each cited passage must contain its quote. Keep passage markers in the evidence arrays. If why_relevant is provided, explain the connection to the supported business topic and keep company-specific applicability conditional.

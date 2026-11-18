@@ -50,7 +50,7 @@ TASKS = {"change": "TASK: Explain what changed. Return the JSON object described
          "act": "TASK: Write the paragraph. Return the JSON object described in the instructions."}
 DEFAULT_EXPORT = ROOT / "runs/eurlex_changes_export_v4"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v5"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v6"
 LANGUAGES = {"de": "German", "en": "English"}
 SIGNIFICANCE = ("SUBSTANTIVE", "EDITORIAL", "UNCLEAR")
 AFFECTS = ("NUMBER", "DATE", "DUTY", "ADDRESSEE", "SCOPE", "WORDING_ONLY")
@@ -63,7 +63,7 @@ WORD_PAIR = re.compile(r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?
                        r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?:wird|werden) gestrichen", re.I)
 # Words that compare with the old wording; without the old wording they would be invented.
 COMPARING = re.compile(r"\b(?:früher|bisher|bislang|vorher|zuvor|nicht mehr|nur noch|erweitert|verschärft|gelockert|"
-                       r"verkürzt|verlängert|anstatt|statt|gesenkt|erhöht|previously|no longer|instead of|extended|"
+                       r"verkürzt|verlängert|konkretisier\w*|präzisier\w*|clarif\w*|anstatt|statt|gesenkt|erhöht|previously|no longer|instead of|extended|"
                        r"tightened|relaxed|reduced|increased)\b", re.I)
 PROLONGING = re.compile(r"prolong|extend|extension|postpon|defer|validity|verlänger|verschieb|Geltungsdauer|"
                         r"Gültigkeit", re.I)
@@ -72,6 +72,26 @@ NEW_CLAIM = re.compile(r"\bneue[nrsm]?\b|\bneu\b|eingeführt|hinzugefügt|eingef
 # The importance part explains, it does not advise: tasks come in the next phase.
 ADVICE = re.compile(r"\bsollten?\b|empfehl|empfohlen|ratsam|Handlungsbedarf|prüfen Sie|zu prüfen|\bshould\b|"
                     r"recommend|advis", re.I)
+PASSAGE_MARK = re.compile(r"\[[A-Z]\d+\]", re.I)
+REPEAL_TERM = re.compile(r"\b(?:rücktritt|zurückgetreten|withdrawal|resignation)\b", re.I)
+REPLACEMENT_PLACEHOLDER = re.compile(r"\b(?:not used|nicht verwendet|nicht belegt)\b", re.I)
+BAD_PAINT_TERM = re.compile(r"\b(?:innen- und )?außentiegel\b", re.I)
+POINT = re.compile(r"\bpoint\s*\(([a-z])\)", re.I)
+POINT_CLAUSE = re.compile(r"(?<=;)\s*\([a-z]\)\s*(?=in point\s*\()", re.I)
+CONTRACT_TERMS = (
+    re.compile(r"\b(?:bauauftr\w*|bauleistungen|works contracts?)\b", re.I),
+    re.compile(r"\b(?:dienstleistungs\w*|services?|service contracts?)\b", re.I),
+)
+CURRENCY_REPLACEMENT = re.compile(
+    r"[‘’'\"“”](EUR [\d\s.,]+)[‘’'\"“”]\s+is replaced by\s+[‘’'\"“”](EUR [\d\s.,]+)[‘’'\"“”]", re.I)
+COMPANY_DUTY = re.compile(r"\bMax Bögl\s+(?:muss|darf nicht|ist verpflichtet|must|is required)\b", re.I)
+DATE_PURPOSES = (
+    (r"umsetz|transpos", r"transpos|bring into force the laws|laws.*(?:comply|necessary)|comply.*directive"),
+    (r"bericht|report", r"report"),
+    (r"inkraft|in kraft|entry into force", r"entry into force|enter into force|eintritt in kraft"),
+    (r"gilt ab|anwendung|appl", r"appl|(?:change|annotation):"),
+    (r"erlass|annahme|adopt|act date", r"date of the changing act|adopt"),
+)
 TEXT_BUDGET = 6000            # characters per text (old, new, instruction) sent to Qwen
 MAX_CHANGES_LISTED = 25       # changes of one provision listed in one request (big annexes have hundreds)
 PASSAGE_CHARS = 450
@@ -494,6 +514,68 @@ def clean_facts(reply, passages, old_marks, new_marks):
     return facts
 
 
+def check_public_text(texts, operations=()):
+    for value in texts:
+        if PASSAGE_MARK.search(value):
+            raise Unclassified("Keep passage markers in the evidence fields only.")
+        if BAD_PAINT_TERM.search(value):
+            raise Unclassified("Translate paints and varnishes as Farben und Lacke.")
+        if set(operations) & REMOVALS and REPEAL_TERM.search(value):
+            raise Unclassified("Use Aufhebung (repeal) for the removal of a provision or act.")
+
+
+def check_date_purpose(label, date, cited):
+    # Every candidate sentence must contain the date together with language supporting its role.
+    for label_pattern, source_pattern in DATE_PURPOSES:
+        if re.search(label_pattern, label, re.I):
+            if any(re.search(source_pattern, sentence, re.I) and not number_problems([date], sentence)
+                   for text in cited for sentence in re.split(r"(?<!\d)[.!?]\s+", text)):
+                return
+            raise Unclassified("Cite a passage that supports both the date and its stated purpose.")
+    raise Unclassified("Use a supported date purpose or omit this optional date.")
+
+
+def check_fact_quotes(answer, passages, have=None):
+    """Facts contain original-language excerpts. The separate explanation can be in German."""
+    have = have or {}
+    old = squash(side_text(passages, "O")).casefold()
+    new = squash(side_text(passages, "N")).casefold()
+    for fact in answer["facts"]:
+        cited = fact["passages"]
+        for field, prefixes in (("before", "OW" + ("I" if have.get("pair") else "")),
+                                ("after", "NRIT")):
+            value = fact[field]
+            if not value:
+                continue
+            quote = squash(value).casefold()
+            if not any(quote in squash(passages[m]).casefold() for m in cited if m[0] in prefixes):
+                raise Unclassified(f"{field} must quote the exact words from a cited evidence passage.")
+            if (answer.get("significance") == "SUBSTANTIVE" and old and new and
+                    ((field == "after" and quote in old) or
+                     (field == "before" and not fact["after"] and quote in new))):
+                raise Unclassified("This quote is unchanged. Cite the words that were added, altered or removed.")
+
+
+def check_contract_labels(answer, passages):
+    evidence = [value for mark, value in passages.items() if mark[0] in "ONI"]
+    if not any(re.search(r"\b(?:EUR|euros?)\b|€", value, re.I) for value in evidence):
+        return
+    for fact in answer["facts"]:
+        cited = " ".join(passages[mark] for mark in fact["passages"])
+        for term in CONTRACT_TERMS:
+            if term.search(fact["what"]) and not term.search(cited):
+                raise Unclassified("Use the point letter when the cited wording does not name the contract type.")
+        replacement = CURRENCY_REPLACEMENT.search(cited)
+        if replacement:
+            for key, expected in zip(("before", "after"), replacement.groups()):
+                if fact[key] and signature(fact[key]) != signature(expected.strip()):
+                    raise Unclassified(f"Quote the exact {key} amount from the cited replacement instruction.")
+    prose = " ".join((answer["headline"], answer["what_changed"]))
+    for term in CONTRACT_TERMS:
+        if term.search(prose) and not any(term.search(value) for value in evidence):
+            raise Unclassified("Use the point letter instead of supplying an unsupported contract type.")
+
+
 def validate_change(reply, passages, sent, have=None):
     if not isinstance(reply, dict) or set(reply) != {"headline", "what_changed", "facts", "dates", "significance",
                                                      "importance", "to_confirm"}:
@@ -501,6 +583,7 @@ def validate_change(reply, passages, sent, have=None):
                            "importance and to_confirm.")
     headline = text_field(reply, "headline", LIMITS["headline"])
     text = text_field(reply, "what_changed", LIMITS["text"])
+    check_public_text((headline, text), (have or {}).get("operations", ()))
     if reply["significance"] not in SIGNIFICANCE:
         raise Unclassified(f"significance is one of {', '.join(SIGNIFICANCE)}.")
     every = json.dumps(sent, ensure_ascii=False)
@@ -508,12 +591,15 @@ def validate_change(reply, passages, sent, have=None):
     have = have or {}
     old_marks = {"O"} | ({"I"} if have.get("pair") else set())
     facts = clean_facts(reply, passages, old_marks, {"N", "I", "F", "M", "D"})
-    if compares_without_old(have, sent) and (word := COMPARING.search(f"{headline} {text}")):
+    if compares_without_old(have, sent) and (word := COMPARING.search(" ".join(
+            [headline, text] + [f"{fact['what']} {fact['after']}" for fact in facts]))):
         raise Unclassified(f"'{word.group(0)}' compares with the old wording, which is not given. "
                            "Describe only what applies now.")
     if have.get("removal") and not have.get("new") and not have.get("instruction") and \
             (word := NEW_CLAIM.search(f"{headline} {text}")):
         raise Unclassified(f"'{word.group(0)}': the provision is removed, nothing is new. Say what no longer applies.")
+    if reply["significance"] == "EDITORIAL" and have.get("replacement_placeholder"):
+        raise Unclassified("Removing operative text by replacing it with a placeholder requires substantive review.")
     if reply["significance"] == "EDITORIAL" and have.get("trimmed"):
         raise Unclassified("Only parts of a long text are given, so the change cannot be EDITORIAL. Use SUBSTANTIVE "
                            "or UNCLEAR.")
@@ -533,6 +619,7 @@ def validate_change(reply, passages, sent, have=None):
         check([value], " ".join(passages[mark] for mark in cited), "dates")
         dates.append({"what": squash(item["what"]), "date": value, "passages": cited})
     importance, to_confirm = check_importance(reply, passages, every)
+    check_public_text((importance, to_confirm))
     check_language([headline, text, importance, *(f["what"] for f in facts)])
     return {"headline": headline, "what_changed": text, "facts": facts, "dates": dates,
             "significance": reply["significance"], "importance": importance, "to_confirm": to_confirm}
@@ -554,6 +641,8 @@ def check_importance(reply, passages, every) -> tuple[str, str]:
         check([confirm], every, "to_confirm")
     if not value or len(value) > LIMITS["importance"]:
         raise Unclassified(f"importance must be one or two sentences (up to {LIMITS['importance']} characters).")
+    if COMPANY_DUTY.search(f"{value} {confirm}"):
+        raise Unclassified("Describe the business connection conditionally. Do not assert a company obligation.")
     if word := ADVICE.search(value):
         raise Unclassified(f"importance explains, it does not advise ('{word.group(0)}'). Say why it matters.")
     check([value], every, "importance")
@@ -567,6 +656,8 @@ def compares_without_old(have: dict, sent: dict) -> bool:
     operations = set(have.get("operations", set())) - {"AMENDS", "REPLACES", "OTHER"}
     if operations and operations <= ADDITIONS:
         return False                       # a new provision only: "neu", "zusätzlich" are fine
+    if have.get("strict_comparison"):
+        return True
     title = (sent.get("changing_act") or {}).get("title", "")
     return not (PROLONGING.search(title) or have.get("operations", set()) & {
         "EXTENDS_APPLICATION", "EXTENDS_VALIDITY", "DEFERS_APPLICATION"})
@@ -579,6 +670,7 @@ def validate_corrigendum(reply, passages, sent):
                            "to_confirm.")
     headline = text_field(reply, "headline", LIMITS["headline"])
     text = text_field(reply, "what_was_wrong", LIMITS["text"])
+    check_public_text((headline, text))
     if reply["affects"] not in AFFECTS:
         raise Unclassified(f"affects is one of {', '.join(AFFECTS)}.")
     check([headline, text], json.dumps(sent, ensure_ascii=False), "headline or what_was_wrong")
@@ -601,29 +693,121 @@ def validate_act(reply, source):
     cleaned = [squash(s) for s in sentences if isinstance(s, str) and squash(s)]
     if len(cleaned) != len(sentences) or any(len(s) > LIMITS["sentence"] for s in cleaned):
         raise Unclassified(f"Every sentence is a text of 1 to {LIMITS['sentence']} characters.")
+    check_public_text(cleaned)
     check(cleaned, source, "sentences")
     check_language(cleaned)
     return cleaned
 
 
-def explain(client, systems, item, log):
-    name, sent, passages = request_for(item)
+def one_change(record):
+    """Use the matching numbered instruction where the export repeats all point replacements."""
+    points = POINT.findall(record.get("provision") or "")
+    instruction = record.get("instruction") or ""
+    if not points or len(set(POINT.findall(instruction))) < 2:
+        return record
+    point = points[-1].casefold()
+    clauses = [line for line in POINT_CLAUSE.split(instruction)
+               if [p.casefold() for p in POINT.findall(line)] == [point]]
+    return {**record, "instruction": clauses[0]} if len(clauses) == 1 else {**record, "instruction": ""}
+
+
+def validate_prose(answer, passages, have):
+    check_fact_quotes(answer, passages, have)
+    if answer["significance"] == "SUBSTANTIVE" and not answer["facts"]:
+        raise Unclassified("A substantive finding must cite the changed wording in facts.")
+    check_contract_labels(answer, passages)
+    for date in answer["dates"]:
+        check_date_purpose(date["what"], date["date"], [passages[mark] for mark in date["passages"]])
+    return answer
+
+
+def explain_one(client, systems, item, log, routing):
+    record = item["records"][0]
+    name, sent, passages = request_for(item, routing)
     have = text_situation(item)
     if name == "corrigendum":
-        schema, check_reply = corrigendum_schema(passages), lambda reply: validate_corrigendum(reply, passages, sent)
+        schema = corrigendum_schema(passages)
+
+        def check_reply(reply):
+            answer = validate_corrigendum(reply, passages, sent)
+            check_fact_quotes(answer, passages)
+            return answer
     else:
         before = any(mark.startswith("O") for mark in passages) or have["pair"]
         schema = change_schema(passages, before)
-        check_reply = lambda reply: validate_change(reply, passages, sent, have)
+        have["strict_comparison"] = item["kind"] == "PROVISION"
+        have["replacement_placeholder"] = bool(
+            re.search(r"^(?:article\s+\w+\s*[.:]?\s*)?[‘’'«»\s]*(?:not used|nicht verwendet|nicht belegt)[’'«».\s]*$",
+                      squash(record.get("new_text") or ""), re.I)
+            or ("REPLACE" in have["operations"] and REPLACEMENT_PLACEHOLDER.search(record.get("instruction") or "")
+                and len(POINT.findall(record.get("instruction") or "")) <= 1))
+        if have["removal"] and not have["new"]:
+            schema["properties"]["facts"]["items"]["properties"]["after"]["maxLength"] = 0
+            sent.setdefault("notes", []).append("For a deletion without replacement text, leave every after value empty.")
+
+        def check_reply(reply):
+            answer = validate_change(reply, passages, sent, have)
+            if have["removal"] and not have["new"] and any(fact["after"] for fact in answer["facts"]):
+                raise Unclassified("Leave after empty for a deletion without replacement text.")
+            return validate_prose(answer, passages, have)
     try:
-        answer = ask(client, systems[name], sent, TASKS[name], schema, f"{name}_explanation", check_reply, log, 1200)
+        answer = ask(client, systems[name], sent, TASKS[name], schema, f"{name}_explanation", check_reply, log, 2400)
     except OverflowError:
-        raise Unclassified("The texts of this change are too long for the model.") from None
-    for fact in answer["facts"]:
-        fact["quotes"] = [passages[mark][:400] for mark in fact["passages"]]
-    if (have["operations"] & REMOVALS or have["removal"]) and answer.get("significance") == "EDITORIAL":
+        raise Unclassified("The text of this change is too long for the model.") from None
+    for field in ("facts", "dates"):
+        for claim in answer.get(field, []):
+            claim["change_id"] = record.get("change_id")
+            claim["quotes"] = [passages[mark][:400] for mark in claim["passages"]]
+    if have["operations"] & REMOVALS and answer.get("significance") == "EDITORIAL":
         answer["significance"] = "UNCLEAR"
     return name, answer
+
+
+def explain(client, systems, item, log, routing=None, part_dir=None):
+    facts = item_facts(item)
+    routing = routing or {}
+    evidence_flags = review_reasons({"facts": facts, "routing": routing, "kind": item["kind"],
+                                    "explanation": {"significance": "SUBSTANTIVE"}})
+    exact_context = routing if not evidence_flags else None
+    answers, skipped, failures = [], [], []
+    for position, record in enumerate(item["records"], 1):
+        unit = {**item, "records": [one_change(record)]}
+        if missing_reason(unit):
+            skipped.append(record.get("provision") or record.get("id"))
+            continue
+        checkpoint = part_dir / f"{position}.json" if part_dir is not None else None
+        if checkpoint is not None and checkpoint.is_file():
+            saved = read_json(checkpoint)
+            name, answer = saved["prompt"], saved["answer"]
+        else:
+            try:
+                name, answer = explain_one(client, systems, unit, log, exact_context)
+            except Unclassified as exc:
+                failures.append(f"{record.get('provision') or record['id']}: {exc}")
+                continue
+            if checkpoint is not None:
+                write_json(checkpoint, {"prompt": name, "answer": answer})
+        answers.append((name, record, answer))
+    if failures:
+        raise Unclassified(" | ".join(failures[:4]))
+    if not answers:
+        raise Unclassified("The individual changes have no usable evidence.")
+    name, _, first = answers[0]
+    if len(answers) == 1 and not skipped:
+        return name, first
+
+    statuses = {answer["significance"] for _, _, answer in answers}
+    significance = ("UNCLEAR" if skipped or "UNCLEAR" in statuses
+                    else "SUBSTANTIVE" if "SUBSTANTIVE" in statuses else "EDITORIAL")
+    text = " ".join(f"{record.get('provision') or ''} — {answer['what_changed']}".strip()
+                    for _, record, answer in answers)
+    important = " ".join(dict.fromkeys(answer["importance"] for _, _, answer in answers if answer["importance"]))
+    confirms = " ".join(dict.fromkeys(answer["to_confirm"] for _, _, answer in answers if answer["to_confirm"]))
+    return name, {**first, "what_changed": text, "significance": significance,
+                  "importance": important, "to_confirm": confirms,
+                  "facts": [fact for _, _, a in answers for fact in a["facts"]],
+                  "dates": [date for _, _, a in answers for date in a["dates"]],
+                  "missing_changes": skipped}
 
 
 # ------------------------------------------------------------------ routing
@@ -696,21 +880,6 @@ def exact_routing(facts, routing):
                 and len(routing.get("matched", [])) == 1)
 
 
-def business_context(facts, routing, language):
-    if not exact_routing(facts, routing):
-        return ""
-    locator = routing["matched"][0]
-    domain = routing.get("domain_title") or routing.get("domain")
-    subject = (routing.get("subject") or "").rstrip(".")
-    if language == "de":
-        return (f"{locator} ist für Max Bögl als {routing['level']} eingestuft."
-                + (f" Themenbereich: {domain}." if domain else "")
-                + (f" Thema laut Einstufung: {subject}." if subject else ""))
-    return (f"{locator} is classified as {routing['level']} for Max Bögl."
-            + (f" Business area: {domain}." if domain else "")
-            + (f" Classified subject: {subject}." if subject else ""))
-
-
 def review_reasons(record):
     facts, routing = record["facts"], record["routing"]
     explanation = record.get("explanation") or {}
@@ -720,6 +889,8 @@ def review_reasons(record):
         reasons.append("REPEAL_SCOPE_UNVERIFIED")
     elif not explanation:
         reasons.append("MISSING_CHANGE_EVIDENCE" if record.get("no_text") else "EXPLANATION_FAILED")
+    if explanation.get("missing_changes"):
+        reasons.append("PARTIAL_EXPLANATION")
     if significance == "UNCLEAR":
         reasons.append("EFFECT_UNCLEAR")
     if not exact_routing(facts, routing):
@@ -730,8 +901,6 @@ def review_reasons(record):
         if any(c.get("effective_source") in {"RELATIONSHIP", "ENTRY_INTO_FORCE", "MISSING"}
                for c in facts.get("changes", [])):
             reasons.append("CHANGE_DATE_REVIEW_REQUIRED")
-        if len(facts.get("changes", [])) > MAX_CHANGES_LISTED:
-            reasons.append("PARTIAL_EXPLANATION")
         for change in facts.get("changes", []):
             operation = change["operation"]
             has_pair = (change["old_wording"] or operation in ADDITIONS) and (
@@ -822,7 +991,8 @@ def entry(record, language):
             "text": explanation.get("what_changed") or explanation.get("what_was_wrong") or "",
             "facts": explanation.get("facts", []), "dates": explanation.get("dates", []),
             "significance": explanation.get("significance") or explanation.get("affects"),
-            "importance": business_context(facts, record["routing"], language) if explanation else "", "to_confirm": "",
+            "importance": explanation.get("importance", ""),
+            "to_confirm": explanation.get("to_confirm", ""),
             "review_reasons": review_reasons(record),
             "changes": lines, "dates_differ": facts.get("dates_differ", False),
             "level": record["routing"].get("level"), "route": record["routing"].get("route"),
@@ -1011,6 +1181,16 @@ def page_html(page, language):
     return "".join(parts)
 
 
+def review_dates(item, changing, language):
+    if item["kind"] in {"ACT", "CORRIGENDUM"}:
+        if item.get("effective_from"):
+            return item["effective_from"]
+        label = "Datum des Rechtsakts" if language == "de" else "Date of act"
+        return f"{label} {changing['date']}" if changing.get("date") else ""
+    return " | ".join(f"{c.get('provision') or '—'} {c.get('effective_from') or '—'} ({c['effective_source']})"
+                      for c in item["changes"])
+
+
 def export(out, planned, language, template="", roles=None):
     records = []
     for item in planned:
@@ -1042,8 +1222,7 @@ def export(out, planned, language, template="", roles=None):
                      " | ".join(f"{f['what']}: {f['before']} -> {f['after']}" for f in item["facts"]),
                      " | ".join(f"{d['what']}: {d['date']}" for d in item["dates"]),
                      f"{item['importance']} {item['to_confirm']}".strip(),
-                     " | ".join(f"{c.get('provision')}: {c.get('effective_from') or '?'} ({c.get('effective_source')})"
-                                for c in item["changes"]),
+                     review_dates(item, record["facts"]["changing"], language),
                      (item["old_text"] or "")[:300], (item["new_text"] or "")[:300]])
     cards_total = 0
     (out / "preview").mkdir(parents=True, exist_ok=True)
@@ -1198,7 +1377,7 @@ def main(argv=None):
         print("Nothing to explain.", file=sys.stderr)
         return 1
     fingerprint = sha([systems, TASKS, change_schema(["O1"]), change_schema(["N1"], False), corrigendum_schema(["W1"]),
-                       ACT_SCHEMA, args.language, "v1.5", planned, results, args.link_template])
+                       ACT_SCHEMA, args.language, "v1.6", planned, results, args.link_template])
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
         print("The inputs or settings changed since this folder was started. Use a new --output-dir.",
@@ -1235,7 +1414,8 @@ def main(argv=None):
             else:
                 log = []
                 try:
-                    record["prompt"], record["explanation"] = explain(client, systems, item, log)
+                    record["prompt"], record["explanation"] = explain(
+                        client, systems, item, log, record["routing"], out / "parts" / item["id"])
                 except ConnectionLost:
                     raise
                 except Unclassified as exc:
@@ -1277,7 +1457,8 @@ def main(argv=None):
                                      Counter(r["facts"]["changed"]["celex"] for r in records_).most_common(5)],
                     "changes": [{"provision": r["facts"]["provision"] or r["facts"]["relation"],
                                  "headline": r["explanation"]["headline"],
-                                 "what_changed": r["explanation"].get("what_changed") or r["explanation"].get("what_was_wrong"),
+                                 "what_changed": (r["explanation"].get("what_changed") or
+                                                  r["explanation"].get("what_was_wrong") or "")[:1000],
                                  "significance": r["explanation"].get("significance") or r["explanation"].get("affects")}
                                 for r in changes],
                     "dates": sorted({f"{d['what']}: {d['date']}" for r in records_ for d in r["explanation"].get("dates", [])})[:6]}
