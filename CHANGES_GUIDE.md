@@ -1,6 +1,12 @@
 # Legal Radar – Changes step (guide)
 
-Status 18 Nov 2026 (v2.2, simple explanations with the whole article as background). Explains amendments, repeals, corrigenda and other changes between EUR-Lex acts and routes them to the departments. Plan and background: `claude/legal-radar-changes-plan.md`.
+Status 18 Nov 2026 (v2.3, simple explanations with the whole article as background). Explains amendments, repeals, corrigenda and other changes between EUR-Lex acts and routes them to the departments. Plan and background: `claude/legal-radar-changes-plan.md`.
+
+## v2.3: one point of a mixed instruction (after run v9)
+
+Run v9 on 2019/1020 (v2.2): 13 requests, 10 right; 32 deletions shown as "Gestrichen." without Qwen; missing text down from 27 to 13 (12 corrigenda without text, 1 implicit repeal). The whole article helped: Art. 56(1) of 305/2011 and Annex I point 21 were explained correctly from it. Still wrong: 765/2008 Art. 32(1) points (c), (f), (g). They got the whole instruction ("(a) point (c) is replaced …; (b) points (d) and (e) are deleted; (c) points (f) and (g) are replaced …") and mixed the points up.
+
+v2.3 (explain only, the export stays): for a point in such a mixed instruction, Qwen gets only the clause about that point and the point's own quoted wording as new text ("(g) activities carried out under programmes of technical assistance …"). A simple instruction stays as it is. Tests: 30.
 
 ## v2.2: long articles
 
@@ -179,7 +185,7 @@ cd C:\Users\sthirumalair\AI-Experiments
 $f = Get-ChildItem C:\Users\sthirumalair\project -Recurse -Filter eurlex_wording.py -ErrorAction SilentlyContinue | Select-Object -First 1
 $env:LR_BACKEND_DIR = $f.Directory.Parent.Parent.FullName; $env:LR_BACKEND_DIR
 
-# 1. code tests, no Qwen and no database needed - must end with "Ran 29 tests" and "OK (skipped=2)"
+# 1. code tests, no Qwen and no database needed - must end with "Ran 30 tests" and "OK (skipped=2)"
 & .\.venv\Scripts\python.exe -m unittest tests.test_export_eurlex_changes tests.test_explain_eurlex_changes
 
 # 2a. can this PC reach EUR-Lex? Prints what each of the two sources answered

@@ -213,6 +213,28 @@ class SimpleTests(unittest.TestCase):
         added = provision("6", "2", "ADD", None, "x", "(3) point 20 is added and point 19 is deleted;", "NEW_ONLY")
         self.assertEqual(explain.change_case("PROVISION", added, "AMENDS"), "ADDED")   # additions stay additions
 
+    def test_v23_one_point_of_a_mixed_instruction_gets_only_its_own_words(self):
+        mixed = ("(5) paragraph 1 of Article 32 is amended as follows: (a) point (c) is replaced by the following: "
+                 "‘(c) the drawing up of guidelines;’; (b) points (d) and (e) are deleted; (c) points (f) and (g) are "
+                 "replaced by the following: ‘(f) preliminary work, such as studies; (g) technical assistance.’")
+        records = {x: provision(x, "32", "REPLACE", None, None, mixed, "INSTRUCTION_ONLY",
+                                place=f"Article 32 paragraph 1 point ({x})") for x in "cdfg"}
+        self.assertEqual(explain.one_change(records["g"])["new_text"], "(g) technical assistance.")
+        self.assertEqual(explain.one_change(records["f"])["new_text"], "(f) preliminary work, such as studies;")
+        self.assertEqual(explain.one_change(records["c"])["new_text"], "(c) the drawing up of guidelines;")
+        self.assertTrue(explain.one_change(records["g"])["instruction"].startswith("(c) points (f) and (g)"))
+        client = ready_client()
+        changes = explain.explain(client, SYSTEMS, explain.build_items(list(records.values()))[0], [])[1]["changes"]
+        self.assertEqual([c["case"] for c in changes], ["CHANGED", "REMOVED", "CHANGED", "CHANGED"])
+        sent = sent_of(client)
+        self.assertEqual([s["new_text"] for s in sent], ["(c) the drawing up of guidelines;",
+                                                         "(f) preliminary work, such as studies;",
+                                                         "(g) technical assistance."])
+        self.assertTrue(all("instruction" not in s for s in sent))      # no other points go along
+        plain = provision("9", "15", "REPLACE", None, None, "(2) Article 15 point (b) is replaced: ‘(b) x’", "INSTRUCTION_ONLY",
+                          place="Article 15 point (b)")
+        self.assertEqual(explain.one_change(plain), plain)               # a simple instruction stays as it is
+
     def test_v21_the_whole_article_goes_along_as_background(self):
         record = provision("7", "32", "REPLACE", None, None, "(a) point (c) is replaced by the following: ‘(c) new.’",
                            "INSTRUCTION_ONLY", place="Article 32 paragraph 1 point (c)", heading="Financing",

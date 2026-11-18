@@ -49,7 +49,7 @@ TASKS = {"change": "TASK: Explain what changed. Return the JSON object described
          "act": "TASK: Write the paragraph. Return the JSON object described in the instructions."}
 DEFAULT_EXPORT = ROOT / "runs/eurlex_changes_export_v5"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v9"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v10"
 LANGUAGES = {"de": "German", "en": "English"}
 SIGNIFICANCE = ("SUBSTANTIVE", "EDITORIAL", "UNCLEAR")
 AFFECTS = ("NUMBER", "DATE", "DUTY", "ADDRESSEE", "SCOPE", "WORDING_ONLY")
@@ -210,12 +210,39 @@ def validate_act(reply, source):
     return cleaned[:4]
 
 
+SUB_POINT = re.compile(r"(?:(?<=:)|(?<=;))\s*(?=\([a-z]\)\s+(?:points?\b|in\s+point\b|the\s+following\b))", re.I)
+
+
+def own_point(record):
+    """One point of a mixed instruction: for point (g) of "(a) point (c) is replaced by …; (b) points (d) and (e)
+    are deleted; (c) points (f) and (g) are replaced by the following: ‘(f) …; (g) …’" only the clause about (g),
+    and its own quoted wording as new text when the backend has none. Otherwise the record stays as it is."""
+    found = re.search(r"\bpoint\s*\(([a-z0-9]+)\)\s*$", record.get("provision") or "", re.I)
+    instruction = record.get("instruction") or ""
+    if not found or not instruction:
+        return record
+    mark = re.escape(f"({found.group(1).lower()})")
+    names = re.compile(rf"\bpoints?\s+(?:\([a-z0-9]+\)\s*(?:,|and|to)?\s*)*{mark}", re.I)
+    clauses = [c for c in SUB_POINT.split(instruction) if names.search(re.sub(r"‘[^’]*’", " ", c))]
+    if len(clauses) != 1 or len(SUB_POINT.split(instruction)) < 3:
+        return record
+    clause = clauses[0].strip()
+    changed = {**record, "instruction": clause}
+    quote = re.search(r"‘(.*)’", clause, re.S)
+    if quote and not record.get("new_text"):
+        parts = re.split(r"(?:^|(?<=;))\s*(?=\([a-z0-9]+\)\s)", quote.group(1))
+        mine = [part.strip() for part in parts if re.match(rf"\s*{mark}\s", part)]
+        if len(mine) == 1:
+            changed["new_text"] = mine[0]
+    return changed
+
+
 def one_change(record):
     """Use the matching numbered instruction where the export repeats all point replacements."""
     points = POINT.findall(record.get("provision") or "")
     instruction = record.get("instruction") or ""
     if not points or len(set(POINT.findall(instruction))) < 2:
-        return record
+        return own_point(record)
     point = points[-1].casefold()
     clauses = [line for line in POINT_CLAUSE.split(instruction)
                if [p.casefold() for p in POINT.findall(line)] == [point]]
@@ -229,7 +256,7 @@ def one_change(record):
 # remark by Python. Dates come from the database (the effective date of each change). Deletions and repeals are
 # not sent to Qwen: they are shown as "gestrichen" / "aufgehoben" with their date.
 
-CORE_VERSION = "v2.1"
+CORE_VERSION = "v2.3"
 EXPLANATION_LIMIT = 900
 SIMPLE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["explanation"],
                  "properties": {"explanation": {"type": "string", "maxLength": EXPLANATION_LIMIT}}}
