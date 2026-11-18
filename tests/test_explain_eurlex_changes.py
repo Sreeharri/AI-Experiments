@@ -1,8 +1,4 @@
-"""Tests of explain_eurlex_changes.py (v1.7) with a stand-in Qwen client (no Qwen, no database).
-
-Regression cases from the pilots: Directive 2014/24 Article 13 points (a) and (b), Directive 2004/37 Article 14
-paragraphs 1 and 8 (different evidence), an explicit repeal, a new-only change and a partially failed annex.
-"""
+"""Tests of explain_eurlex_changes.py (v2.0, simple explanations) with a stand-in Qwen client."""
 
 import csv
 import json
@@ -64,29 +60,6 @@ RESULTS = {
                                  "primary_title": "Umweltschutz", "departments": ["Recht"], "secondary_departments": []}},
 }
 
-# Directive 2014/24 Article 13, as amended by Delegated Regulation (EU) 2023/2495.
-PROCUREMENT = {"celex": "32023R2495", "title": "Commission Delegated Regulation (EU) 2023/2495 amending Directive "
-                                               "2014/24/EU in respect of the thresholds", "date": "2023-11-15",
-               "entry_into_force": "2023-12-06", "application": None, "url": None}
-POINT_A = ("(a) works contracts subsidised directly by more than 50 % by contracting authorities where the estimated "
-           "value of the contract, net of VAT, is equal to or greater than EUR 5 538 000, where those contracts "
-           "involve one of the following activities: (i) civil engineering activities;")
-POINT_B = ("(b) service contracts subsidised directly by more than 50 % by contracting authorities where the estimated "
-           "value of the contract, net of VAT, is equal to or greater than EUR 221 000 and which are connected to a "
-           "works contract within the meaning of point (a).")
-
-
-def article_13(letter, old_amount, new_amount, context):
-    return {**provision(f"13{letter}", "13", "REPLACE", None, None,
-                        f"(2) in Article 13, first paragraph is amended as follows: in point ({letter}), "
-                        f"‘EUR {old_amount}’ is replaced by ‘EUR {new_amount}’;", "INSTRUCTION_ONLY",
-                        place=f"Article 13 unnumbered paragraph 1 point ({letter})", heading="Contracts subsidised by "
-                        "contracting authorities", point_context=context, effective_source="ANNOTATION",
-                        effective_from="2024-01-01"),
-            "changing": PROCUREMENT, "changed": {"celex": "32014L0024", "title": "Directive 2014/24/EU on public "
-                                                 "procurement", "url": None}, "final_articles": []}
-
-
 # Directive 2004/37 Article 14 changed by Directive (EU) 2017/2398: paragraph 1 old and new, paragraph 8 new only.
 CMD = {"celex": "32017L2398", "title": "Directive (EU) 2017/2398 amending Directive 2004/37/EC", "date": "2017-12-12",
        "entry_into_force": "2018-01-16", "application": None, "url": None}
@@ -120,43 +93,18 @@ def reply(value):
     return ChatResult(ok=True, finish_reason="stop", content=json.dumps(value))
 
 
-def unit_of(record, routing=None):
-    item = explain.build_items([record])[0]
-    return explain.build_unit(item, item["records"][0], routing)
-
-
 def answer_for(messages):
-    """What a well-behaved model would answer in the v1.7 format, decided from the request."""
+    """A simple answer in the v2.0 format, built from the request."""
     user = messages[1]["content"]
-    sent = json.loads(user.partition("\n\nTASK:")[0])
     if "Write the paragraph" in user:
         return {"sentences": ["Die Richtlinie ändert die Industrieemissions-Richtlinie.",
                               "Die Änderungen werden in den jeweiligen Artikeln erläutert."]}
-    evidence = {e["id"]: e for e in sent.get("evidence", [])}
-    relevance = "why_relevant" in sent
-    common = {"importance": "Die Änderung betrifft eine für Max Bögl relevante Vorschrift im Umweltschutz."
-                            if relevance else "",
-              "to_confirm": "Ob ein Werk unter die Vorschrift fällt, ist noch zu bestätigen." if relevance else ""}
-    if "Explain the corrigendum" in user:
-        return {"headline": "Schwellenwert berichtigt", "what_was_wrong": "Statt 100 TJ muss es 85 TJ heißen.",
-                "facts": [{"what": "Schwellenwert", "before": "100 TJ", "after": "85 TJ", "before_evidence": ["W1"],
-                           "after_evidence": ["R1"]}], "affects": "NUMBER", **common}
-    situation = sent["situation"]
-    new = [i for i, e in evidence.items() if i[0] == "N" and e.get("changed", True)]
-    old = [i for i, e in evidence.items() if i[0] == "O" and e.get("changed", True)]
-    instruction = [i for i in evidence if i[0] == "I"]
-    if situation.startswith("REMOVAL"):
-        fact = {"what": "Die Vorschrift", "before": "", "after": "", "before_evidence": (old or instruction)[:1],
-                "after_evidence": []}
-        return {"headline": "Vorschrift aufgehoben", "what_changed": "Die Vorschrift gilt in Zukunft nicht mehr.",
-                "facts": [fact], "dates": [], "significance": "SUBSTANTIVE", **common}
-    fact = {"what": "Inhalt der Vorschrift", "before": "die bisherige Fassung" if old else "",
-            "after": "die geänderte Fassung", "before_evidence": old[:1], "after_evidence": (new or instruction)[:1]}
-    dates = [{"kind": "TRANSPOSITION", "date": "1 July 2026", "evidence": ["F1"]}] if "F1" in evidence and \
-        "1 July 2026" in evidence["F1"]["text"] else []
-    return {"headline": "Vorschrift geändert", "what_changed": "Die Vorschrift wird geändert und gilt in der "
-                                                                "angegebenen Fassung.",
-            "facts": [fact], "dates": dates, "significance": "SUBSTANTIVE", **common}
+    sent = json.loads(user.partition("\n\nTASK:")[0])
+    if "corrections" in sent:
+        return {"explanation": "Statt 100 TJ muss es 85 TJ heißen."}
+    if "old_text" in sent and "new_text" in sent:
+        return {"explanation": f"In {sent['place']} wird der Wortlaut geändert."}
+    return {"explanation": f"{sent['place']} regelt nun den neuen Inhalt."}
 
 
 class Client:
@@ -185,199 +133,81 @@ def ready_client(**options):
     return client
 
 
-class EvidenceTests(unittest.TestCase):
-    def test_article_13_points_a_and_b_keep_their_own_subject(self):
-        unit_b = unit_of(article_13("b", "215 000", "221 000", POINT_B))
-        unit_a = unit_of(article_13("a", "5 382 000", "5 538 000", POINT_A))
-        self.assertTrue(unit_b["subject"].startswith("service contracts subsidised"))
-        self.assertTrue(unit_a["subject"].startswith("works contracts subsidised"))
-        self.assertEqual(unit_b["situation"], "INSTRUCTION")
-        self.assertIn("I1", unit_b["before_ids"])                     # the instruction names the replaced amount
-        good = {"headline": "Schwellenwert für Dienstleistungsaufträge in Punkt (b) auf EUR 221 000 angehoben",
-                "what_changed": "In Punkt (b) wird der Betrag EUR 215 000 durch EUR 221 000 ersetzt. Das betrifft "
-                                "Dienstleistungsaufträge, die mit einem Bauauftrag verbunden sind.",
-                "facts": [{"what": "Schwellenwert Punkt (b)", "before": "EUR 215 000", "after": "EUR 221 000",
-                           "before_evidence": ["I1"], "after_evidence": ["I1"]}],
-                "dates": [], "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""}
-        answer = explain.validate_unit(good, unit_b)
-        self.assertEqual(answer["facts"][0]["after_evidence"][0]["text"],
-                         "(2) in Article 13, first paragraph is amended as follows: in point (b), ‘EUR 215 000’ is "
-                         "replaced by ‘EUR 221 000’;")                  # copied by Python, word for word
-        self.assertEqual(answer["facts"][0]["after_evidence"][0]["ref"], "13b:I1")
-        self.assertEqual([d["date"] for d in answer["dates"]], ["2024-01-01", "2023-12-06", "2023-11-15"])
-        wrong = {**good, "headline": "Schwellenwert für Werkverträge von 215 000 auf 221 000 EUR erhöht"}
-        with self.assertRaisesRegex(explain.Unclassified, "does not name works contracts.*service contracts"):
-            explain.validate_unit(wrong, unit_b)                       # the pilot error: (b) is not about works
-        swapped = {**good, "headline": "Schwellenwert für Dienstleistungen in Punkt (a)",
-                   "what_changed": "In Punkt (a) wird der Betrag EUR 5 382 000 durch EUR 5 538 000 ersetzt.",
-                   "facts": [{**good["facts"][0], "before": "EUR 5 382 000", "after": "EUR 5 538 000"}]}
-        with self.assertRaisesRegex(explain.Unclassified, "does not name services"):
-            explain.validate_unit(swapped, unit_a)                      # the second pilot error: (a) is works
-        works = {**swapped, "headline": "Schwellenwert für Bauaufträge in Punkt (a) auf EUR 5 538 000 angehoben"}
-        self.assertEqual(explain.validate_unit(works, unit_a)["subject_of_point"][:15], "works contracts")
-        blind = unit_of(article_13("b", "215 000", "221 000", None))   # no wording of point (b): no category at all
-        self.assertIn("not given", blind["sent"]["place"]["subject_of_point"])
-        with self.assertRaisesRegex(explain.Unclassified, "does not name services"):
-            explain.validate_unit(good, blind)
-        neutral = {**good, "headline": "Schwellenwert in Punkt (b) auf EUR 221 000 angehoben",
-                   "what_changed": "In Punkt (b) wird der Betrag EUR 215 000 durch EUR 221 000 ersetzt."}
-        self.assertEqual(explain.validate_unit(neutral, blind)["headline"], neutral["headline"])
-        with self.assertRaisesRegex(explain.Unclassified, "does not occur"):
-            explain.validate_unit({**neutral, "facts": [{**good["facts"][0], "after": "EUR 222 000"}]}, blind)
-
-    def test_2004_37_article_14_paragraph_1_old_and_new(self):
-        unit = unit_of(article_14(1, P1_OLD, P1_NEW, "MATCHED_STORED_EVIDENCE"))
-        self.assertEqual(unit["situation"], "BOTH")
-        flags = {i: e["changed"] for i, e in unit["evidence"].items() if i[0] in "ON"}
-        unchanged = [i for i, changed in flags.items() if i[0] == "N" and changed is False]
-        added = [i for i, changed in flags.items() if i[0] == "N" and changed]
-        self.assertEqual(len(unchanged), 1)                              # the first sentence did not change
-        self.assertEqual(len(added), 1)
-        self.assertIn("continue after the end of exposure", unit["evidence"][added[0]]["text"])
-        self.assertEqual(unit["after_ids"], added)                       # only the added sentence can be cited
-        schema = explain.unit_schema(unit)["properties"]["facts"]["items"]["properties"]
-        self.assertNotIn(unchanged[0], schema["after_evidence"]["items"]["enum"])
-        answer = {"headline": "Gesundheitsüberwachung nach Ende der Exposition",
-                  "what_changed": "In Absatz 1 wird ein Satz eingefügt: Arzt oder Behörde können festlegen, dass die "
-                                  "Gesundheitsüberwachung nach Ende der Exposition weiterläuft.",
-                  "facts": [{"what": "Überwachung nach Exposition", "before": "", "after": "kann weiterlaufen",
-                             "before_evidence": [], "after_evidence": [unchanged[0]]}],
-                  "dates": [], "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""}
-        with self.assertRaisesRegex(explain.Unclassified, "cannot support it"):
-            explain.validate_unit(answer, unit)                         # the pilot error: unchanged sentence cited
-        answer["facts"][0]["after_evidence"] = added
-        result = explain.validate_unit(answer, unit)
-        self.assertEqual(result["facts"][0]["after_evidence"][0]["place"], "Article 14 paragraph 1")
-
-    def test_2004_37_article_14_paragraph_8_new_only(self):
-        unit = unit_of(article_14(8, None, P8_NEW, "PREVIOUS_WORDING_UNRESOLVED"))
-        self.assertEqual((unit["situation"], unit["before_ids"]), ("NEW_ONLY", []))
-        self.assertEqual(explain.unit_schema(unit)["properties"]["facts"]["items"]["properties"]["before"]["maxLength"], 0)
-        compared = {"headline": "Meldepflicht für Krebsfälle konkretisiert",
-                    "what_changed": "In Absatz 8 wurde die Meldepflicht für berufsbedingte Krebsfälle konkretisiert.",
-                    "facts": [{"what": "Meldung", "before": "", "after": "alle berufsbedingten Krebsfälle",
-                               "before_evidence": [], "after_evidence": ["N1"]}],
-                    "dates": [], "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""}
-        with self.assertRaisesRegex(explain.Unclassified, "'konkretisiert' compares"):
-            explain.validate_unit(compared, unit)                       # the pilot error: no old wording given
-        plain = {**compared, "headline": "Meldepflicht für berufsbedingte Krebsfälle",
-                 "what_changed": "Absatz 8 regelt nun: Alle berufsbedingten Krebsfälle sind der Behörde zu melden."}
-        self.assertEqual(explain.validate_unit(plain, unit)["facts"][0]["after_evidence"][0]["text"], P8_NEW)
-
-    def test_explicit_repeal_is_supported_by_the_instruction_alone(self):
-        unit = unit_of(REPEAL)
-        self.assertEqual((unit["situation"], unit["after_ids"]), ("REMOVAL_INSTRUCTION", []))
-        answer = {"headline": "Richtlinie 2004/107/EG aufgehoben",
-                  "what_changed": "Die Richtlinie 2004/107/EG wird mit Wirkung vom 12. Dezember 2026 aufgehoben.",
-                  "facts": [{"what": "Richtlinie 2004/107/EG", "before": "", "after": "", "before_evidence": ["I1"],
-                             "after_evidence": []}],
-                  "dates": [], "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""}
-        result = explain.validate_unit(answer, unit)
-        self.assertEqual(result["facts"][0]["before_evidence"][0]["text"], REPEAL["instruction"])
-        self.assertEqual([d["source"] for d in result["dates"]], ["ENTRY_INTO_FORCE", "ADOPTION"])
-        for headline, message in (("Rücktritt der Richtlinie 2004/107/EG", "Aufhebung"),
-                                  ("Neue Regeln ersetzen die Richtlinie", "nothing is new")):
-            with self.assertRaisesRegex(explain.Unclassified, message):
-                explain.validate_unit({**answer, "headline": headline}, unit)
-        empty = {**answer, "facts": [{**answer["facts"][0], "before_evidence": []}]}
-        with self.assertRaisesRegex(explain.Unclassified, "needs before or after"):
-            explain.validate_unit(empty, unit)
-
-    def test_new_provision_and_dates_with_their_purpose(self):
-        unit = unit_of(RECORDS[2])                                       # Article 14a inserted, new wording only
-        self.assertEqual(unit["situation"], "NEW_ONLY")
-        answer = {"headline": "Neuer Artikel 14a: Umweltmanagementsystem",
-                  "what_changed": "Betreiber müssen bis zum 31. Dezember 2027 ein Umweltmanagementsystem erstellen.",
-                  "facts": [{"what": "Frist", "before": "", "after": "31. Dezember 2027", "before_evidence": [],
-                             "after_evidence": ["N1"]}],
-                  "dates": [{"kind": "TRANSPOSITION", "date": "1. Juli 2026", "evidence": ["F1"]}],
-                  "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""}
-        result = explain.validate_unit(answer, unit)                    # "neu" is fine for an insertion
-        self.assertEqual([(d["what"], d["date"]) for d in result["dates"]],
-                         [("gilt ab", "2024-08-04"), ("Inkrafttreten des Änderungsakts", "2024-08-04"),
-                          ("Datum des Änderungsakts", "2024-04-24"), ("Umsetzungsfrist", "2026-07-01")])
-        self.assertEqual([explain.iso_date(v) for v in ("1 July 2026", "1. Juli 2026", "1.7.2026", "Juli 2026")],
-                         ["2026-07-01", "2026-07-01", "2026-07-01", None])
-        with self.assertRaisesRegex(explain.Unclassified, "REPORTING date"):
-            explain.validate_unit({**answer, "dates": [{**answer["dates"][0], "kind": "REPORTING"}]}, unit)
-        with self.assertRaisesRegex(explain.Unclassified, "does not occur"):
-            explain.validate_unit({**answer, "dates": [{**answer["dates"][0], "date": "1. Juli 2027"}]}, unit)
-        for field, value, message in (("what_changed", "Siehe [N1] für Details zur Frist.", "markers"),
-                                      ("significance", "EDITORIAL", "EDITORIAL needs")):
-            with self.assertRaisesRegex(explain.Unclassified, message):
-                explain.validate_unit({**answer, field: value}, unit)
-
-    def test_long_text_keeps_the_changed_passage(self):
-        same = " ".join(f"Sentence {n} stays the same in both versions of the text." for n in range(300))
-        old, new = same + " The limit is 100 TJ.", same + " The limit is 85 TJ."
-        flags_old, flags_new = explain.changed_flags(old, new)
-        passages = explain.evidence_passages(new, "N", flags_new, budget=2000)
-        self.assertTrue(any("85 TJ" in p["text"] and p["changed"] for p in passages))
-        self.assertLess(sum(len(p["text"]) for p in passages), 2100)
-
-    def test_corrigendum_values_and_wording_only(self):
-        unit = unit_of(RECORDS[4])
-        self.assertEqual((unit["before_ids"], unit["after_ids"]), (["W1"], ["R1"]))
-        answer = {"headline": "Schwellenwert berichtigt", "what_was_wrong": "Statt 100 TJ muss es 85 TJ heißen.",
-                  "facts": [{"what": "Schwellenwert", "before": "100 TJ", "after": "85 TJ", "before_evidence": ["W1"],
-                             "after_evidence": ["R1"]}], "affects": "NUMBER", "importance": "", "to_confirm": ""}
-        self.assertEqual(explain.validate_unit(answer, unit)["facts"][0]["before_evidence"][0]["text"], "100 TJ")
-        with self.assertRaisesRegex(explain.Unclassified, "never WORDING_ONLY"):
-            explain.validate_unit({**answer, "affects": "WORDING_ONLY"}, unit)
-
-    def test_importance_needs_a_precise_route(self):
-        item = next(i for i in explain.build_items(RECORDS) if explain.item_facts(i)["provision"] == "Article 3")
-        routing = explain.route(explain.item_facts(item), RESULTS, explain.locator_index(RESULTS))
-        unit = explain.build_unit(item, item["records"][0], routing)
-        self.assertIn("Umweltmanagement", unit["sent"]["why_relevant"])
-        self.assertEqual(explain.unit_schema(unit)["properties"]["importance"]["maxLength"], 500)
-        broad = explain.build_unit(item, item["records"][0], {**routing, "route": "CHANGING_ACT"})
-        self.assertNotIn("why_relevant", broad["sent"])
-        answer = answer_for([None, {"content": json.dumps(unit["sent"]) + "\n\nTASK: x"}])
-        self.assertIn("Max Bögl", explain.validate_unit(answer, unit)["importance"])
-        with self.assertRaisesRegex(explain.Unclassified, "conditionally"):
-            explain.validate_unit({**answer, "importance": "Max Bögl muss die Genehmigung anpassen."}, unit)
-
-    def test_failure_kinds(self):
-        self.assertEqual(explain.failure_kind("Invalid answer: 'erweitert' compares with an old wording"),
-                         "COMPARISON_WITHOUT_OLD")
-        self.assertEqual(explain.failure_kind("The evidence for point (b) does not name works contracts."), "SUBJECT")
-        self.assertEqual(explain.failure_kind("In after of fact 1: The number 131 does not occur in the text."),
-                         "UNSUPPORTED_NUMBER")
+SYSTEMS = {"change": "system", "corrigendum": "system"}
 
 
-class PartTests(unittest.TestCase):
-    def test_partially_failed_annex_keeps_good_parts_and_retries_only_the_failed_one(self):
-        annex = [provision("a1", "I", "REPLACE", None, "Point 1. Limit 10 mg.", "(4) Annex I point 1 is replaced.",
-                           "NEW_ONLY", 1, place="Annex I point 1", root_kind="annex"),
-                 provision("a2", "I", "REPLACE", None, "Point 2. Limit 20 mg.", "(4) Annex I point 2 is replaced.",
-                           "NEW_ONLY", 2, place="Annex I point 2")]
-        for record in annex:
-            record["root"] = ["annex", "i"]
-        item = explain.build_items(annex)[0]
-        bad = {"headline": "Grenzwert auf 30 mg erhöht", "what_changed": "Der Grenzwert steigt auf 30 mg.",
-               "facts": [], "dates": [], "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""}
+def sent_of(client):
+    return [json.loads(m[1]["content"].partition("\n\nTASK:")[0]) for m, _ in client.calls]
 
-        def answers(messages):
-            sent = json.loads(messages[1]["content"].partition("\n\nTASK:")[0])
-            return bad if sent["place"]["place"] == "Annex I point 2" else answer_for(messages)
-        systems = {"change": "system", "corrigendum": "system"}
+
+class SimpleTests(unittest.TestCase):
+    def test_every_case_gets_the_right_texts(self):
+        cases = {
+            "both": (provision("1", "15", "REPLACE", "Levels 100 TJ.", "Levels 85 TJ.", "(2) Article 15 is replaced.",
+                               "FULL"), "CHANGED", {"old_text", "new_text"}, []),
+            "new only": (article_14(8, None, P8_NEW, "PREVIOUS_WORDING_UNRESOLVED"), "CHANGED", {"new_text"},
+                         ["OLD_MISSING"]),
+            "instruction only": (RECORDS[1], "CHANGED", {"instruction"}, ["NEW_MISSING"]),
+            "added": (RECORDS[2], "ADDED", {"new_text"}, []),
+            "act": (REPEAL | {"relation": "DEROGATES", "operation": "DEROGATES"}, "ACT", {"instruction"}, []),
+            "corrigendum": (RECORDS[4], "CORRECTION", {"corrections"}, []),
+        }
+        for name, (record, case, keys, remarks) in cases.items():
+            with self.subTest(name):
+                item = explain.build_items([record])[0]
+                self.assertEqual(explain.change_case(item["kind"], record, record["relation"]), case)
+                sent, found = explain.simple_request(item, record, case)
+                self.assertTrue(keys <= set(sent), (name, set(sent)))
+                self.assertEqual(found, remarks)
+        nothing = provision("9", "16", "REPLACE", None, None, "", "NONE")
+        item = explain.build_items([nothing])[0]
+        self.assertEqual(explain.simple_request(item, nothing, "CHANGED"), (None, ["NO_TEXT"]))
+        self.assertEqual(explain.change_case("PROVISION", provision("8", "16", "DELETE", "x", None, "", "OLD_ONLY"),
+                                             "AMENDS"), "REMOVED")
+        self.assertEqual(explain.change_case("ACT", REPEAL, "REPEALS"), "REMOVED")
+
+    def test_old_and_new_text_go_to_qwen_and_the_answer_is_kept_as_it_is(self):
+        record = article_14(1, P1_OLD, P1_NEW, "MATCHED_STORED_EVIDENCE")
+        item = explain.build_items([record])[0]
+        client = ready_client(answer=lambda m: {"explanation": "Neu: Die Überwachung kann nach 99 Tagen weiterlaufen."})
+        name, explanation = explain.explain(client, SYSTEMS, item, [])
+        sent = sent_of(client)[0]
+        self.assertEqual((sent["old_text"], sent["new_text"]), (P1_OLD, P1_NEW))
+        line = explanation["changes"][0]
+        self.assertEqual(line["explanation"], "Neu: Die Überwachung kann nach 99 Tagen weiterlaufen.")  # not checked
+        self.assertEqual((line["effective_from"], line["effective_source"]), ("2018-01-16", "ANNOTATION"))
+        self.assertEqual(explanation["dates"], [{"what": "gilt ab", "date": "2018-01-16", "source": "DATABASE"}])
+        self.assertEqual(explanation["outcome"], "EXPLAINED")
+
+    def test_deletions_and_repeals_are_not_sent_to_qwen(self):
+        deleted = provision("8", "16", "DELETE", "Article 16 Reports.", None, "(5) Article 16 is deleted.", "OLD_ONLY")
+        client = ready_client()
+        for record in (deleted, REPEAL):
+            item = explain.build_items([record])[0]
+            name, explanation = explain.explain(client, SYSTEMS, item, [])
+            self.assertIsNone(explanation["changes"][0]["explanation"])
+            self.assertEqual(explanation["outcome"], "NO_EXPLANATION_NEEDED")
+        self.assertEqual(client.calls, [])
+        self.assertEqual(explain.explain(client, SYSTEMS, explain.build_items([deleted])[0], [])[1]["changes"][0]
+                         ["remark_texts"], ["Gestrichen."])
+
+    def test_an_article_with_several_changes_and_a_missing_answer(self):
+        records = [article_14(1, P1_OLD, P1_NEW, "MATCHED_STORED_EVIDENCE"),
+                   article_14(8, None, P8_NEW, "PREVIOUS_WORDING_UNRESOLVED")]
+        item = explain.build_items(records)[0]
+        broken = ChatResult(ok=True, finish_reason="stop", content="")
         with TemporaryDirectory() as folder:
-            parts = Path(folder)
-            name, explanation = explain.explain(ready_client(answer=answers), systems, item, [], {}, parts)
-            self.assertEqual((explanation["outcome"], explanation["missing_changes"]), ("PARTIAL", ["Annex I point 2"]))
-            self.assertEqual([p["status"] for p in explanation["parts"]], ["OK", "FAILED"])
-            failed = json.loads((parts / "2.json").read_text(encoding="utf-8"))
-            self.assertEqual(failed["status"], "FAILED")
-            self.assertEqual(len(failed["attempts"]), 2)                # first and corrected answer, both saved
-            self.assertEqual(failed["attempts"][0]["answer"]["headline"], "Grenzwert auf 30 mg erhöht")
-            self.assertIn("does not occur", failed["attempts"][1]["error"])
-            self.assertEqual(failed["sent"]["place"]["place"], "Annex I point 2")   # the evidence actually sent
-            client = ready_client()
-            name, explanation = explain.explain(client, systems, item, [], {}, parts)
-            self.assertEqual(len(client.calls), 1)                      # only the failed part is asked again
+            client = ready_client(injected=[reply({"explanation": "Absatz 1 erhält einen neuen Satz."}), broken])
+            name, explanation = explain.explain(client, SYSTEMS, item, [], {}, Path(folder))
+            self.assertEqual(explanation["outcome"], "PARTIAL")
+            self.assertEqual([c["remark_texts"] for c in explanation["changes"]],
+                             [[], ["Alter Wortlaut nicht verfügbar: erklärt aus dem neuen Wortlaut.",
+                                   "Erklärung konnte nicht erstellt werden."]])
+            again = ready_client()
+            name, explanation = explain.explain(again, SYSTEMS, item, [], {}, Path(folder))
+            self.assertEqual(len(again.calls), 1)                       # only the missing one is asked again
             self.assertEqual(explanation["outcome"], "EXPLAINED")
-            self.assertEqual(len(explanation["facts"]), 2)
+            self.assertIn("Article 14 paragraph 8:", explanation["what_changed"])
 
 
 class HelperTests(unittest.TestCase):
@@ -435,31 +265,20 @@ class RunTests(unittest.TestCase):
                 patch("classify_eurlex_provisions.time.sleep"):
             return explain.main(argv)
 
-    def test_full_run_counts_outcomes_and_shows_evidence(self):
+    def test_full_run_explains_and_fills_the_inbox(self):
         self.assertEqual(self.run_main(Client()), 0)
         summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
-        self.assertEqual(summary["outcomes"], {"EXPLAINED": 4, "PARTIAL": 0, "FAILED": 0, "MISSING_EVIDENCE": 1,
-                                               "SCOPE_REVIEW": 0, "OPEN": 0})
-        self.assertEqual(summary["parts"], {"OK": 5})
+        self.assertEqual(summary["outcomes"]["EXPLAINED"], 4)
+        self.assertEqual(summary["outcomes"]["MISSING_EVIDENCE"], 1)       # the repeal without any text
+        inbox = json.loads((self.out / "inbox" / "Umweltmanagement.json").read_text(encoding="utf-8"))
+        lines = [line for card in inbox["cards"] for change in card["changes"] for line in change["changes"]]
+        self.assertTrue(any(line["explanation"] == "In Article 15 wird der Wortlaut geändert." for line in lines))
         page = (self.out / "preview" / "Umweltmanagement.html").read_text(encoding="utf-8")
-        self.assertIn("CORRECT c1:R1: „85 TJ“", page)                   # the quotation copied by Python
+        self.assertIn("In Article 15 wird der Wortlaut geändert.", page)
+        self.assertIn("Neuer Wortlaut nicht verfügbar", page)            # Article 15 paragraph 4: instruction only
         with (self.out / "review.csv").open(encoding="utf-8-sig", newline="") as handle:
             rows = list(csv.reader(handle, delimiter=";"))
-        self.assertIn("outcome", rows[0])
         self.assertEqual(len(rows), 6)
-
-    def test_failed_item_is_retried_with_diagnostics(self):
-        wrong = reply({"headline": "x", "what_changed": "Der Grenzwert sinkt auf 70 TJ.", "facts": [], "dates": [],
-                       "significance": "SUBSTANTIVE", "importance": "", "to_confirm": ""})
-        self.assertEqual(self.run_main(Client(injected=[wrong, wrong])), 2)
-        summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
-        self.assertEqual(summary["outcomes"]["FAILED"] + summary["outcomes"]["PARTIAL"], 1)
-        self.assertEqual(summary["failed_part_kinds"], {"UNSUPPORTED_NUMBER": 1})
-        diagnosis = json.loads((self.out / summary["failed_part_files"][0]).read_text(encoding="utf-8"))
-        self.assertEqual([a["answer"]["what_changed"] for a in diagnosis["attempts"]], ["Der Grenzwert sinkt auf 70 TJ."] * 2)
-        self.assertEqual(self.run_main(Client()), 0)
-        summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
-        self.assertEqual((summary["outcomes"]["FAILED"], summary["outcomes"]["PARTIAL"]), (0, 0))
 
     def test_replay_by_item_ids_and_implicit_repeal_in_review(self):
         implicit = {**RECORDS[-1], "relation": "IMPLICITLY_REPEALS", "operation": "IMPLICITLY_REPEALS"}
@@ -469,9 +288,7 @@ class RunTests(unittest.TestCase):
         client = Client()
         self.assertEqual(self.run_main(client, "--item-ids", str(ids)), 0)
         self.assertEqual(client.calls, [])
-        summary = json.loads((self.out / "summary.json").read_text(encoding="utf-8"))
-        self.assertEqual(summary["outcomes"]["SCOPE_REVIEW"], 1)
-        self.assertIn("REPEAL_SCOPE_UNVERIFIED", (self.out / "to_screen.csv").read_text(encoding="utf-8-sig"))
+        self.assertEqual(json.loads((self.out / "summary.json").read_text(encoding="utf-8"))["outcomes"]["SCOPE_REVIEW"], 1)
 
     def test_count_only_and_sample(self):
         client = Client()

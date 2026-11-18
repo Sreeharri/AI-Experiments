@@ -1,6 +1,28 @@
 # Legal Radar – Changes step (guide)
 
-Status 18 Nov 2026 (v1.7, after pilots v5 and v6). Explains amendments, repeals, corrigenda and other changes between EUR-Lex acts and routes them to the departments. Plan and background: `claude/legal-radar-changes-plan.md`.
+Status 18 Nov 2026 (v2.0, simple explanations). Explains amendments, repeals, corrigenda and other changes between EUR-Lex acts and routes them to the departments. Plan and background: `claude/legal-radar-changes-plan.md`.
+
+## v2.0: simple explanations (current)
+
+The checks of v1.6/v1.7 rejected too much (v7: 5 of 40 explained, v5 had 21). v2.0 keeps it simple, like the other AI steps:
+
+| Case | Sent to Qwen | Shown |
+|---|---|---|
+| Replaced / amended (REPLACE, MODIFY, OTHER, AMENDS) | old and new text; without old text the new text; without new text the amending act's sentence | Qwen's explanation of the difference; remark "Alter/Neuer Wortlaut nicht verfügbar" |
+| Added (ADD, INSERT) | new text (or the amending act's sentence) | Qwen's explanation of what is new |
+| Deleted / repealed (DELETE, REPEAL, REPEALS) | nothing | "Gestrichen." / "Aufgehoben." |
+| Corrigendum | wrong and correct text | Qwen's explanation |
+| Whole-act change (exception, postponement …) | the amending act's sentence and final articles | Qwen's explanation |
+| Implicit repeal | nothing | review queue |
+| No text at all | nothing | "Kein Wortlaut verfügbar." |
+
+- Qwen returns only `{"explanation": "..."}`. No headline, significance, importance or to_confirm.
+- Nothing is checked or rejected; what Qwen writes is kept. Missing things are written as remarks.
+- The date of each change comes from the database (`effective_from`, with its source). The exact old and new words stay as the backend shows them.
+- One request per single change. A change without an answer is asked again at the next start; the others are kept (`parts\<item>\<n>.json` holds what was sent and the answer).
+- Every change routed to a department (DIRECT or INDIRECT) goes to its inbox.
+
+The v1.x sections below are history.
 
 ## What changed in v1.7 (after pilots v5 and v6)
 
@@ -138,7 +160,7 @@ cd C:\Users\sthirumalair\AI-Experiments
 $f = Get-ChildItem C:\Users\sthirumalair\project -Recurse -Filter eurlex_wording.py -ErrorAction SilentlyContinue | Select-Object -First 1
 $env:LR_BACKEND_DIR = $f.Directory.Parent.Parent.FullName; $env:LR_BACKEND_DIR
 
-# 1. code tests, no Qwen and no database needed - must end with "Ran 32 tests" and "OK (skipped=2)"
+# 1. code tests, no Qwen and no database needed - must end with "Ran 25 tests" and "OK (skipped=2)"
 & .\.venv\Scripts\python.exe -m unittest tests.test_export_eurlex_changes tests.test_explain_eurlex_changes
 
 # 2a. can this PC reach EUR-Lex? Prints what each of the two sources answered
@@ -153,10 +175,10 @@ $env:LR_BACKEND_DIR = $f.Directory.Parent.Parent.FullName; $env:LR_BACKEND_DIR
 & .\.venv\Scripts\python.exe explain_eurlex_changes.py --count-only
 
 # 4. replay of the same 40 items into a new folder, then the comparison with v5 and v6
-& .\.venv\Scripts\python.exe explain_eurlex_changes.py --item-ids config\eurlex_changes_pilot_v4_ids.txt --output-dir runs\eurlex_changes_pilot_v7
-& .\.venv\Scripts\python.exe tools\compare_change_pilots.py v5=runs\eurlex_changes_pilot_v5 v6=runs\eurlex_changes_pilot_v6 v7=runs\eurlex_changes_pilot_v7 --ids config\eurlex_changes_pilot_v4_ids.txt
+& .\.venv\Scripts\python.exe explain_eurlex_changes.py --item-ids config\eurlex_changes_pilot_v4_ids.txt --output-dir runs\eurlex_changes_pilot_v8
+& .\.venv\Scripts\python.exe tools\compare_change_pilots.py v5=runs\eurlex_changes_pilot_v5 v7=runs\eurlex_changes_pilot_v7 v8=runs\eurlex_changes_pilot_v8 --ids config\eurlex_changes_pilot_v4_ids.txt
 
-# 5. full run (only after the replay was reviewed) into runs\eurlex_changes_v7
+# 5. full run (only after the replay was reviewed) into runs\eurlex_changes_v8
 & .\.venv\Scripts\python.exe explain_eurlex_changes.py
 ```
 
@@ -193,7 +215,7 @@ Open `runs\eurlex_changes_pilot_v7\review.csv` and `compare.csv` next to EUR-Lex
 
 If a check fails: note 3–5 rows, change the prompt, run the pilot again into a new folder.
 
-## Output folder (`runs\eurlex_changes_v7`)
+## Output folder (`runs\eurlex_changes_v8`)
 
 - `inbox\<department>.json`: cards for the UI, one per changed act, with its changes (newest first)
 - `preview\index.html`: the same as pages

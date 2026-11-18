@@ -37,7 +37,6 @@ sys.path.insert(0, str(ROOT / "tools"))
 from classify_eurlex_provisions import (  # noqa: E402
     MAX_WORKERS, ConnectionLost, Unclassified, act_links, read_json, reachable, run_until_done, safe_name, sha,
     squash, wait_until_reachable, write_json)
-from eurlex_summary_checks import number_problems, wrong_language  # noqa: E402
 from export_eurlex_changes import act_roles as export_act_roles, root_of  # noqa: E402
 from lr_ai.qwen_client import QwenClient  # noqa: E402
 from summarize_eurlex_provisions import ask  # noqa: E402
@@ -50,7 +49,7 @@ TASKS = {"change": "TASK: Explain what changed. Return the JSON object described
          "act": "TASK: Write the paragraph. Return the JSON object described in the instructions."}
 DEFAULT_EXPORT = ROOT / "runs/eurlex_changes_export_v5"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v7"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v8"
 LANGUAGES = {"de": "German", "en": "English"}
 SIGNIFICANCE = ("SUBSTANTIVE", "EDITORIAL", "UNCLEAR")
 AFFECTS = ("NUMBER", "DATE", "DUTY", "ADDRESSEE", "SCOPE", "WORDING_ONLY")
@@ -61,40 +60,9 @@ ADDITIONS = {"ADD", "INSERT"}
 WORD_PAIR = re.compile(r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?:is|are|shall be) (?:replaced by|deleted)|"
                        r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?:wird|werden) durch\s*[‘“„\"']|"
                        r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?:wird|werden) gestrichen", re.I)
-# Words that compare with the old wording; without the old wording they would be invented.
-COMPARING = re.compile(r"\b(?:früher|bisher|bislang|vorher|zuvor|nicht mehr|nur noch|erweitert|verschärft|gelockert|"
-                       r"verkürzt|verlängert|konkretisier\w*|präzisier\w*|clarif\w*|anstatt|statt|gesenkt|erhöht|previously|no longer|instead of|extended|"
-                       r"tightened|relaxed|reduced|increased)\b", re.I)
-PROLONGING = re.compile(r"prolong|extend|extension|postpon|defer|validity|verlänger|verschieb|Geltungsdauer|"
-                        r"Gültigkeit", re.I)
-# Without new wording a removal must not be told as something new.
-NEW_CLAIM = re.compile(r"\bneue[nrsm]?\b|\bneu\b|eingeführt|hinzugefügt|eingefügt|\bnew\b|introduc|added", re.I)
-# The importance part explains, it does not advise: tasks come in the next phase.
-ADVICE = re.compile(r"\bsollten?\b|empfehl|empfohlen|ratsam|Handlungsbedarf|prüfen Sie|zu prüfen|\bshould\b|"
-                    r"recommend|advis", re.I)
-PASSAGE_MARK = re.compile(r"\[[A-Z]\d+\]", re.I)
-REPEAL_TERM = re.compile(r"\b(?:rücktritt|zurückgetreten|withdrawal|resignation)\b", re.I)
-REPLACEMENT_PLACEHOLDER = re.compile(r"\b(?:not used|nicht verwendet|nicht belegt)\b", re.I)
-BAD_PAINT_TERM = re.compile(r"\b(?:innen- und )?außentiegel\b", re.I)
 POINT = re.compile(r"\bpoint\s*\(([a-z])\)", re.I)
 POINT_CLAUSE = re.compile(r"(?<=;)\s*\([a-z]\)\s*(?=in point\s*\()", re.I)
-CONTRACT_TERMS = (
-    re.compile(r"\b(?:bauauftr\w*|bauleistungen|works contracts?)\b", re.I),
-    re.compile(r"\b(?:dienstleistungs\w*|services?|service contracts?)\b", re.I),
-)
-CURRENCY_REPLACEMENT = re.compile(
-    r"[‘’'\"“”](EUR [\d\s.,]+)[‘’'\"“”]\s+is replaced by\s+[‘’'\"“”](EUR [\d\s.,]+)[‘’'\"“”]", re.I)
-COMPANY_DUTY = re.compile(r"\bMax Bögl\s+(?:muss|darf nicht|ist verpflichtet|must|is required)\b", re.I)
-DATE_PURPOSES = (
-    (r"umsetz|transpos", r"transpos|bring into force the laws|laws.*(?:comply|necessary)|comply.*directive"),
-    (r"bericht|report", r"report"),
-    (r"inkraft|in kraft|entry into force", r"entry into force|enter into force|eintritt in kraft"),
-    (r"gilt ab|anwendung|appl", r"appl|(?:change|annotation):"),
-    (r"erlass|annahme|adopt|act date", r"date of the changing act|adopt"),
-)
 TEXT_BUDGET = 6000            # characters per text (old, new, instruction) sent to Qwen
-MAX_CHANGES_LISTED = 25       # changes of one provision listed in one request (big annexes have hundreds)
-PASSAGE_CHARS = 450
 LIMITS = {"headline": 140, "text": 800, "what": 80, "value": 300, "date": 60, "sentence": 300, "importance": 500,
           "to_confirm": 220}
 LANGUAGE = "de"               # set by main()
@@ -122,50 +90,8 @@ NOTE = {"de": "KI-generierte Erklärung. Maßgeblich ist der Originaltext.",
 
 # ------------------------------------------------------------------ passages
 
-def passages_of(text: str | None, mark: str, budget: int = TEXT_BUDGET, keep: set[str] | None = None, start: int = 1):
-    """Cut a text into numbered passages ({"O1": "..."}). Over budget, only the passages in `keep`
-    (changed ones) and their neighbours are kept; the rest becomes "…"."""
-    if not text:
-        return "", {}
-    pieces, current, changed, has_change = [], "", set(), False
-    for sentence in re.split(r"(?<=[.;:])\s+(?=[A-Z(‘“0-9])", squash(text)):
-        if current and len(current) + len(sentence) > PASSAGE_CHARS:
-            pieces.append(current)
-            if has_change:
-                changed.add(len(pieces) - 1)
-            current, has_change = sentence, False
-        else:
-            current = f"{current} {sentence}".strip()
-        has_change = has_change or (keep is not None and signature(sentence) not in keep)
-    if current:
-        pieces.append(current)
-        if has_change:
-            changed.add(len(pieces) - 1)
-    chosen = set(range(len(pieces)))
-    if sum(map(len, pieces)) > budget and keep is not None:
-        chosen = {j for i in changed for j in (i - 1, i, i + 1) if 0 <= j < len(pieces)} or set(range(3))
-    passages, parts, used, skipped = {}, [], 0, False
-    for index, piece in enumerate(pieces):
-        if index not in chosen or used + len(piece) > budget:
-            if not skipped:
-                parts.append("…")
-            skipped = True
-            continue
-        key = f"{mark}{len(passages) + start}"
-        passages[key] = piece
-        parts.append(f"[{key}] {piece}")
-        used += len(piece)
-        skipped = False
-    return " ".join(parts), passages
-
-
 def signature(text: str) -> str:
     return re.sub(r"[^0-9a-z]", "", (text or "").casefold())
-
-
-def other_side(text: str | None) -> set[str]:
-    """Signatures of the passages of the other text, to find what changed."""
-    return {signature(piece) for piece in re.split(r"(?<=[.;:])\s+(?=[A-Z(‘“0-9])", squash(text or "")) if piece}
 
 
 # ------------------------------------------------------------------ items
@@ -266,126 +192,22 @@ def best_wording(records) -> str:
     return min(values, key=order.index) if values else "NONE"
 
 
-BUSINESS_AREAS: dict[str, list[str]] = {}     # legal area -> Max Bögl business areas (business anchors), from main()
-# Routes precise enough to say why a change matters: the changed or changing provision itself, or the whole
-# act for a whole-act change or a corrigendum. A route only via the changing act is too broad.
-PRECISE_ROUTES = {"CHANGED_PROVISION", "CHANGING_PROVISION", "CORRECTED_PROVISION"}
 
 
-def precise(routing: dict | None, kind: str) -> bool:
-    route_ = (routing or {}).get("route")
-    return route_ in PRECISE_ROUTES or (route_ == "CHANGED_ACT" and kind in {"ACT", "CORRIGENDUM"})
-
-
-def load_business_areas(path: Path) -> dict[str, list[str]]:
-    """Labels of the business anchors per legal area (read only)."""
-    try:
-        import yaml
-        anchors = (yaml.safe_load(path.read_text(encoding="utf-8")) or {}).get("anchors") or {}
-    except Exception:  # noqa: BLE001 - without the file the importance just has no business areas
-        return {}
-    areas = defaultdict(list)
-    for anchor in anchors.values():
-        if isinstance(anchor, dict) and anchor.get("domain") and anchor.get("label"):
-            areas[anchor["domain"]].append(anchor["label"])
-    return dict(areas)
-
-
-def relevance_part(routing: dict | None, kind: str = "PROVISION") -> tuple[str, dict]:
-    """Why the affected provision matters for Max Bögl, from the classification (mark K1). Empty when the
-    change is not matched to a DIRECT or INDIRECT provision (or whole act): then no importance is written."""
-    if not routing or routing.get("level") not in LEVELS or not precise(routing, kind):
-        return "", {}
-    bits = [f"Classified {routing['level']} for Max Bögl"]
-    if routing.get("domain_title"):
-        bits.append(f"legal area: {routing['domain_title']}")
-    if routing.get("subject"):
-        bits.append(f"subject: {routing['subject']}")
-    if routing.get("reason"):
-        bits.append(f"reason: {routing['reason']}")
-    if routing.get("departments"):
-        bits.append(f"departments: {', '.join(routing['departments'])}")
-    if BUSINESS_AREAS.get(routing.get("domain")):
-        bits.append(f"Max Bögl business areas in this legal area: {', '.join(BUSINESS_AREAS[routing['domain']][:6])}")
-    text = "; ".join(bits) + "."
-    return f"[K1] {text}", {"K1": text}
-
-
-# ------------------------------------------------------------------ helpers kept from v1.6
-
-def importance_schema(passage_ids, limit="importance"):
-    """Only with a classification (K1): otherwise the importance must stay empty."""
-    return {"type": "string", "maxLength": LIMITS[limit] if "K1" in passage_ids else 0}
-
+# ------------------------------------------------------------------ helpers
 
 ACT_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["sentences"],
               "properties": {"sentences": {"type": "array", "minItems": 2, "maxItems": 4,
                                            "items": {"type": "string", "maxLength": LIMITS["sentence"]}}}}
 
 
-def text_field(reply, key, limit):
-    value = squash(reply.get(key)) if isinstance(reply.get(key), str) else ""
-    if not value or len(value) > limit:
-        raise Unclassified(f"{key} must be a text of 1 to {limit} characters.")
-    return value
-
-
-def check(texts, source, what="text"):
-    problems = number_problems([t for t in texts if t], source)
-    if problems:
-        raise Unclassified(f"In {what}: {problems[0]}")
-
-
-def check_language(texts):
-    if wrong_language([t for t in texts if t], LANGUAGE):
-        raise Unclassified(f"Write everything in {LANGUAGES[LANGUAGE]}.")
-
-
-def check_public_text(texts, operations=()):
-    for value in texts:
-        if PASSAGE_MARK.search(value):
-            raise Unclassified("Keep passage markers in the evidence fields only.")
-        if BAD_PAINT_TERM.search(value):
-            raise Unclassified("Translate paints and varnishes as Farben und Lacke.")
-        if set(operations) & REMOVALS and REPEAL_TERM.search(value):
-            raise Unclassified("Use Aufhebung (repeal) for the removal of a provision or act.")
-
-
-def check_importance(reply, passages, every) -> tuple[str, str]:
-    """(importance, to_confirm). Why the change matters for Max Bögl: required with a classification (K1),
-    empty without; no advice. to_confirm: what is still open before anyone acts (may be empty)."""
-    value = squash(reply.get("importance")) if isinstance(reply.get("importance"), str) else ""
-    confirm = squash(reply.get("to_confirm")) if isinstance(reply.get("to_confirm"), str) else ""
-    if "K1" not in passages:
-        if value or confirm:
-            raise Unclassified("importance and to_confirm must stay empty: the change is not matched to a "
-                               "classified provision.")
-        return "", ""
-    if len(confirm) > LIMITS["to_confirm"]:
-        raise Unclassified(f"to_confirm is one short sentence (up to {LIMITS['to_confirm']} characters).")
-    if confirm:
-        check([confirm], every, "to_confirm")
-    if not value or len(value) > LIMITS["importance"]:
-        raise Unclassified(f"importance must be one or two sentences (up to {LIMITS['importance']} characters).")
-    if COMPANY_DUTY.search(f"{value} {confirm}"):
-        raise Unclassified("Describe the business connection conditionally. Do not assert a company obligation.")
-    if word := ADVICE.search(value):
-        raise Unclassified(f"importance explains, it does not advise ('{word.group(0)}'). Say why it matters.")
-    check([value], every, "importance")
-    return value, confirm
-
-
 def validate_act(reply, source):
-    sentences = reply.get("sentences") if isinstance(reply, dict) and set(reply) == {"sentences"} else None
-    if not isinstance(sentences, list) or not 2 <= len(sentences) <= 4:
-        raise Unclassified("The reply holds exactly sentences, a list of two to four full sentences.")
-    cleaned = [squash(s) for s in sentences if isinstance(s, str) and squash(s)]
-    if len(cleaned) != len(sentences) or any(len(s) > LIMITS["sentence"] for s in cleaned):
-        raise Unclassified(f"Every sentence is a text of 1 to {LIMITS['sentence']} characters.")
-    check_public_text(cleaned)
-    check(cleaned, source, "sentences")
-    check_language(cleaned)
-    return cleaned
+    """Only the form: two to four sentences. The content is not checked."""
+    sentences = reply.get("sentences") if isinstance(reply, dict) else None
+    cleaned = [squash(s) for s in sentences or [] if isinstance(s, str) and squash(s)]
+    if not cleaned:
+        raise Unclassified("The reply holds no sentences.")
+    return cleaned[:4]
 
 
 def one_change(record):
@@ -400,607 +222,208 @@ def one_change(record):
     return {**record, "instruction": clauses[0]} if len(clauses) == 1 else {**record, "instruction": ""}
 
 
-# ------------------------------------------------------------------ evidence units (v1.7)
+# ------------------------------------------------------------------ simple explanation (v2.0)
 #
-# One request to Qwen covers one unit: one single change (PROVISION), one whole-act change (ACT) or one corrigendum.
-# Python builds the evidence: every passage gets an ID that is unique within the unit and is saved with the change
-# ID, the exact place and its type, so the stable reference is "<change id>:<passage id>". Qwen writes the German
-# text and only SELECTS passage IDs. Python copies the quotations from the selected passages, word for word.
-# Where old and new wording are both given, only the sentences that differ can be selected as evidence of a
-# difference, so an unchanged neighbouring sentence can never support a claimed change.
+# One request per single change. Qwen gets the texts that exist for this change and writes only an explanation of
+# what is different. Nothing is checked or rejected: what Qwen writes is kept. What is missing is written as a
+# remark by Python. Dates come from the database (the effective date of each change). Deletions and repeals are
+# not sent to Qwen: they are shown as "gestrichen" / "aufgehoben" with their date.
 
-CORE_VERSION = "v1.7"
-EVIDENCE_KINDS = {"O": "OLD", "N": "NEW", "I": "INSTRUCTION", "F": "FINAL_ARTICLES", "M": "ACT_DATES",
-                  "W": "WRONG", "R": "CORRECT", "T": "CORRIGENDUM_TEXT", "C": "PLACE_CONTEXT", "K": "RELEVANCE"}
-SITUATIONS = {
-    "BOTH": "Old and new wording of this place are given. Explain the difference; cite changed passages only.",
-    "NEW_ONLY": "Only the new wording is given. Say what the place says now. Compare with nothing.",
-    "INSTRUCTION": "Only the amending instruction is given. Report exactly what the instruction establishes.",
-    "REMOVAL_OLD": "The place is deleted. The old wording is given. Say what no longer applies. Nothing is new.",
-    "REMOVAL_INSTRUCTION": "The place or act is deleted or repealed by the instruction. Report what is removed and "
-                           "from when. Nothing is new, and do not guess the removed content.",
-    "ACT": "A change of the whole act. Report exactly what the instruction and final articles establish.",
-    "CORRECTION": "A corrigendum: wrong and correct wording are given.",
+CORE_VERSION = "v2.0"
+EXPLANATION_LIMIT = 900
+SIMPLE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["explanation"],
+                 "properties": {"explanation": {"type": "string", "maxLength": EXPLANATION_LIMIT}}}
+CASES = ("CHANGED", "ADDED", "REMOVED", "ACT", "CORRECTION", "IMPLICIT_REPEAL")
+REMARKS = {
+    "de": {"REMOVED_DELETE": "Gestrichen.", "REMOVED_REPEAL": "Aufgehoben.",
+           "OLD_MISSING": "Alter Wortlaut nicht verfügbar: erklärt aus dem neuen Wortlaut.",
+           "NEW_MISSING": "Neuer Wortlaut nicht verfügbar: erklärt aus der Änderungsvorschrift.",
+           "NO_TEXT": "Kein Wortlaut verfügbar.", "NO_ANSWER": "Erklärung konnte nicht erstellt werden.",
+           "SCOPE": "Mögliche stillschweigende Aufhebung: Umfang offen.",
+           "NO_DATE": "Kein Datum in der Datenbank."},
+    "en": {"REMOVED_DELETE": "Deleted.", "REMOVED_REPEAL": "Repealed.",
+           "OLD_MISSING": "Old wording not available: explained from the new wording.",
+           "NEW_MISSING": "New wording not available: explained from the amending instruction.",
+           "NO_TEXT": "No wording available.", "NO_ANSWER": "The explanation could not be written.",
+           "SCOPE": "Possible implicit repeal: scope open.", "NO_DATE": "No date in the database."},
 }
-DATE_KINDS = {"TRANSPOSITION": "Umsetzungsfrist", "TRANSITION_END": "Übergangsfrist bis", "REPORTING": "Berichtsfrist",
-              "APPLIES_FROM": "gilt ab", "OTHER_DEADLINE": "Frist"}
-DATE_KINDS_EN = {"TRANSPOSITION": "Transposition deadline", "TRANSITION_END": "Transition ends",
-                 "REPORTING": "Reporting deadline", "APPLIES_FROM": "Applies from", "OTHER_DEADLINE": "Deadline"}
-DATE_SUPPORT = {"TRANSPOSITION": r"transpos|bring into force|comply with this|Umsetzung|nachzukommen",
-                "TRANSITION_END": r"until|transitional|derogation|continue to apply|bis zum|Übergang",
-                "REPORTING": r"report|Bericht", "APPLIES_FROM": r"appl|gilt|anzuwenden",
-                "OTHER_DEADLINE": r"\bby\b|no later than|before|deadline|spätestens|bis"}
-AUTO_DATES = {"de": {"CHANGE": "gilt ab", "ANNOTATION": "gilt ab", "ENTRY_INTO_FORCE": "Inkrafttreten des Änderungsakts",
-                     "ADOPTION": "Datum des Änderungsakts", "RELATIONSHIP": "gilt ab (laut Verknüpfung, prüfen)"},
-              "en": {"CHANGE": "Applies from", "ANNOTATION": "Applies from",
-                     "ENTRY_INTO_FORCE": "Entry into force of the amending act", "ADOPTION": "Date of the amending act",
-                     "RELATIONSHIP": "Applies from (from the relationship, to check)"}}
-# Contract categories in public procurement: a value may only be tied to a category the place itself names.
-CATEGORY_TERMS = {
-    "works": re.compile(r"\b(?:works?(?: contracts?)?|Bauauftr\w*|Bauleistung\w*|Bauarbeiten|Werkvertr\w*|"
-                        r"Werkeverträg\w*|Werkleistung\w*)\b", re.I),
-    "services": re.compile(r"\b(?:services?(?: contracts?)?|Dienstleistung\w*)\b", re.I),
-    "supplies": re.compile(r"\b(?:suppl(?:y|ies)(?: contracts?)?|Lieferauftr\w*|Lieferung\w*|Lieferleistung\w*)\b", re.I),
-}
-PLACE_REFERENCE = re.compile(
-    r"\b(?:Art\.?|Artikel|Article|Absatz|Abs\.|Unterabsatz|paragraph|subparagraph|Nummer|Nr\.|Punkt|point|"
-    r"Buchstabe|Anhang|Annex|Anlage|Teil|Part|Kapitel|Chapter)\s+[0-9IVXLC]+[a-z]?(?:\s*\(\w+\))*", re.I)
-MAX_FACTS = 5
-FACT_EVIDENCE = 3
+TEXT_SHARE = 6000            # characters per text sent to Qwen
 
 
-class PartFailed(Exception):
-    """A unit could not be explained; `trace` holds what was sent, every answer and every error."""
-
-    def __init__(self, message, trace):
-        super().__init__(message)
-        self.trace = trace
-
-
-def sentences_of(text: str | None) -> list[str]:
-    return [s for s in re.split(r"(?<=[.;:])\s+(?=[A-Z(‘“0-9])", squash(text or "")) if s]
-
-
-def changed_flags(old: str | None, new: str | None) -> tuple[list[bool], list[bool]]:
-    """Which sentences of the old and the new wording differ (True) from the other side."""
-    import difflib
-    a, b = sentences_of(old), sentences_of(new)
-    flags_a, flags_b = [False] * len(a), [False] * len(b)
-    matcher = difflib.SequenceMatcher(None, [signature(s) for s in a], [signature(s) for s in b], autojunk=False)
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag != "equal":
-            for i in range(i1, i2):
-                flags_a[i] = True
-            for j in range(j1, j2):
-                flags_b[j] = True
-    return flags_a, flags_b
-
-
-def evidence_passages(text: str | None, prefix: str, flags: list[bool] | None = None,
-                      budget: int = TEXT_BUDGET) -> list[dict]:
-    """Numbered passages of one text. With flags, every passage is either all changed or all unchanged, and over
-    the budget only the changed passages and one neighbour on each side are kept."""
-    parts = sentences_of(text)
-    if not parts:
-        return []
-    flags = flags if flags is not None and len(flags) == len(parts) else [None] * len(parts)
-    groups = []
-    for sentence, flag in zip(parts, flags):
-        if groups and groups[-1]["changed"] == flag and len(groups[-1]["text"]) + len(sentence) <= PASSAGE_CHARS:
-            groups[-1]["text"] += " " + sentence
-        else:
-            groups.append({"text": sentence, "changed": flag})
-    chosen = set(range(len(groups)))
-    if sum(len(g["text"]) for g in groups) > budget and any(g["changed"] for g in groups):
-        chosen = {j for i, g in enumerate(groups) if g["changed"] for j in (i - 1, i, i + 1) if 0 <= j < len(groups)}
-    found, used = [], 0
-    for index, group in enumerate(groups):
-        if index not in chosen or used + len(group["text"]) > budget:
-            continue
-        used += len(group["text"])
-        found.append({"id": f"{prefix}{len(found) + 1}", "kind": EVIDENCE_KINDS[prefix], "text": group["text"],
-                      "changed": group["changed"]})
-    return found
-
-
-def point_letter(place: str | None) -> str | None:
-    letters = re.findall(r"\bpoint\s*\(?([a-z])\)?(?![a-z0-9])", place or "", re.I)
-    return letters[-1].casefold() if letters else None
-
-
-def point_subject(text: str | None, letter: str | None) -> str | None:
-    """The subject a point is about, from its own wording: "(b) service contracts subsidised ..." -> the words up to
-    the first clause break. None when the point's wording is not given."""
-    if not text or not letter:
-        return None
-    match = re.search(rf"(?:^|\s)\({re.escape(letter)}\)\s+(.{{3,200}}?)(?=,|;|:|\s(?:which|that|where|whose|"
-                      rf"if|provided)\s|$)", squash(text), re.I)
-    return squash(match.group(1)) if match else None
-
-
-def point_subject_clause(unit: dict) -> str:
-    """The whole wording of the point, from its own clause in the context or the new/old text."""
-    letter = unit["letter"]
-    for passage in unit["evidence"].values():
-        if passage["id"][0] in "CNO":
-            match = re.search(rf"\({re.escape(letter)}\)\s+(.*?)(?=\s\([a-z]\)\s|$)", passage["text"], re.S)
-            if match:
-                return match.group(1)
-    return ""
-
-
-def categories_in(text: str) -> set[str]:
-    return {name for name, pattern in CATEGORY_TERMS.items() if pattern.search(text or "")}
-
-
-def without_places(value: str) -> str:
-    """A value without its place references ("Absatz 2", "point (b)"): their numbers are not values."""
-    return PLACE_REFERENCE.sub(" ", value or "")
-
-
-def unit_situation(kind: str, record: dict, operations: set[str]) -> str:
+def change_case(kind: str, record: dict, relation: str) -> str:
+    operation = (record.get("operation") or relation or "OTHER").upper()
     if kind == "CORRIGENDUM":
         return "CORRECTION"
-    removal = bool(operations & REMOVALS) or (record.get("operation") or "OTHER") in REMOVALS
+    if relation == "IMPLICITLY_REPEALS":
+        return "IMPLICIT_REPEAL"
+    if operation in {"DELETE", "REPEAL"} or relation == "REPEALS":
+        return "REMOVED"
+    if operation in ADDITIONS:
+        return "ADDED"
     if kind == "ACT":
-        return "REMOVAL_INSTRUCTION" if removal else "ACT"
-    old, new, instruction = record.get("old_text"), record.get("new_text"), record.get("instruction")
-    if removal:
-        return "REMOVAL_OLD" if old else "REMOVAL_INSTRUCTION"
-    if old and new:
-        return "BOTH"
-    if new:
-        return "NEW_ONLY"
-    return "INSTRUCTION" if instruction else "NEW_ONLY"
+        return "ACT"
+    return "CHANGED"
 
 
-def build_unit(item: dict, record: dict, routing: dict | None) -> dict:
-    """Everything one request needs: the evidence passages (with IDs and types), what Qwen may select for
-    which field, the Python-built dates, and the JSON sent to Qwen."""
+def short(text: str | None, limit: int = TEXT_SHARE) -> str | None:
+    text = squash(text or "")
+    return (text[:limit] + " …") if len(text) > limit else (text or None)
+
+
+def simple_request(item: dict, record: dict, case: str) -> tuple[dict | None, list[str]]:
+    """(what is sent to Qwen, remark codes). None when there is nothing to explain from."""
     first = item["records"][0]
-    kind = item["kind"]
-    record = one_change(record) if kind == "PROVISION" else record
-    operations = {record.get("operation") or first["relation"], first["relation"]}
-    situation = unit_situation(kind, record, operations)
-    evidence: list[dict] = []
-    place = record.get("provision") or ""
-
-    def add(passages):
-        for passage in passages:
-            evidence.append({**passage, "change_id": record.get("change_id"), "place": place})
-        return passages
-
     sent = {"changed_act": {"celex": first["changed"]["celex"], "title": first["changed"]["title"]},
-            "changing_act": {"celex": first["changing"]["celex"], "title": first["changing"]["title"],
-                             "date": first["changing"].get("date")},
-            "situation": situation, "situation_rule": SITUATIONS[situation]}
-    subject = None
-    if kind == "CORRIGENDUM":
-        corrections = []
-        for number, correction in enumerate(first.get("corrections") or [], 1):
-            if number > 12:
-                break
-            entry = {"location": correction["location"]}
-            if correction["wrong"]:
-                entry["wrong"] = add([{"id": f"W{number}", "kind": "WRONG", "text": correction["wrong"][:1500],
-                                       "changed": True}])[0]["id"]
-            entry["correct"] = add([{"id": f"R{number}", "kind": "CORRECT", "text": correction["correct"][:1500],
-                                     "changed": True}])[0]["id"]
-            corrections.append(entry)
+            "changing_act": {"celex": first["changing"]["celex"], "title": first["changing"]["title"]},
+            "kind_of_change": case, "place": record.get("provision") or "the whole act",
+            "operation": record.get("operation") or first["relation"]}
+    remarks = []
+    if case == "CORRECTION":
+        corrections = [{"location": c["location"], "wrong": c["wrong"], "correct": c["correct"]}
+                       for c in (record.get("corrections") or [])[:12]]
         if corrections:
             sent["corrections"] = corrections
+        elif record.get("instruction"):
+            sent["corrigendum_text"] = short(record["instruction"])
         else:
-            add(evidence_passages(first.get("instruction"), "T"))
-    else:
-        old, new = record.get("old_text"), record.get("new_text")
-        flags_old, flags_new = changed_flags(old, new) if old and new else (None, None)
-        add(evidence_passages(old, "O", flags_old, share_of(old, new)))
-        add(evidence_passages(new, "N", flags_new, share_of(new, old)))
-        add(evidence_passages(record.get("instruction"), "I"))
-        letter = point_letter(place)
-        context = record.get("point_context") or ""
-        subject = (point_subject(context, letter) or point_subject(new, letter) or point_subject(old, letter)
-                   if letter else None)
-        sent["place"] = {"place": place or ("the whole act" if kind == "ACT" else "several places"),
-                         "operation": record.get("operation") or first["relation"]}
-        if record.get("heading"):
-            sent["place"]["heading"] = record["heading"]
-        if letter:
-            sent["place"]["point"] = f"({letter})"
-            sent["place"]["subject_of_point"] = subject or ("not given: do not name what point "
-                                                             f"({letter}) is about, write 'Punkt ({letter})'")
-        if context:
-            sent["place"]["current_wording_of_place"] = add(
-                [{"id": "C1", "kind": "PLACE_CONTEXT", "text": squash(context)[:1500], "changed": None}])[0]["id"]
-    finals = " ".join(f"{f['locator']}: {f['text']}" for f in first.get("final_articles") or [])
-    add(evidence_passages(finals, "F", budget=3000))
-    relevance, relevance_passages = relevance_part(routing, kind)
-    if relevance:
-        evidence.append({"id": "K1", "kind": "RELEVANCE", "text": relevance_passages["K1"], "changed": None,
-                         "change_id": None, "place": place})
-    by_kind = defaultdict(list)
-    for passage in evidence:
-        by_kind[passage["id"][0]].append(passage)
-    sent["evidence"] = [{"id": p["id"], "type": p["kind"], "text": p["text"],
-                         **({"changed": p["changed"]} if p["changed"] is not None and p["id"][0] in "ON" else {})}
-                        for p in evidence if p["id"][0] != "K"]          # K1 is sent once, as why_relevant
-    # What each field may cite.
-    pair = bool(WORD_PAIR.search(record.get("instruction") or ""))
-    if kind == "CORRIGENDUM":
-        before_ids = [p["id"] for p in by_kind["W"] + by_kind["T"]]
-        after_ids = [p["id"] for p in by_kind["R"] + by_kind["T"]]
-    else:
-        old_changed = [p["id"] for p in by_kind["O"] if p["changed"] is not False]
-        new_changed = [p["id"] for p in by_kind["N"] if p["changed"] is not False]
-        before_ids = old_changed + ([p["id"] for p in by_kind["I"]] if pair or situation.startswith("REMOVAL") else [])
-        after_ids = [] if situation.startswith("REMOVAL") else new_changed + [p["id"] for p in by_kind["I"]]
-    date_ids = [p["id"] for p in evidence if p["id"][0] in "FIN"]
-    dates = auto_dates(record if kind == "PROVISION" else {}, first)
-    if dates:
-        sent["dates_known"] = [{"what": d["source"], "date": d["date"]} for d in dates]
-    notes = []
-    if situation in {"NEW_ONLY", "INSTRUCTION"} and not pair:
-        notes.append("No old wording: describe what applies now. Never write früher, bisher, nicht mehr, erweitert, "
-                     "verlängert, gesenkt, erhöht, konkretisiert or the like; write 'gilt nun bis …', 'umfasst nun …'.")
-    if any(p["changed"] for p in by_kind["O"] + by_kind["N"]):
-        notes.append("Passages marked changed=false did not change: never use them as evidence of a difference.")
-    if notes:
-        sent["notes"] = notes
-    if relevance:
-        sent["why_relevant"] = relevance
-    return {"kind": kind, "situation": situation, "record": record, "item_id": item["id"], "place": place,
-            "evidence": {p["id"]: p for p in evidence}, "before_ids": before_ids, "after_ids": after_ids,
-            "date_ids": date_ids, "subject": subject, "letter": point_letter(place), "dates": dates,
-            "operations": operations, "pair": pair, "trimmed": bool(record.get("trimmed")), "sent": sent,
-            "relevance": bool(relevance)}
-
-
-def share_of(text, other) -> int:
-    return TEXT_BUDGET if not other else max(2000, TEXT_BUDGET * len(text or "") // max(1, len(text or "") +
-                                                                                         len(other or "")))
-
-
-def auto_dates(record: dict, first: dict) -> list[dict]:
-    """Dates Python knows without Qwen, each with its source: the change's own date, then the amending act's
-    entry into force and adoption. Never mixed: application of a change is not entry into force of the act."""
-    dates = []
-    if record.get("effective_from"):
-        dates.append({"source": record.get("effective_source") or "CHANGE", "date": str(record["effective_from"])[:10]})
-    changing = first["changing"]
-    if changing.get("entry_into_force"):
-        dates.append({"source": "ENTRY_INTO_FORCE", "date": str(changing["entry_into_force"])[:10]})
-    if changing.get("date"):
-        dates.append({"source": "ADOPTION", "date": str(changing["date"])[:10]})
-    return dates
-
-
-def unit_schema(unit: dict) -> dict:
-    enum = lambda ids: {"type": "string", "enum": ids or ["NONE"]}  # noqa: E731
-    facts_allowed = bool(unit["before_ids"] or unit["after_ids"])
-    fact = {"type": "object", "additionalProperties": False,
-            "required": ["what", "before", "after", "before_evidence", "after_evidence"],
-            "properties": {"what": {"type": "string", "maxLength": LIMITS["what"]},
-                           "before": {"type": "string", "maxLength": LIMITS["value"] if unit["before_ids"] else 0},
-                           "after": {"type": "string", "maxLength": LIMITS["value"] if unit["after_ids"] else 0},
-                           "before_evidence": {"type": "array", "maxItems": FACT_EVIDENCE if unit["before_ids"] else 0,
-                                               "items": enum(unit["before_ids"])},
-                           "after_evidence": {"type": "array", "maxItems": FACT_EVIDENCE if unit["after_ids"] else 0,
-                                              "items": enum(unit["after_ids"])}}}
-    relevance_ids = ["K1"] if unit["relevance"] else []
-    properties = {
-        "headline": {"type": "string", "maxLength": LIMITS["headline"]},
-        "facts": {"type": "array", "maxItems": MAX_FACTS if facts_allowed else 0, "items": fact},
-        "importance": importance_schema(relevance_ids),
-        "to_confirm": importance_schema(relevance_ids, "to_confirm"),
-    }
-    if unit["kind"] == "CORRIGENDUM":
-        properties["what_was_wrong"] = {"type": "string", "maxLength": LIMITS["text"]}
-        properties["affects"] = {"type": "string", "enum": list(AFFECTS)}
-    else:
-        properties["what_changed"] = {"type": "string", "maxLength": LIMITS["text"]}
-        properties["significance"] = {"type": "string", "enum": list(SIGNIFICANCE)}
-        properties["dates"] = {"type": "array", "maxItems": 3 if unit["date_ids"] else 0, "items": {
-            "type": "object", "additionalProperties": False, "required": ["kind", "date", "evidence"],
-            "properties": {"kind": {"type": "string", "enum": list(DATE_KINDS)},
-                           "date": {"type": "string", "maxLength": LIMITS["date"]},
-                           "evidence": {"type": "array", "minItems": 1, "maxItems": 2, "items": enum(unit["date_ids"])}}}}
-    return {"type": "object", "additionalProperties": False, "required": list(properties), "properties": properties}
-
-
-def quote(unit: dict, ids: list[str]) -> list[dict]:
-    """The quotations, copied by Python from the selected passages: never written by Qwen."""
-    return [{"id": i, "ref": f"{unit['evidence'][i]['change_id'] or unit['item_id']}:{i}",
-             "type": unit["evidence"][i]["kind"], "place": unit["evidence"][i]["place"],
-             "text": unit["evidence"][i]["text"]} for i in ids]
-
-
-def evidence_text(unit, kinds) -> str:
-    return " ".join(p["text"] for p in unit["evidence"].values() if p["id"][0] in kinds)
-
-
-def check_values(value: str, cited: str, what: str):
-    """Numbers and dates of a value must stand in the cited evidence; place references do not count as values."""
-    problems = number_problems([without_places(value)], cited)
-    if problems:
-        raise Unclassified(f"In {what}: {problems[0]}")
-
-
-def validate_unit(reply, unit: dict, language: str = "de") -> dict:
-    schema_keys = set(unit_schema(unit)["properties"])
-    if not isinstance(reply, dict) or set(reply) != schema_keys:
-        raise Unclassified(f"The reply must hold exactly {', '.join(sorted(schema_keys))}.")
-    corrigendum = unit["kind"] == "CORRIGENDUM"
-    headline = text_field(reply, "headline", LIMITS["headline"])
-    text = text_field(reply, "what_was_wrong" if corrigendum else "what_changed", LIMITS["text"])
-    every = " ".join(p["text"] for p in unit["evidence"].values()) + " " + " ".join(
-        d["date"] for d in unit["dates"])
-    check_public_text((headline, text), unit["operations"])
-    check([without_places(headline), without_places(text)], every, "headline or text")
-    facts = []
-    for number, fact in enumerate(reply.get("facts") or [], 1):
-        if not isinstance(fact, dict):
-            raise Unclassified(f"Fact {number} must be an object.")
-        what = squash(fact.get("what")) if isinstance(fact.get("what"), str) else ""
-        before, after = squash(fact.get("before") or ""), squash(fact.get("after") or "")
-        before_ids = list(dict.fromkeys(fact.get("before_evidence") or []))
-        after_ids = list(dict.fromkeys(fact.get("after_evidence") or []))
-        if not what:
-            raise Unclassified(f"Fact {number} needs what.")
-        if any(i not in unit["before_ids"] for i in before_ids) or any(i not in unit["after_ids"] for i in after_ids):
-            raise Unclassified(f"Fact {number} cites a passage that cannot support it.")
-        if before and not before_ids:
-            raise Unclassified(f"Fact {number}: before needs before_evidence (an old passage).")
-        if after and not after_ids:
-            raise Unclassified(f"Fact {number}: after needs after_evidence (a new passage or the instruction).")
-        if not before and not after:
-            documented = unit["situation"].startswith("REMOVAL") and any(i[0] in "IO" for i in before_ids)
-            if not documented:
-                raise Unclassified(f"Fact {number} needs before or after, each with its evidence.")
-        if before and after and signature(before) == signature(after):
-            raise Unclassified(f"Fact {number}: before and after are the same; name only real differences.")
-        if before:
-            check_values(before, " ".join(unit["evidence"][i]["text"] for i in before_ids), f"before of fact {number}")
-        if after:
-            check_values(after, " ".join(unit["evidence"][i]["text"] for i in after_ids), f"after of fact {number}")
-        facts.append({"what": what, "before": before, "after": after, "passages": before_ids + after_ids,
-                      "before_evidence": quote(unit, before_ids), "after_evidence": quote(unit, after_ids),
-                      "change_id": unit["record"].get("change_id"), "place": unit["place"],
-                      "quotes": [unit["evidence"][i]["text"][:400] for i in before_ids + after_ids]})
-    public = [headline, text] + [f"{f['what']} {f['before']} {f['after']}" for f in facts]
-    check_subject([headline] + [f"{f['what']} {f['before']} {f['after']}" for f in facts], [text], unit)
-    if corrigendum:
-        if reply["affects"] not in AFFECTS:
-            raise Unclassified(f"affects is one of {', '.join(AFFECTS)}.")
-        if not facts and unit["after_ids"]:
-            raise Unclassified("Name at least one correction in facts, with the correct wording as after_evidence.")
-        if reply["affects"] == "WORDING_ONLY" and any(
-                number_problems([f["after"]], f["before"]) for f in facts if f["before"] and f["after"]):
-            raise Unclassified("A corrected number or date is never WORDING_ONLY. Use NUMBER or DATE.")
-    else:
-        significance = reply["significance"]
-        if significance not in SIGNIFICANCE:
-            raise Unclassified(f"significance is one of {', '.join(SIGNIFICANCE)}.")
-        comparable = unit["situation"] == "BOTH" or unit["pair"]
-        if not comparable and not unit["situation"].startswith("REMOVAL") and \
-                not (unit["operations"] & ADDITIONS) and (word := COMPARING.search(" ".join(public))):
-            raise Unclassified(f"'{word.group(0)}' compares with an old wording that is not given. Write what applies "
-                               "now, for example 'gilt nun bis …' or 'umfasst nun …'.")
-        if unit["situation"].startswith("REMOVAL") and (word := NEW_CLAIM.search(f"{headline} {text}")):
-            raise Unclassified(f"'{word.group(0)}': the place is removed, nothing is new. Say what no longer applies.")
-        if significance == "EDITORIAL":
-            if unit["trimmed"] or unit["situation"] != "BOTH":
-                raise Unclassified("EDITORIAL needs the complete old and new wording. Use SUBSTANTIVE or UNCLEAR.")
-            if any(number_problems([f["after"]], f["before"]) for f in facts if f["before"] and f["after"]):
-                raise Unclassified("A changed number or date is never EDITORIAL. Use SUBSTANTIVE.")
-            if REPLACEMENT_PLACEHOLDER.search(evidence_text(unit, "NI")):
-                raise Unclassified("Replacing a provision by 'Not used' removes its content: not EDITORIAL.")
-        if significance == "SUBSTANTIVE" and not facts and (unit["before_ids"] or unit["after_ids"]):
-            raise Unclassified("A substantive change needs at least one fact with its evidence.")
-    dates = [{"what": AUTO_DATES[language].get(d["source"], d["source"]), "date": d["date"], "source": d["source"],
-              "passages": [], "evidence": [], "auto": True} for d in unit["dates"]]
-    for number, date in enumerate(reply.get("dates") or [], 1):
-        value, ids = squash(date.get("date") or ""), list(dict.fromkeys(date.get("evidence") or []))
-        if date.get("kind") not in DATE_KINDS or not re.search(r"\d", value) or not ids or \
-                any(i not in unit["date_ids"] for i in ids):
-            raise Unclassified(f"Date {number} needs a kind, a date and evidence from the instruction or final articles.")
-        cited = " ".join(unit["evidence"][i]["text"] for i in ids)
-        check([value], cited, f"date {number}")
-        if not re.search(DATE_SUPPORT[date["kind"]], cited, re.I):
-            raise Unclassified(f"Date {number}: the cited passage does not say it is a {date['kind']} date. "
-                               "Leave optional dates out when their purpose is unclear.")
-        labels = DATE_KINDS if language == "de" else DATE_KINDS_EN
-        dates.append({"what": labels[date["kind"]], "date": iso_date(value) or value, "as_written": value, "kind": date["kind"], "passages": ids,
-                      "evidence": quote(unit, ids), "source": "EVIDENCE"})
-    importance, to_confirm = check_importance(reply, {"K1": 1} if unit["relevance"] else {}, every)
-    check_public_text((importance, to_confirm))
-    check_language([headline, text, importance] + [f["what"] for f in facts])
-    answer = {"headline": headline, "facts": facts, "importance": importance, "to_confirm": to_confirm,
-              "situation": unit["situation"], "change_id": unit["record"].get("change_id"), "place": unit["place"],
-              "subject_of_point": unit["subject"]}
-    if corrigendum:
-        answer.update(what_was_wrong=text, affects=reply["affects"])
-    else:
-        significance = reply["significance"]
-        if unit["situation"].startswith("REMOVAL") and significance == "EDITORIAL":
-            significance = "UNCLEAR"
-        answer.update(what_changed=text, significance=significance, dates=dates)
-    return answer
-
-
-MONTHS = {name: number for number, names in enumerate(
-    (("january", "januar", "jan"), ("february", "februar", "feb"), ("march", "märz", "maerz", "mar"),
-     ("april", "apr"), ("may", "mai"), ("june", "juni", "jun"), ("july", "juli", "jul"), ("august", "aug"),
-     ("september", "sept", "sep"), ("october", "oktober", "oct", "okt"), ("november", "nov"),
-     ("december", "dezember", "dec", "dez")), 1) for name in names}
-
-
-def iso_date(value: str) -> str | None:
-    """2026-07-01 for "1 July 2026", "1. Juli 2026", "1.7.2026" or "2026-07-01"; None when it is no single date."""
-    text = squash(value).casefold()
-    for pattern, order in ((r"^(\d{4})-(\d{1,2})-(\d{1,2})$", "ymd"), (r"^(\d{1,2})\.(\d{1,2})\.(\d{4})$", "dmy"),
-                           (r"^(\d{1,2})\.?\s+([a-zäö]+)\.?\s+(\d{4})$", "dMy")):
-        match = re.match(pattern, text)
-        if not match:
-            continue
-        a, b, c = match.groups()
-        if order == "ymd":
-            year, month, day = int(a), int(b), int(c)
-        elif order == "dmy":
-            day, month, year = int(a), int(b), int(c)
+            return None, ["NO_TEXT"]
+        return sent, remarks
+    old, new = short(record.get("old_text")), short(record.get("new_text"))
+    instruction = short(record.get("instruction"), 3000)
+    if case == "ACT":
+        finals = " ".join(f"{f['locator']}: {f['text']}" for f in record.get("final_articles") or [])
+        if not instruction and not finals:
+            return None, ["NO_TEXT"]
+        if instruction:
+            sent["instruction"] = instruction
+        if finals:
+            sent["final_articles"] = short(finals, 3000)
+        return sent, remarks
+    if case == "ADDED":
+        if new:
+            sent["new_text"] = new
+        elif instruction:
+            sent["instruction"] = instruction
         else:
-            day, month, year = int(a), MONTHS.get(b), int(c)
-        if month and 1 <= month <= 12 and 1 <= day <= 31:
-            return f"{year:04d}-{month:02d}-{day:02d}"
-    return None
-
-
-def check_subject(strict: list[str], loose: list[str], unit: dict):
-    """A procurement value stays attached to the category its point names: "(b) service contracts …" may not be
-    called a works contract, and without the point's own wording no category may be named at all.
-    strict (headline, facts): only the point's own subject. loose (the sentences): also categories the point's
-    wording mentions ("service contracts … connected to a works contract")."""
-    if unit["letter"]:
-        allowed_strict = categories_in(unit["subject"] or "")
-        own = point_subject_clause(unit)
-        allowed_loose = allowed_strict | (categories_in(own) if unit["subject"] else set())
-        where = f"point ({unit['letter']})"
+            return None, ["NO_TEXT"]
+        return sent, remarks
+    # CHANGED: old and new text where both exist, otherwise what there is
+    if old and new:
+        sent["old_text"], sent["new_text"] = old, new
+    elif new:
+        sent["new_text"] = new
+        remarks.append("OLD_MISSING")
+    elif instruction:
+        sent["instruction"] = instruction
+        remarks.append("NEW_MISSING" if not old else "OLD_MISSING")
+        if old:
+            sent["old_text"] = old
     else:
-        allowed_strict = allowed_loose = categories_in(evidence_text(unit, "ONIC"))
-        where = "this place"
-    wrong = (categories_in(" ".join(strict)) - allowed_strict) | (categories_in(" ".join(loose)) - allowed_loose)
-    if wrong:
-        about = f" Point ({unit['letter']}) is about: {unit['subject']}." if unit["subject"] else ""
-        raise Unclassified(f"The evidence for {where} does not name {', '.join(sorted(wrong))} contracts.{about} "
-                           f"Use the words of the point, or write 'Punkt ({unit['letter'] or '…'})'.")
+        return None, ["NO_TEXT"]
+    return sent, remarks
 
 
-def ask_unit(client, system: str, unit: dict, task: str, name: str, language: str, max_tokens: int):
-    """One request with at most one correction. Returns (answer, trace); raises PartFailed(trace) when the second
-    answer is still invalid. The trace holds the evidence sent, every raw answer and every validation error."""
-    schema = unit_schema(unit)
-    evidence = json.dumps(unit["sent"], ensure_ascii=False)
-    trace = {"sent": unit["sent"], "attempts": [], "situation": unit["situation"], "place": unit["place"],
-             "change_id": unit["record"].get("change_id")}
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": f"{evidence}\n\n{task}"}]
-    for attempt in range(2):
-        try:
-            reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
-                                schema=schema, schema_name=name, max_tokens=max_tokens)
-        except Exception as exc:  # noqa: BLE001 - the request could not be sent at all
-            raise ConnectionLost(str(exc)) from exc
-        usage = reply.usage or {}
-        step = {"seconds": round(getattr(reply, "seconds", 0.0) or 0.0, 3),
-                "prompt_tokens": usage.get("prompt_tokens"), "completion_tokens": usage.get("completion_tokens"),
-                "finish_reason": getattr(reply, "finish_reason", None)}
-        if not reply.ok:
-            if reply.error_kind == "context_limit":
-                trace["attempts"].append({**step, "error": "context limit"})
-                raise PartFailed("The evidence of this change is too long for the model.", trace)
-            raise ConnectionLost(client.clean(reply.error or f"Model request failed ({reply.error_kind})."))
-        candidate, error = reply.parse_json()
-        step["answer"] = candidate if candidate is not None else (reply.content or "")[:4000]
-        try:
-            if error:
-                raise Unclassified(error)
-            answer = validate_unit(candidate, unit, language)
-            trace["attempts"].append({**step, "error": None})
-            return answer, trace
-        except Unclassified as exc:
-            step["error"] = str(exc)
-            trace["attempts"].append(step)
-            if attempt:
-                raise PartFailed(f"Invalid answer after one correction request: {exc}", trace) from exc
-            messages[1]["content"] = (f"{evidence}\n\n{task}\n\nCORRECTION: your previous reply was rejected. "
-                                      f"{exc} Return the complete JSON object again.")
+def ask_simple(client, system: str, sent: dict, task: str) -> tuple[str | None, dict]:
+    """One request. Returns (explanation or None, what happened). Nothing is rejected: an answer that cannot be read
+    as JSON is kept as raw text when it has any."""
+    messages = [{"role": "system", "content": system},
+                {"role": "user", "content": f"{json.dumps(sent, ensure_ascii=False)}\n\n{task}"}]
+    try:
+        reply = client.chat(messages, thinking=False, stream=False, seed=42, sampling={"temperature": 0},
+                            schema=SIMPLE_SCHEMA, schema_name="change_explanation", max_tokens=700)
+    except Exception as exc:  # noqa: BLE001 - the request could not be sent at all
+        raise ConnectionLost(str(exc)) from exc
+    usage = reply.usage or {}
+    step = {"seconds": round(getattr(reply, "seconds", 0.0) or 0.0, 3), "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"), "finish_reason": getattr(reply, "finish_reason", None)}
+    if not reply.ok:
+        if reply.error_kind == "context_limit":
+            return None, {**step, "error": "context limit"}
+        raise ConnectionLost(client.clean(reply.error or f"Model request failed ({reply.error_kind})."))
+    candidate, error = reply.parse_json()
+    text = candidate.get("explanation") if isinstance(candidate, dict) else None
+    if not isinstance(text, str) or not squash(text):
+        raw = squash(reply.content or "")
+        return (raw[:EXPLANATION_LIMIT] if raw and not raw.startswith("{") else None), {**step, "error": error or "empty"}
+    return squash(text), {**step, "error": None}
 
 
-def failure_kind(message: str) -> str:
-    """A short category for a failed part, for summary.json."""
-    for kind, pattern in (("CONTEXT_LIMIT", r"too long"), ("ANSWER_CUT_OFF", r"cut off|finish_reason=length"),
-                          ("SUBJECT", r"does not name .* contracts"), ("COMPARISON_WITHOUT_OLD", r"compares with"),
-                          ("NEW_CLAIM_IN_REMOVAL", r"nothing is new"), ("DATE", r"\bdate\b|Date \d"),
-                          ("UNSUPPORTED_NUMBER", r"does not occur|number"), ("EVIDENCE", r"evidence|cites a passage"),
-                          ("INCOMPLETE_FACT", r"Fact \d+ needs|needs at least one fact"),
-                          ("EDITORIAL", r"EDITORIAL"), ("LANGUAGE", r"Write everything in"),
-                          ("FORMAT", r"must hold exactly|JSON")):
-        if re.search(pattern, message, re.I):
-            return kind
-    return "OTHER"
+def change_title(line: dict, language: str) -> str:
+    """A short title built by code: "Article 14 paragraph 1 ersetzt"."""
+    label = OPERATION_LABEL[language].get(line["operation"], "") or KIND_LABEL[language].get(line["operation"], "")
+    return " ".join(part for part in (line["place"], label) if part).strip() or line["operation"]
 
 
 def explain(client, systems, item, log, routing=None, part_dir=None):
-    """Explain every single change of an item as its own unit. Successful parts are kept (checkpoints in
-    part_dir); a later start asks again only the failed parts. Outcome: EXPLAINED, PARTIAL or (raised) FAILED."""
-    routing = routing or {}
-    facts = item_facts(item)
-    flags = review_reasons({"facts": facts, "routing": routing, "kind": item["kind"],
-                            "explanation": {"significance": "SUBSTANTIVE"}})
-    context = routing if "PROVISION_RELEVANCE_UNVERIFIED" not in flags else None
-    units = item["records"] if item["kind"] == "PROVISION" else item["records"][:1]
-    parts, answers = [], []
-    for position, record in enumerate(units, 1):
-        single = {**item, "records": [one_change(record)] if item["kind"] == "PROVISION" else [record]}
-        base = {"position": position, "change_id": record.get("change_id"), "place": record.get("provision") or ""}
-        reason = missing_reason(single)
-        if reason:
-            parts.append({**base, "status": "MISSING_EVIDENCE", "reason": reason})
+    """Explain every single change of an item. Returns (prompt name, explanation) with one line per change."""
+    first = item["records"][0]
+    relation = first["relation"]
+    records = item["records"] if item["kind"] == "PROVISION" else item["records"][:1]
+    lines, asked, failed = [], 0, 0
+    for position, record in enumerate(records, 1):
+        record = one_change(record) if item["kind"] == "PROVISION" else record
+        case = change_case(item["kind"], record, relation)
+        day = record.get("effective_from") or (first.get("valid_from") if item["kind"] != "PROVISION" else None)
+        line = {"change_id": record.get("change_id"), "place": record.get("provision") or "",
+                "operation": (record.get("operation") or relation or "OTHER").upper(), "case": case,
+                "effective_from": str(day)[:10] if day else None,
+                "effective_source": record.get("effective_source") or ("CHANGE" if day else "MISSING"),
+                "explanation": None, "remarks": []}
+        if not day and item["kind"] != "CORRIGENDUM":
+            line["remarks"].append("NO_DATE")
+        if case == "REMOVED":
+            line["remarks"].insert(0, "REMOVED_REPEAL" if line["operation"] in {"REPEAL", "REPEALS"} or
+                                   relation == "REPEALS" else "REMOVED_DELETE")
+            lines.append(line)
+            continue
+        if case == "IMPLICIT_REPEAL":
+            line["remarks"].insert(0, "SCOPE")
+            lines.append(line)
+            continue
+        sent, remarks = simple_request(item, record, case)
+        line["remarks"] = remarks + line["remarks"]
+        if sent is None:
+            lines.append(line)
             continue
         checkpoint = part_dir / f"{position}.json" if part_dir is not None else None
         saved = read_json(checkpoint) if checkpoint is not None and checkpoint.is_file() else {}
-        if saved.get("status") == "OK":
-            answers.append((saved["prompt"], record, saved["answer"]))
-            parts.append({**base, "status": "OK", "situation": saved["answer"].get("situation")})
-            continue
-        name = "corrigendum" if item["kind"] == "CORRIGENDUM" else "change"
-        unit = build_unit(item, record, context)
-        tokens = min(4000, 1600 + 120 * len(unit["evidence"]))
-        try:
-            answer, trace = ask_unit(client, systems[name], unit, TASKS[name], f"{name}_explanation", LANGUAGE, tokens)
-        except PartFailed as exc:
-            log.extend({k: v for k, v in step.items() if k != "answer"} for step in exc.trace["attempts"])
-            parts.append({**base, "status": "FAILED", "error": str(exc), "kind": failure_kind(str(exc)),
-                          "situation": unit["situation"]})
+        if saved.get("explanation"):
+            line["explanation"] = saved["explanation"]
+        else:
+            name = "corrigendum" if case == "CORRECTION" else "change"
+            text, step = ask_simple(client, systems[name], sent, TASKS[name])
+            log.append(step)
+            asked += 1
+            line["explanation"] = text
             if checkpoint is not None:
-                write_json(checkpoint, {"status": "FAILED", "error": str(exc), "kind": failure_kind(str(exc)),
-                                        **exc.trace})
-            continue
-        log.extend({k: v for k, v in step.items() if k != "answer"} for step in trace["attempts"])
-        if checkpoint is not None:
-            write_json(checkpoint, {"status": "OK", "prompt": name, "answer": answer, **trace})
-        answers.append((name, record, answer))
-        parts.append({**base, "status": "OK", "situation": unit["situation"]})
-    failed = [p for p in parts if p["status"] == "FAILED"]
-    if not answers:
-        if failed:
-            raise Unclassified(" | ".join(f"{p['place'] or p['change_id']}: {p['error']}" for p in failed[:4]))
-        raise Unclassified("The individual changes have no usable evidence.")
-    return combine(answers, parts)
+                write_json(checkpoint, {"status": "OK" if text else "FAILED", "sent": sent, "explanation": text,
+                                        "answer": step})
+        if not line["explanation"]:
+            line["remarks"].append("NO_ANSWER")
+            failed += 1
+        lines.append(line)
+    explained = [line for line in lines if line["explanation"]]
+    if failed and not explained:
+        raise Unclassified("No explanation could be written for the changes of this item.")
+    language = LANGUAGE
+    for line in lines:
+        line["remark_texts"] = [REMARKS[language][code] for code in line["remarks"]]
+        line["title"] = change_title(line, language)
+    outcome = "PARTIAL" if failed else ("EXPLAINED" if explained else "NO_EXPLANATION_NEEDED")
+    days = sorted({line["effective_from"] for line in lines if line["effective_from"]})
+    dates = [{"what": "gilt ab" if language == "de" else "applies from", "date": day, "source": "DATABASE"}
+             for day in days]
+    text = " ".join(f"{line['place']}: {line['explanation']}" if line["place"] and len(lines) > 1
+                    else line["explanation"] for line in explained)
+    name = "corrigendum" if item["kind"] == "CORRIGENDUM" else "change"
+    return name, {"headline": "; ".join(dict.fromkeys(line["title"] for line in lines))[:200],
+                  "what_changed" if item["kind"] != "CORRIGENDUM" else "what_was_wrong": text,
+                  "changes": lines, "dates": dates, "facts": [], "outcome": outcome,
+                  "missing_changes": [line["place"] or line["change_id"] for line in lines if "NO_ANSWER" in line["remarks"]]}
 
 
-def combine(answers, parts) -> tuple[str, dict]:
-    """One explanation for the item from its explained parts; the missing parts stay listed."""
-    name, _, first = answers[0]
-    missing = [p["place"] or p["change_id"] for p in parts if p["status"] != "OK"]
-    outcome = "PARTIAL" if missing else "EXPLAINED"
-    if len(answers) == 1:
-        return name, {**first, "outcome": outcome, "parts": parts, "missing_changes": missing}
-    statuses = {a.get("significance") for _, _, a in answers}
-    significance = ("UNCLEAR" if missing or "UNCLEAR" in statuses
-                    else "SUBSTANTIVE" if "SUBSTANTIVE" in statuses else "EDITORIAL")
-    text = " ".join(f"{a.get('place') or ''}: {a.get('what_changed') or a.get('what_was_wrong')}".strip(": ")
-                    for _, _, a in answers)
-    dates, seen = [], set()
-    for _, _, answer in answers:
-        for date in answer.get("dates", []):
-            key = (date["what"], date["date"], date.get("auto") and answer.get("place"))
-            if key not in seen:
-                seen.add(key)
-                dates.append({**date, "place": answer.get("place")})
-    return name, {**first, "what_changed": text, "significance": significance, "outcome": outcome,
-                  "importance": " ".join(dict.fromkeys(a["importance"] for _, _, a in answers if a["importance"])),
-                  "to_confirm": " ".join(dict.fromkeys(a["to_confirm"] for _, _, a in answers if a["to_confirm"])),
-                  "facts": [f for _, _, a in answers for f in a["facts"]], "dates": dates,
-                  "parts": parts, "missing_changes": missing}
+def failure_kind(message: str) -> str:
+    return "NO_ANSWER" if message else "OTHER"
 
 
 # ------------------------------------------------------------------ routing
@@ -1107,9 +530,8 @@ def review_reasons(record):
 
 
 def goes_to_inbox(record) -> bool:
-    explanation = record.get("explanation") or {}
-    significance = explanation.get("significance") or explanation.get("affects")
-    return bool(significance and significance not in {"EDITORIAL", "WORDING_ONLY"} and not review_reasons(record))
+    """Every change routed to a department (DIRECT or INDIRECT) is shown, with its explanation or its remark."""
+    return (record.get("routing") or {}).get("level") in LEVELS and not record.get("scope_review")
 
 
 # ------------------------------------------------------------------ export
@@ -1163,9 +585,12 @@ def change_lines(record, language):
             notes.append(WORDING_NOTE[language]["old"])
         if not text.get("new") and operation not in REMOVALS:
             notes.append(WORDING_NOTE[language]["new"])
+        explained = ((record.get("explanation") or {}).get("changes") or [])
+        done = next((line for line in explained if line.get("change_id") == change.get("change_id")), {})
         lines.append({**change, "operation_label": OPERATION_LABEL[language].get(operation, operation),
                       "old_text": (text.get("old") or "")[:4000], "new_text": (text.get("new") or "")[:4000],
-                      "wording_notes": notes})
+                      "wording_notes": notes, "explanation": done.get("explanation"),
+                      "remarks": done.get("remark_texts", [])})
     return lines
 
 
@@ -1203,45 +628,32 @@ details{margin-top:6px}pre{white-space:pre-wrap;font-size:12px;background:#f7f7f
 
 
 def card_html(card, language):
+    """A preview of the department card: per change the place, what was done, the date from the database, Qwen's
+    explanation and the remarks; the old and new wording behind a toggle."""
     e = html.escape
     out = [f'<div class="card"><h2>{e(card["title"] or card["celex"])}</h2>'
            f'<div class="meta">{e(card["celex"])}{" · " + e(", ".join(card["role"]["labels"])) if card.get("role") else ""}'
            f' · <a href="{e(card["eurlex_url"])}">EUR-Lex</a></div>']
     for change in card["changes"]:
         out.append(f'<div class="change"><span class="tag {e(change["label"])}">{e(change["label"])}</span>'
-                   f'<b>{e(change["provision"] or "")} {e(change["headline"])}</b>'
-                   f'<div class="meta">{e(change["changing"]["celex"])} {e(change["changing"]["title"][:120])}'
-                   f'{" · ab " + e(change["effective_from"]) if change["effective_from"] else ""}</div>'
-                   f'<p>{e(change["text"])}</p>')
-        if change.get("importance"):
-            out.append(f'<p><b>{"Warum wichtig für Max Bögl" if language == "de" else "Why it matters for Max Bögl"}:'
-                       f'</b> {e(change["importance"])}'
-                       + (f' <i>{e(change["to_confirm"])}</i>' if change.get("to_confirm") else "") + "</p>")
-        for line in change.get("changes") or []:
-            out.append(f'<div class="fact">{e(line.get("provision") or "")} · {e(line.get("operation_label") or "")}'
-                       f'{" · " + e(line["effective_from"]) + " (" + e(line["effective_source"]) + ")" if line.get("effective_from") else ""}'
-                       + "".join(f' · <span class="note">{e(n)}</span>' for n in line.get("wording_notes") or [])
-                       + "</div>")
-        for fact in change["facts"]:
-            out.append(f'<div class="fact">{e(fact.get("place") or "")} {e(fact["what"])}: '
-                       f'<span class="before">{e(fact["before"])}</span> → <span class="after">{e(fact["after"])}</span>'
-                       + "".join(f'<div class="note">{e(q["type"])} {e(q["ref"])}: „{e(q["text"][:300])}“</div>'
-                                 for q in fact.get("before_evidence", []) + fact.get("after_evidence", []))
-                       + "</div>")
-        for day in change["dates"]:
-            source = f' ({e(day["source"])})' if day.get("source") else ""
-            out.append(f'<div class="fact">{e(day["what"])}: <b>{e(day["date"])}</b>{source}</div>')
-        if change.get("missing_parts"):
-            out.append(f'<p class="note">{"Nicht erklärt" if language == "de" else "Not explained"}: '
-                       f'{e(", ".join(change["missing_parts"]))}</p>')
-        if change.get("review_reasons"):
-            out.append(f'<p class="note">{"Prüfung" if language == "de" else "Review"}: '
-                       f'{e(", ".join(change["review_reasons"]))}</p>')
-        if any(line["old_text"] or line["new_text"] for line in change.get("changes") or []):
+                   f'<span class="meta">{e(change["changing"]["celex"])} {e(change["changing"]["title"][:120])}</span>')
+        lines = change.get("changes") or []
+        for line in lines:
+            out.append(f'<div class="fact"><b>{e(line.get("provision") or "")}</b> · {e(line.get("operation_label") or "")}'
+                       f'{" · ab " + e(line["effective_from"]) if line.get("effective_from") else ""}</div>')
+            if line.get("explanation"):
+                out.append(f'<p>{e(line["explanation"])}</p>')
+            for remark in line.get("remarks") or []:
+                out.append(f'<div class="note">{e(remark)}</div>')
+        if not lines and change.get("text"):
+            out.append(f'<p>{e(change["text"])}</p>')
+        if not lines and not change.get("text"):
+            out.append(f'<p>{e(change["headline"])}</p>')
+        if any(line["old_text"] or line["new_text"] for line in lines):
             out.append(f'<details><summary>{"Wortlaut vorher / nachher" if language == "de" else "Old / new wording"}'
                        '</summary>' + "".join(f'<p class="meta">{e(line.get("provision") or "")}</p>'
                                               f'<pre>{e(line["old_text"])}</pre><pre>{e(line["new_text"])}</pre>'
-                                              for line in change["changes"] if line["old_text"] or line["new_text"])
+                                              for line in lines if line["old_text"] or line["new_text"])
                        + '</details>')
         out.append("</div>")
     out.append(f'<div class="note">{e(NOTE[language])}</div></div>')
@@ -1530,8 +942,8 @@ def outcome_counts(out: Path, planned, records) -> dict:
             if part.get("status") == "FAILED":
                 kinds[part.get("kind") or failure_kind(part.get("error", ""))] += 1
                 diagnosable.append(str(path.relative_to(out)))
-    return {"outcomes": {k: items[k] for k in ("EXPLAINED", "PARTIAL", "FAILED", "MISSING_EVIDENCE", "SCOPE_REVIEW",
-                                                "OPEN")},
+    return {"outcomes": {k: items[k] for k in ("EXPLAINED", "NO_EXPLANATION_NEEDED", "PARTIAL", "FAILED",
+                                                "MISSING_EVIDENCE", "SCOPE_REVIEW", "OPEN")},
             "parts": dict(parts), "failed_part_kinds": dict(kinds.most_common()),
             "failed_part_files": diagnosable[:200]}
 
@@ -1585,7 +997,6 @@ def main(argv=None):
         return 1
     items = build_items(records)
     roles = act_roles(records, args.export_dir)
-    BUSINESS_AREAS.update(load_business_areas(ROOT / "config" / f"business_anchors_{args.language}.yaml"))
     if args.celex:
         wanted = {c.strip().upper() for c in args.celex}
         items = [i for i in items if {i["records"][0]["changed"]["celex"], i["records"][0]["changing"]["celex"]} & wanted]
@@ -1613,8 +1024,8 @@ def main(argv=None):
     if not items:
         print("Nothing to explain.", file=sys.stderr)
         return 1
-    fingerprint = sha([systems, TASKS, SITUATIONS, DATE_KINDS, sorted(CATEGORY_TERMS), LIMITS, ACT_SCHEMA,
-                       args.language, CORE_VERSION, planned, results, args.link_template])
+    fingerprint = sha([systems, TASKS, SIMPLE_SCHEMA, ACT_SCHEMA, args.language, CORE_VERSION, planned, results,
+                       args.link_template])
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
         print("The inputs or settings changed since this folder was started. Use a new --output-dir.",
