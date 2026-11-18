@@ -1,4 +1,4 @@
-"""Tests of explain_eurlex_changes.py (v2.0, simple explanations) with a stand-in Qwen client."""
+"""Tests of explain_eurlex_changes.py (v2.0 / v2.1, simple explanations) with a stand-in Qwen client."""
 
 import csv
 import json
@@ -190,6 +190,43 @@ class SimpleTests(unittest.TestCase):
         self.assertEqual(client.calls, [])
         self.assertEqual(explain.explain(client, SYSTEMS, explain.build_items([deleted])[0], [])[1]["changes"][0]
                          ["remark_texts"], ["Gestrichen."])
+
+    def test_v21_deleted_in_the_amending_act_is_not_sent_even_when_the_database_says_other(self):
+        mixed = ("(5) paragraph 1 of Article 32 is amended as follows: (a) point (c) is replaced by the following: "
+                 "‘(c) the drawing up of guidelines;’; (b) points (d) and (e) are deleted; (c) points (f) and (g) are "
+                 "replaced by the following: ‘(f) preliminary work; (g) technical assistance;’;")
+        self.assertTrue(explain.deletes_place("(3) in Article 2, points 1, 2, 14 and 19 are deleted;", "Article 2 point 19"))
+        self.assertTrue(explain.deletes_place("(4) Chapter III, containing Articles 15 to 29, is deleted;",
+                                              "Chapter III Article 20"))
+        self.assertTrue(explain.deletes_place(mixed, "Article 32 paragraph 1 point (d)"))
+        self.assertTrue(explain.deletes_place(mixed, "Article 32 paragraph 1 point (e)"))
+        self.assertFalse(explain.deletes_place(mixed, "Article 32 paragraph 1 point (c)"))
+        self.assertFalse(explain.deletes_place(mixed, "Article 32 paragraph 1 point (f)"))
+        self.assertFalse(explain.deletes_place("(1) the title is replaced by the following: ‘Points are deleted’",
+                                               "Title"))
+        record = provision("5", "2", "OTHER", None, None, "(3) in Article 2, points 1, 2 and 19 are deleted;",
+                           "INSTRUCTION_ONLY", place="Article 2 point 19")
+        client = ready_client()
+        line = explain.explain(client, SYSTEMS, explain.build_items([record])[0], [])[1]["changes"][0]
+        self.assertEqual((line["case"], line["operation"], line["remark_texts"]), ("REMOVED", "DELETE", ["Gestrichen."]))
+        self.assertEqual(client.calls, [])
+        added = provision("6", "2", "ADD", None, "x", "(3) point 20 is added and point 19 is deleted;", "NEW_ONLY")
+        self.assertEqual(explain.change_case("PROVISION", added, "AMENDS"), "ADDED")   # additions stay additions
+
+    def test_v21_the_whole_article_goes_along_as_background(self):
+        record = provision("7", "32", "REPLACE", None, None, "(a) point (c) is replaced by the following: ‘(c) new.’",
+                           "INSTRUCTION_ONLY", place="Article 32 paragraph 1 point (c)", heading="Financing",
+                           article_before={"version_date": "2008-08-13", "text": "1. (c) old guidelines; (d) studies."},
+                           article_now={"version_date": "2021-07-16", "text": "1. (c) new."})
+        item = explain.build_items([record])[0]
+        sent, remarks = explain.simple_request(item, record, "CHANGED")
+        self.assertEqual(sent["article_heading"], "Financing")
+        self.assertEqual(sent["article_before"], {"version_date": "2008-08-13", "text": "1. (c) old guidelines; (d) studies."})
+        self.assertEqual(sent["article_now"]["text"], "1. (c) new.")
+        self.assertEqual(remarks, ["NEW_MISSING"])
+        plain = provision("8", "32", "REPLACE", None, None, "(a) point (c) is replaced.", "INSTRUCTION_ONLY")
+        sent, _ = explain.simple_request(explain.build_items([plain])[0], plain, "CHANGED")
+        self.assertNotIn("article_before", sent)                        # older exports still work
 
     def test_an_article_with_several_changes_and_a_missing_answer(self):
         records = [article_14(1, P1_OLD, P1_NEW, "MATCHED_STORED_EVIDENCE"),

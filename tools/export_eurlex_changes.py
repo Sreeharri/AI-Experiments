@@ -58,7 +58,8 @@ LINKS_ONLY = {"COMPLETES", "ADDS_TO", "IMPLEMENTS", "INCORPORATES", "CONFIRMS", 
 
 STOP_FETCH_AFTER = 25       # EUR-Lex not reachable this often in a row (and never reached): stop asking
 TEXT_LIMIT = 12000
-CONTEXT_LIMIT = 1500        # current wording of the exact place, to know what a point is about          # characters of old or new text kept per record
+CONTEXT_LIMIT = 1500        # current wording of the exact place, to know what a point is about
+ARTICLE_LIMIT = 5000        # the whole changed article or annex (before the change and now), as background
 INSTRUCTION_LIMIT = 6000
 FINAL_ARTICLE_LIMIT = 1500
 MAX_FINAL_ARTICLES = 4
@@ -77,6 +78,14 @@ ACT_BLOCK = re.compile(  # "Directive 2010/75/EU is amended as follows" / "In Re
     r"(?:is|are) (?:hereby )?(?:amended|corrected)|\bIn (?:Directive|Regulation|Decision|Implementing Regulation|"
     r"Delegated Regulation)[^.;:]{0,60}?(?<![\d/])(\d{1,4})/(\d{1,4})(?![\d]))", re.I)
 POINT_START = re.compile(r"(?:^|(?<=\s))\(\d+[a-z]?\)\s+(?=[A-Za-z‘])")
+# "(2) in Annex I, point 21 ... is replaced by the following": clearly the next instruction, even when the quote of
+# the point before was never closed (footnote marks often break the closing quote).
+NEXT_INSTRUCTION = re.compile(r"in\s+(?:Article|Annex|Artikel|Anhang)\s+[0-9IVXLCDM]+[a-z]*\b[^‘“„]{0,200}?"
+                              r"\b(?:is|are)\s+(?:replaced|amended|deleted|inserted|added)\b", re.I)
+# Places that are not an article or an annex: "Chapter III", "Section 2", "Title" (the act's title).
+PLACE_WORD = re.compile(r"\b(Chapter|Section|Part|Title|Recital|Kapitel|Abschnitt|Teil|Titel)\b"
+                        r"(?:\s+([0-9]+[a-z]*|[IVXLCDM]+[a-z]?)\b)?", re.I)
+CHANGE_VERBS = r"(?:replaced|deleted|inserted|added|amended|repealed|corrected|renumbered|supplemented|modified)"
 _LOC = r"(?:On page|Page|Auf Seite|Seite)\s+\d"
 _END = rf"(?=\s*[.;,]?\s*(?:$|\n|{_LOC}|(?:for|instead of|anstatt|statt)\s*:))"
 CORRECTION = re.compile(
@@ -152,8 +161,9 @@ def split_points(text: str) -> list[str]:
     """Split an amending article into its numbered points (1), (2), ... but never inside quoted new text."""
     cuts = [0]
     for match in POINT_START.finditer(text):
-        before = text[:match.start()]
-        if before.count("‘") - before.count("’") <= 0 and before.count("“") - before.count("”") <= 0:
+        before = text[cuts[-1]:match.start()]
+        if before.count("‘") - before.count("’") <= 0 and before.count("“") - before.count("”") <= 0 or \
+                NEXT_INSTRUCTION.match(text, match.end()):
             cuts.append(match.start())
     cuts.append(len(text))
     return [text[a:b].strip() for a, b in zip(cuts, cuts[1:]) if text[a:b].strip()]
@@ -234,14 +244,12 @@ def changes_root(point: str, root: tuple[str, str]) -> bool:
     "Article 4 is replaced by ...", "the following Article 11b is inserted: ‘Article 11b ...’").
     Article numbers inside the quoted new wording do not count: they are references of the new text."""
     ref, text = root_ref(root), unquoted(point)
-    verbs = r"(?:replaced|deleted|inserted|added|amended|repealed|corrected|renumbered|supplemented|modified)"
-    patterns = [rf"^\W*(?:\(\w+\)\s*)*(?:in|In)\s+{ref}",
-                rf"{ref}[^.;:‘]{{0,160}}?\b(?:is|are|shall be)\s+(?:hereby\s+)?{verbs}",
-                rf"\bfollowing\s+{ref}",
-                rf"(?:^|\W)(?:In\s+)?{ref}[^.;:‘]{{0,160}}?\b(?:wird|werden)\b[^.;:‘]{{0,100}}?"
-                rf"(?:ersetzt|gestrichen|eingefügt|angefügt|geändert|aufgehoben|gefasst)"]
-    if any(re.search(pattern, text, re.I if i else 0) for i, pattern in enumerate(patterns)):
+    if names_place(text, ref):
         return True
+    if root[0] == "article" and root[1].isdigit():   # "Chapter III, containing Articles 15 to 29, is deleted"
+        for match in re.finditer(r"\b(?:Articles|Artikel)\s+(\d+)\s*(?:to|bis|–|-)\s*(\d+)\b", text, re.I):
+            if int(match.group(1)) < int(root[1]) < int(match.group(2)) and names_place(text, re.escape(match.group(0))):
+                return True
     if root[0] == "annex" and re.search(r"\b(?:is|are) amended (?:as set out in|in accordance with)\s+(?:the\s+)?"
                                         r"Annex(?:\s+[IVXLC0-9]+)?\s+to\s+this\b", text, re.I) \
             and not re.search(r"\b(?:Articles?|Artikel|Annex(?:es)?|Anh(?:a|ä)nge?)\s+[0-9IVXLC]", text.split(" amended ")[0]):
@@ -249,6 +257,63 @@ def changes_root(point: str, root: tuple[str, str]) -> bool:
     if re.search(r"\b(?:inserted|added|replaced|eingefügt|angefügt|ersetzt)\b", text, re.I):
         return any(re.match(rf"\s*{ref}", q, re.I) for q in quoted(point))
     return False
+
+
+def names_place(text: str, ref: str) -> bool:
+    """True when the (unquoted) text of an amending point changes the place matched by the pattern `ref`."""
+    patterns = [rf"^\W*(?:\(\w+\)\s*)*(?:in|In)\s+{ref}",
+                rf"{ref}[^.;:‘]{{0,160}}?\b(?:is|are|shall be)\s+(?:hereby\s+)?{CHANGE_VERBS}",
+                rf"\bfollowing\s+{ref}",
+                rf"(?:^|\W)(?:In\s+)?{ref}[^.;:‘]{{0,160}}?\b(?:wird|werden)\b[^.;:‘]{{0,100}}?"
+                rf"(?:ersetzt|gestrichen|eingefügt|angefügt|geändert|aufgehoben|gefasst)"]
+    return any(re.search(pattern, text, re.I if i else 0) for i, pattern in enumerate(patterns))
+
+
+BOUNDARY = re.compile(r"(?:(?<=[;:])|(?<=[^\d\s.]\.))\s+(?=\S)")   # after ; : or a sentence end, not "81."
+
+
+def around_place(text: str, place: str, limit: int = ARTICLE_LIMIT) -> str:
+    """A long article cut to `limit` characters around the changed place: the place itself and as much as fits of
+    the text just before and after it (cut at sentence or point ends), with "…" where text is left out. Place not in
+    this version (for example a new point in the version before the change): the beginning of the article."""
+    if len(text) <= limit:
+        return text
+    room = limit - 4                                  # for the two "… " marks
+    position = text.find(place) if place else -1
+    if position < 0:
+        cut = max((m.start() for m in BOUNDARY.finditer(text, 0, room) if m.start() > room // 2), default=room)
+        return text[:cut].rstrip() + " …"
+    if len(place) >= room:
+        return ("… " if position else "") + place[:room].rstrip() + " …"
+    start = max(0, position - (room - len(place)) // 2)
+    end = min(len(text), start + room)
+    start = max(0, end - room)
+    if start > 0:                                     # begin after a sentence or point end
+        starts = [m.end() for m in BOUNDARY.finditer(text, start, position + 1)]
+        start = starts[0] if starts else start
+    if end < len(text):                               # end at a sentence or point end
+        ends = [m.start() for m in BOUNDARY.finditer(text, position + len(place) - 1, end)]
+        end = ends[-1] if ends else end
+    return ("… " if start > 0 else "") + text[start:end].strip() + (" …" if end < len(text) else "")
+
+
+def place_instruction(elements: list[dict], changed_celex: str, locator: str) -> tuple[str, str | None]:
+    """(text, element identifier) of the points that change a place that is not an article or an annex:
+    "Chapter III" ("(4) Chapter III, containing Articles 15 to 29, is deleted"), "Title" ("(1) the title is
+    replaced by ..."). No such point: no instruction."""
+    match = PLACE_WORD.search(locator or "")
+    if not match:
+        return "", None
+    word, number = match.group(1), match.group(2)
+    ref = rf"(?:the\s+)?{re.escape(word)}s?\s+{re.escape(number)}(?![0-9a-z])" if number else \
+        rf"\bthe\s+{re.escape(word)}(?!\s+(?:[0-9]+|[IVXLCDM]+)\b)"
+    forms = act_forms(changed_celex)
+    for element in (e for e in elements if cites(e["text"], forms)):
+        for block in act_blocks(element["text"], forms):
+            hits = [p for p in split_points(block) if names_place(unquoted(p), ref)]
+            if hits:
+                return " ".join(hits)[:INSTRUCTION_LIMIT], element["identifier"]
+    return "", None
 
 
 def instruction_for(elements: list[dict], changed_celex: str, root: tuple[str, str] | None) -> tuple[str, str | None]:
@@ -497,6 +562,57 @@ class Store:
                 break
         return heading or None, context or None
 
+    def article_texts(self, row: dict, rel: dict, day) -> tuple[dict | None, dict | None]:
+        """The whole changed article or annex from the database: (before the change, now), each
+        {"version_date", "text"}. Only background for Qwen to understand the place; the UI wording stays the
+        backend's. Before = the newest version dated before the change (else the original); now = the newest version.
+        Both from the same version: only "now". A long article keeps the part around the changed place (see
+        around_place); a short one goes whole."""
+        if self.wording is None or not row.get("target_provision"):
+            return None, None
+        try:
+            index = self.backend_index(rel["changed_document"], rel["changed_celex"])
+            target = self.wording.module.locator(row["target_provision"])
+            whole = self.wording.module.Locator(target.kind, target.number, ()) if target else None
+        except Exception:  # noqa: BLE001 - background text is optional
+            return None, None
+        if whole is None:
+            return None, None
+        day = _date(day) if day else None
+
+        def first_text(versions):
+            for version in versions:
+                try:
+                    found = index.selection([version], whole)
+                except Exception:  # noqa: BLE001
+                    found = None
+                if found and clean(found[0]):
+                    text = clean(found[0])
+                    if len(text) > ARTICLE_LIMIT:
+                        try:
+                            place = index.selection([version], target) if target.tokens else None
+                        except Exception:  # noqa: BLE001
+                            place = None
+                        text = around_place(text, clean(place[0]) if place else "")
+                    when = version.get("version_date")
+                    return {"version_id": str(version["id"]), "version_date": str(when)[:10] if when else None,
+                            "text": text}
+            return None
+        newest = sorted(index.versions, key=lambda v: (bool(v.get("is_current")), v.get("version_date") or date.min),
+                        reverse=True)
+        try:
+            earlier = index.before(day) if day else index.originals()
+        except Exception:  # noqa: BLE001
+            earlier = []
+        now, before = first_text(newest), first_text(earlier)
+        if before and now and (before["version_id"] == now["version_id"] or signature(before["text"]) ==
+                               signature(now["text"])):
+            before = None
+        for part in (before, now):
+            if part:
+                part.pop("version_id")
+        return before, now
+
     def online(self, celex: str, languages=("EN",)) -> tuple[str, str]:
         """(text, language) from EUR-Lex, or ("", status) with status MISSING (no such language) / ERROR / OFF."""
         if self.fetch_dir is None or not celex:
@@ -645,8 +761,10 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
             day, day_source = change_day(row, rel)
             operation = (row["operation"] or "OTHER").upper()
             instruction, instruction_locator = instruction_for(changing_elements, rel["changed_celex"], root)
-            if root is None and whole_part:    # place not readable ("Title", ""): the act's whole amending part
-                instruction, instruction_locator = whole_part, None
+            if root is None:                    # "Chapter III", "Title": the points about that place
+                instruction, instruction_locator = place_instruction(changing_elements, rel["changed_celex"], locator)
+            if root is None and not instruction and whole_part and not PLACE_WORD.search(locator or ""):
+                instruction, instruction_locator = whole_part, None   # no place at all: the whole amending part
             annex = changing_annex(instruction, changing_elements)
             if annex:                           # the amendments or the new wording stand in the changing act's annex
                 instruction = f"{instruction} {annex[1]}"[:INSTRUCTION_LIMIT]
@@ -670,6 +788,7 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
                 old = new = None
                 status = "NOT_MAPPED"
             heading, point_context = store.place_context(row, rel) if both_eurlex else (None, None)
+            article_before, article_now = store.article_texts(row, rel, day) if both_eurlex else (None, None)
             trimmed = False
             if old and new:
                 old, new, trimmed = changed_regions(old, new)
@@ -688,6 +807,7 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
                             "effective_source": day_source, "effective_to": row["effective_to"],
                             "old_text": old, "new_text": new, "comparison_status": status,
                             "heading": heading, "point_context": point_context,
+                            "article_before": article_before, "article_now": article_now,
                             "instruction": instruction, "instruction_locator": instruction_locator,
                             "wording": wording, "wording_source": "BACKEND" if status != "NOT_MAPPED" else "NONE",
                             "trimmed": trimmed})

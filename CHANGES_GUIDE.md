@@ -1,8 +1,27 @@
 # Legal Radar – Changes step (guide)
 
-Status 18 Nov 2026 (v2.0, simple explanations). Explains amendments, repeals, corrigenda and other changes between EUR-Lex acts and routes them to the departments. Plan and background: `claude/legal-radar-changes-plan.md`.
+Status 18 Nov 2026 (v2.2, simple explanations with the whole article as background). Explains amendments, repeals, corrigenda and other changes between EUR-Lex acts and routes them to the departments. Plan and background: `claude/legal-radar-changes-plan.md`.
 
-## v2.0: simple explanations (current)
+## v2.2: long articles
+
+An article or annex longer than 5,000 characters is no longer cut at the end. It keeps the changed paragraph or point and as much as fits of the text just before and after it, cut at sentence or point ends, with "…" where text is left out. Short articles still go whole. Where the place is not in a version (for example a new point in the version before the change), that version keeps its beginning. Tests: 29.
+
+## v2.1: whole article as background, deletions from the amending act
+
+Run v8 on 2019/1020: Qwen answered all 28 requests; 22 were right, 6 wrong. The 6 wrong ones had no old text (Qwen made up an "instead of", 765/2008 Art. 32(1)) or a wrong amending sentence (765/2008 Chapter III and Title). v2.1 stays simple: still no checks, nothing rejected.
+
+| Change | What it does |
+|---|---|
+| Whole article from the database | The export adds `article_before` (the changed article or annex in the newest version dated before the change, else the original) and `article_now` (newest version), each with its version date, at most 5,000 characters. Qwen gets them with the heading as background to understand the place; without old text it can find the old wording there. Same version or same text: only `article_now`. |
+| Deleted, even when the database says OTHER | When the amending act's own words say the place is deleted ("points 1, 2 and 19 are deleted", "Chapter III, containing Articles 15 to 29, is deleted", "(b) points (d) and (e) are deleted"), the change is a deletion: not sent to Qwen, shown as "Gestrichen." (or "Aufgehoben."). Additions stay additions. |
+| Article ranges | "Articles 15 to 29" now also finds Articles 16 to 28 (13 changes of 765/2008 had no text before; now they are deletions). |
+| Chapters and titles | For places like "Chapter III" or "Title", the export takes the amending point about that place ("(1) the title is replaced by …"), no longer the whole amending part of the act. |
+| Broken closing quotes | "(2) in Annex I, point 21 … is replaced" is split off even when the quote of point (1) was never closed (footnote marks). 2023/1542 Annex I gets its own sentence; Art. 4(5) no longer carries it. |
+| Prompt | Without old text: no "instead of … now …", only what the place says now (or compare with the old wording from `article_before`). Only the change at `place`; other points of the instruction or the article are left out. German only. |
+
+A new export is needed (new fields). Tests: 28 (2 need the test database).
+
+## v2.0: simple explanations
 
 The checks of v1.6/v1.7 rejected too much (v7: 5 of 40 explained, v5 had 21). v2.0 keeps it simple, like the other AI steps:
 
@@ -160,7 +179,7 @@ cd C:\Users\sthirumalair\AI-Experiments
 $f = Get-ChildItem C:\Users\sthirumalair\project -Recurse -Filter eurlex_wording.py -ErrorAction SilentlyContinue | Select-Object -First 1
 $env:LR_BACKEND_DIR = $f.Directory.Parent.Parent.FullName; $env:LR_BACKEND_DIR
 
-# 1. code tests, no Qwen and no database needed - must end with "Ran 25 tests" and "OK (skipped=2)"
+# 1. code tests, no Qwen and no database needed - must end with "Ran 29 tests" and "OK (skipped=2)"
 & .\.venv\Scripts\python.exe -m unittest tests.test_export_eurlex_changes tests.test_explain_eurlex_changes
 
 # 2a. can this PC reach EUR-Lex? Prints what each of the two sources answered

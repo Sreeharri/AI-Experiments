@@ -50,6 +50,75 @@ class HelperTests(unittest.TestCase):
         self.assertIn("Environmental management system", text)
         self.assertEqual(export.instruction_for(elements, "32010L0075", ("article", "99")), ("", None))
 
+    def test_v21_ranges_chapters_titles_and_broken_quotes(self):
+        text_765 = ("Article 39 Amendments to Regulation (EC) No 765/2008 Regulation (EC) No 765/2008 is amended as "
+                    "follows: (1) the title is replaced by the following: ‘Regulation (EC) No 765/2008 setting out the "
+                    "requirements for accreditation’; (2) in Article 1, paragraphs 2 and 3 are deleted; "
+                    "(4) Chapter III, containing Articles 15 to 29, is deleted;")
+        elements = [{"identifier": "Article 11", "text": "Market surveillance authorities shall act under "
+                                                         "Regulation (EC) No 765/2008 and Chapter III of it."},
+                    {"identifier": "Article 39", "text": text_765}]
+        text, where = export.instruction_for(elements, "32008R0765", ("article", "20"))   # inside 15 to 29
+        self.assertEqual(where, "Article 39")
+        self.assertTrue(text.startswith("(4) Chapter III"))
+        text, _ = export.place_instruction(elements, "32008R0765", "Chapter III")
+        self.assertTrue(text.startswith("(4) Chapter III"))
+        text, _ = export.place_instruction(elements, "32008R0765", "Title")
+        self.assertTrue(text.startswith("(1) the title is replaced"))
+        self.assertEqual(export.place_instruction(elements, "32008R0765", "Chapter IV"), ("", None))
+        broken = ("Regulation (EU) 2019/1020 is amended as follows: (1) in Article 4(5), the text ‘(EU) 2016/425 35 and "
+                  "(EU) 2016/426 36 ’ is replaced by the following: ‘(EU) 2016/425 ( *1 ), (EU) 2016/426 ( *2 ) and "
+                  "(EU) 2023/1542 ( *3 ) (2) in Annex I, point 21 of the list of Union harmonisation legislation is "
+                  "replaced by the following: ‘21. Regulation (EU) 2023/1542 concerning batteries;’.")
+        points = export.split_points(broken)
+        self.assertEqual(len(points), 3)
+        self.assertTrue(points[2].startswith("(2) in Annex I"))
+        text, _ = export.instruction_for([{"identifier": "Article 95", "text": broken}], "32019R1020", ("annex", "i"))
+        self.assertTrue(text.startswith("(2) in Annex I"))
+        text, _ = export.instruction_for([{"identifier": "Article 95", "text": broken}], "32019R1020", ("article", "4"))
+        self.assertNotIn("Annex I", text)
+
+    def test_v22_long_articles_keep_the_part_around_the_changed_place(self):
+        points = [f"{i}. Regulation (EU) No {i}/2020 on product group {i} and its market surveillance;" for i in range(1, 120)]
+        annex = " ".join(points)
+        self.assertEqual(export.around_place("Short article.", "x"), "Short article.")      # short: whole
+        out = export.around_place(annex, points[74], 1000)
+        self.assertLessEqual(len(out), 1000)
+        self.assertIn(points[74], out)                                                 # the changed point
+        self.assertIn(points[73], out)                                                 # and its neighbours
+        self.assertIn(points[75], out)
+        self.assertTrue(out.startswith("… ") and out.endswith(" …"))
+        self.assertRegex(out, r"^… \d+\. Regulation")                                  # starts at a point
+        self.assertRegex(out, r"surveillance; …$")                                     # ends after a point
+        start = export.around_place(annex, "not in this version", 1000)               # place missing: beginning
+        self.assertTrue(start.startswith("1. Regulation") and start.endswith(" …"))
+        last = export.around_place(annex, points[-1], 1000)
+        self.assertTrue(last.endswith(points[-1]))
+
+        class Index:                                                                    # stand-in backend index
+            versions = [{"id": "v1", "version_date": "2019-06-25", "is_current": True}]
+
+            def selection(self, versions, target):
+                return (points[74], None) if target.tokens else (annex, None)
+
+            def before(self, day):
+                return []
+
+        class Module:
+            from collections import namedtuple
+            Locator = namedtuple("Locator", "kind number tokens")
+
+            def locator(self, text):
+                return self.Locator("annex", "i", (("point", "75"),))
+
+        store = export.Store(None, wording=type("W", (), {"module": Module()})())
+        store.backend_index = lambda document, celex: Index()
+        before, now = store.article_texts({"target_provision": "Annex I point 75"},
+                                          {"changed_document": "d", "changed_celex": "32019R1020"}, "2024-05-23")
+        self.assertIsNone(before)
+        self.assertIn(points[74], now["text"])
+        self.assertLessEqual(len(now["text"]), export.ARTICLE_LIMIT)
+
     def test_quoted_new_text(self):
         point = "(2) Article 15 is amended as follows: (a) paragraph 3 is replaced by the following: ‘3. Emission " \
                 "levels shall not exceed 85 TJ per year.’"
@@ -310,6 +379,12 @@ class ExportTests(unittest.TestCase):
         self.assertEqual((art15["comparison_status"], art15["effective_source"]), ("MATCHED_STORED_EVIDENCE", "CHANGE"))
         self.assertEqual(art15["old_text"], "3. Levels shall not exceed 100 TJ per year.")   # the exact paragraph
         self.assertEqual(art15["point_context"], "3. Emission levels shall not exceed 85 TJ per year.")  # newest version
+        # v2.1: the whole article from the database, before the change and now, as background for Qwen
+        self.assertEqual(art15["article_before"], {"version_date": "2010-12-17",
+                                                   "text": "Emission limit values. 3. Levels shall not exceed 100 TJ per year."})
+        self.assertEqual(art15["article_now"]["version_date"], "2024-08-04")
+        self.assertIn("85 TJ", art15["article_now"]["text"])
+        self.assertIsNone(by["Article 14a"]["article_before"])         # a new article has no earlier text
         self.assertEqual(by["Article 99"]["comparison_status"], "NEEDS_MATCH_REVIEW")
         roles = json.loads((out / "roles.json").read_text(encoding="utf-8"))
         self.assertEqual(roles["32010L0075"]["labels"], ["Ändert andere Rechtsakte", "Wurde geändert", "Wurde berichtigt"])

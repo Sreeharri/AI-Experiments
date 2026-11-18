@@ -49,7 +49,7 @@ TASKS = {"change": "TASK: Explain what changed. Return the JSON object described
          "act": "TASK: Write the paragraph. Return the JSON object described in the instructions."}
 DEFAULT_EXPORT = ROOT / "runs/eurlex_changes_export_v5"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v8"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v9"
 LANGUAGES = {"de": "German", "en": "English"}
 SIGNIFICANCE = ("SUBSTANTIVE", "EDITORIAL", "UNCLEAR")
 AFFECTS = ("NUMBER", "DATE", "DUTY", "ADDRESSEE", "SCOPE", "WORDING_ONLY")
@@ -222,14 +222,14 @@ def one_change(record):
     return {**record, "instruction": clauses[0]} if len(clauses) == 1 else {**record, "instruction": ""}
 
 
-# ------------------------------------------------------------------ simple explanation (v2.0)
+# ------------------------------------------------------------------ simple explanation (v2.0, v2.1)
 #
 # One request per single change. Qwen gets the texts that exist for this change and writes only an explanation of
 # what is different. Nothing is checked or rejected: what Qwen writes is kept. What is missing is written as a
 # remark by Python. Dates come from the database (the effective date of each change). Deletions and repeals are
 # not sent to Qwen: they are shown as "gestrichen" / "aufgehoben" with their date.
 
-CORE_VERSION = "v2.0"
+CORE_VERSION = "v2.1"
 EXPLANATION_LIMIT = 900
 SIMPLE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["explanation"],
                  "properties": {"explanation": {"type": "string", "maxLength": EXPLANATION_LIMIT}}}
@@ -248,6 +248,38 @@ REMARKS = {
            "SCOPE": "Possible implicit repeal: scope open.", "NO_DATE": "No date in the database."},
 }
 TEXT_SHARE = 6000            # characters per text sent to Qwen
+ARTICLE_SHARE = 5000         # characters of the whole article sent as background
+
+
+# The amending act says the place is deleted, even where the database calls the operation OTHER or REPLACE.
+DELETE_CLAUSE = re.compile(r"\b(?:is|are|shall be)\s+(?:hereby\s+)?(?:deleted|repealed|removed)\b|"
+                           r"\b(?:wird|werden)\b[^;:]{0,120}?\b(?:gestrichen|aufgehoben)\b|\bentf(?:ä|a)llt\b|"
+                           r"\bentfallen\b", re.I)
+OTHER_CLAUSE = re.compile(r"\b(?:is|are|shall be)\s+(?:hereby\s+)?(?:replaced|inserted|added|substituted|"
+                          r"renumbered|supplemented)\b|\bread as follows\b|\bshall read\b|\b(?:ersetzt|eingefügt|"
+                          r"angefügt)\b|erhält folgende Fassung", re.I)
+PLACE_TOKEN = re.compile(r"\(([a-z0-9]+)\)|\b(\d+[a-z]?)\b", re.I)
+
+
+def deletes_place(instruction: str | None, place: str | None) -> bool:
+    """True when the amending act's words delete this place: "(3) in Article 2, points 1, 2 and 19 are deleted",
+    "Chapter III, containing Articles 15 to 29, is deleted", or in a mixed instruction the clause "(b) points (d)
+    and (e) are deleted" for point (e)."""
+    text = re.sub(r"[‘“„][^’”“]*[’”“]", " ", instruction or "")      # without the quoted new wording
+    clauses = [re.sub(r"^\W*(?:\(\w+\)\s*)+", "", c) for c in re.split(r"[;:]", text)]
+    deleting = [c for c in clauses if DELETE_CLAUSE.search(c)]
+    if not deleting:
+        return False
+    other = [c for c in clauses if OTHER_CLAUSE.search(c)]
+    if not other:
+        return True
+    tokens = PLACE_TOKEN.findall(place or "")
+    if not tokens:
+        return False
+    bracket, number = tokens[-1]
+    mark = rf"\({re.escape(bracket)}\)" if bracket else rf"(?<![\d.(]){re.escape(number)}(?![\d)])"
+    has = lambda clause: re.search(mark, clause, re.I)
+    return any(has(c) for c in deleting) and not any(has(c) for c in other)
 
 
 def change_case(kind: str, record: dict, relation: str) -> str:
@@ -257,6 +289,9 @@ def change_case(kind: str, record: dict, relation: str) -> str:
     if relation == "IMPLICITLY_REPEALS":
         return "IMPLICIT_REPEAL"
     if operation in {"DELETE", "REPEAL"} or relation == "REPEALS":
+        return "REMOVED"
+    if kind == "PROVISION" and operation not in ADDITIONS and deletes_place(record.get("instruction"),
+                                                                           record.get("provision")):
         return "REMOVED"
     if operation in ADDITIONS:
         return "ADDED"
@@ -300,6 +335,7 @@ def simple_request(item: dict, record: dict, case: str) -> tuple[dict | None, li
             sent["final_articles"] = short(finals, 3000)
         return sent, remarks
     if case == "ADDED":
+        background(sent, record)
         if new:
             sent["new_text"] = new
         elif instruction:
@@ -307,6 +343,7 @@ def simple_request(item: dict, record: dict, case: str) -> tuple[dict | None, li
         else:
             return None, ["NO_TEXT"]
         return sent, remarks
+    background(sent, record)
     # CHANGED: old and new text where both exist, otherwise what there is
     if old and new:
         sent["old_text"], sent["new_text"] = old, new
@@ -321,6 +358,17 @@ def simple_request(item: dict, record: dict, case: str) -> tuple[dict | None, li
     else:
         return None, ["NO_TEXT"]
     return sent, remarks
+
+
+def background(sent: dict, record: dict) -> None:
+    """The whole changed article (or annex) from the database, before the change and now, so that Qwen understands
+    what the place is about. Only background: the explanation is about the change at `place`."""
+    if record.get("heading"):
+        sent["article_heading"] = record["heading"]
+    for key in ("article_before", "article_now"):
+        part = record.get(key)
+        if isinstance(part, dict) and part.get("text"):
+            sent[key] = {"version_date": part.get("version_date"), "text": short(part["text"], ARTICLE_SHARE)}
 
 
 def ask_simple(client, system: str, sent: dict, task: str) -> tuple[str | None, dict]:
@@ -371,6 +419,9 @@ def explain(client, systems, item, log, routing=None, part_dir=None):
                 "explanation": None, "remarks": []}
         if not day and item["kind"] != "CORRIGENDUM":
             line["remarks"].append("NO_DATE")
+        if case == "REMOVED" and line["operation"] not in {"DELETE", "REPEAL", "REPEALS"} and relation != "REPEALS":
+            line["operation"] = "REPEAL" if re.search(r"\brepealed\b|\baufgehoben\b", record.get("instruction") or "",
+                                                      re.I) else "DELETE"   # the amending act's own word
         if case == "REMOVED":
             line["remarks"].insert(0, "REMOVED_REPEAL" if line["operation"] in {"REPEAL", "REPEALS"} or
                                    relation == "REPEALS" else "REMOVED_DELETE")
