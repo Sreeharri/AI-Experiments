@@ -20,14 +20,19 @@ record per act-level relationship without provision detail, and one record per c
     corrections  [{location, wrong, correct}] (CORRIGENDUM only)
     wording      FULL | NEW_ONLY | OLD_ONLY | INSTRUCTION_ONLY | NONE
 
+Version 1.2: corrigenda are only taken from real corrigendum text (else read from EUR-Lex, German first, with
+--fetch-missing); old texts come only from versions with no other change in between; long texts keep their
+changed parts; the changing act's own article is never taken for the change; "Annex" without number = sole annex.
+
     python tools/export_eurlex_changes.py --count-only
-    python tools/export_eurlex_changes.py --since 2015 --out runs/eurlex_changes_export
+    python tools/export_eurlex_changes.py --since 2015 --fetch-missing --out runs/eurlex_changes_export_v2
     python tools/export_eurlex_changes.py --celex 32010L0075 --out runs/eurlex_changes_ied
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 import hashlib
@@ -38,7 +43,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-FORMAT = "eurlex_changes_v1"
+FORMAT = "eurlex_changes_v2"
 
 # Relationships that change the text or the application of another act.
 TEXT_CHANGES = {"AMENDS", "REPLACES", "REPEALS", "IMPLICITLY_REPEALS", "CORRECTS", "DEROGATES", "SUSPENDS",
@@ -53,16 +58,33 @@ FINAL_ARTICLE_LIMIT = 1500
 MAX_FINAL_ARTICLES = 4
 
 ROOT_PATTERN = re.compile(r"\b(Article|Annex|Artikel|Anhang)\s+([0-9]+[a-z]*|[IVXLCDM]+[a-z]*)\b", re.I)
-FINAL_ARTICLE = re.compile(
-    r"entry into force|enter into force|shall apply from|shall apply as from|application|transposition|"
-    r"Member States shall bring into force|transitional|Inkrafttreten|Umsetzung|Übergang|gilt ab", re.I)
+FINAL_ARTICLE = re.compile(  # only clear final-article words, looked for in the heading and the first words
+    r"entry into force|enter into force|shall apply from|shall apply as from|\bTransposition\b|"
+    r"Member States shall bring into force|Transitional provisions?|Inkrafttreten|\bUmsetzung\b|"
+    r"Übergangsbestimmung|gilt ab", re.I)
+LAST_ARTICLES = 6           # final articles are looked for among the last articles of the act
 MARKERS = re.compile(r"[▼►◄]\s*(?:M\d+|B|C\d*|A\d+)\b")
-QUOTE = re.compile(r"[‘“\"']\s*(.+?)\s*[’”\"']\s*(?=[;.:,]?\s*(?:\(\d+[a-z]?\)|$|\n|[a-z]\)))", re.S)
+QUOTE = re.compile(r"[‘“„\"']\s*(.+?)\s*[’”“\"']\s*(?=[;.:,]?\s*(?:\(\d+[a-z]?\)|$|\n|[a-z]\)))", re.S)
+OPEN_Q, CLOSE_Q = "‘“„«\"'", "’”“»\"'"
+ACT_BLOCK = re.compile(  # "Directive 2010/75/EU is amended as follows" / "In Regulation (EU) 2019/1009,"
+    r"(?:(?:Directive|Regulation|Decision)[^.;:]{0,80}?(\d{4})/(\d+)[^.;:]{0,60}?(?:is|are) (?:hereby )?"
+    r"(?:amended|corrected)|\bIn (?:Directive|Regulation|Decision|Implementing Regulation|Delegated Regulation)"
+    r"[^.;:]{0,60}?(\d{4})/(\d+))", re.I)
 POINT_START = re.compile(r"(?:^|(?<=\s))\(\d+[a-z]?\)\s+(?=[A-Za-z‘])")
+_LOC = r"(?:On page|Page|Auf Seite|Seite)\s+\d"
+_END = rf"(?=\s*[.;,]?\s*(?:$|\n|{_LOC}|(?:for|instead of|anstatt|statt)\s*:))"
 CORRECTION = re.compile(
-    r"(?P<location>(?:On page|Page|Seite|Auf Seite)[^:]{0,200}?)?[:,]?\s*"
-    r"(?:for|anstatt|statt)\s*:?\s*[‘“\"'](?P<wrong>.+?)[’”\"']\s*[,;]?\s*"
-    r"(?:read|muss es heißen|lies)\s*:?\s*[‘“\"'](?P<correct>.+?)[’”\"']", re.S | re.I)
+    r"(?P<location>(?:On page|Page|Auf Seite|Seite)\s+\d[^:]{0,240}?)?[:,]?\s*"
+    r"(?:for|instead of|anstatt|statt)\s*:?\s*[‘“„«\"'](?P<wrong>.+?)[’”“»\"']\s*[,;]?\s*"
+    r"(?:read|muss es heißen|muss es lauten|lies|richtig)\s*:?\s*[‘“„«\"'](?P<correct>.+?)[’”“»\"']" + _END,
+    re.S | re.I)
+WHOLE_CORRECTION = re.compile(  # "On page 12, Annex II is replaced by the following: ..." / "erhält folgende Fassung"
+    rf"(?P<location>(?:On page|Page|Auf Seite|Seite)\s+\d[^:]{{0,240}}?)\s*"
+    rf"(?:(?:is|are) replaced by the following|(?:is|are) to read as follows|erhält folgende Fassung|"
+    rf"erhalten folgende Fassung)\s*:?\s*(?P<correct>.+?)(?={_LOC}|$)", re.S | re.I)
+CHANGE_VERB = re.compile(r"\b(?:replaced|inserted|added|deleted|amended|repealed|corrected|reads?|"
+                         r"ersetzt|eingefügt|angefügt|gestrichen|geändert|aufgehoben|Fassung)\b", re.I)
+CORRIGENDUM_WORDS = re.compile(r"\b(?:Corrigendum|Berichtigung)\b", re.I)
 
 
 # ------------------------------------------------------------------ text helpers (no database)
@@ -77,9 +99,12 @@ def signature(text: str | None) -> str:
 
 
 def root_of(locator: str | None) -> tuple[str, str] | None:
-    """("article", "15") for "Article 15(3)(b)", ("annex", "ii") for "Annex II, point 2"."""
+    """("article", "15") for "Article 15(3)(b)", ("annex", "ii") for "Annex II, point 2".
+    An annex without number ("Annex", "Annex TXT", "Annex PRT A") is the act's only annex: ("annex", "")."""
     match = ROOT_PATTERN.search(locator or "")
     if not match:
+        if re.match(r"^\s*(?:Annex|Anhang)\b(?!\s+(?:[0-9]+|[IVXLCDM]+)\b)", locator or "", re.I):
+            return "annex", ""
         return None
     kind = "article" if match.group(1).casefold() in {"article", "artikel"} else "annex"
     return kind, match.group(2).casefold()
@@ -94,6 +119,9 @@ def act_number(celex: str) -> str | None:
 def mentions(text: str, root: tuple[str, str]) -> bool:
     kind, number = root
     words = "Article|Artikel" if kind == "article" else "Annex|Anhang"
+    if not number:  # the only annex: "the Annex is replaced"
+        return bool(re.search(rf"\bthe\s+(?:{words})\b(?!\s+(?:[0-9]+|[IVXLCDM]+)\b)|\b(?:{words})\s+(?:is|are|to)\b",
+                              text, re.I))
     return bool(re.search(rf"\b(?:{words})\s+{re.escape(number)}(?![0-9a-z])", text, re.I))
 
 
@@ -108,20 +136,41 @@ def split_points(text: str) -> list[str]:
     return [text[a:b].strip() for a, b in zip(cuts, cuts[1:]) if text[a:b].strip()]
 
 
+def act_blocks(text: str, number: str | None) -> list[str]:
+    """The parts of an amending text that change the act `number` (an amending act often changes several acts)."""
+    starts = [(m.start(), f"{m.group(1) or m.group(3)}/{int(m.group(2) or m.group(4))}") for m in ACT_BLOCK.finditer(text)]
+    if not starts or number is None:
+        return [text]
+    blocks = [text[start:(starts[i + 1][0] if i + 1 < len(starts) else len(text))]
+              for i, (start, cited) in enumerate(starts) if cited == number]
+    if starts[0][0] > 0 and all(cited == number for _, cited in starts):
+        blocks.insert(0, text[:starts[0][0]])
+    return blocks
+
+
 def instruction_for(elements: list[dict], changed_celex: str, root: tuple[str, str] | None) -> tuple[str, str | None]:
-    """(text, element identifier) of the changing act's passage that changes `root` of the changed act."""
+    """(text, element identifier) of the changing act's passage that changes `root` of the changed act.
+
+    Looks first in the elements that cite the changed act (only in their part about that act), then in the
+    other elements (amending annexes often do not repeat the act number)."""
     number = act_number(changed_celex)
-    citing = [e for e in elements if number and number in e["text"]] or elements
     if root is None:
         return "", None
-    for element in citing:
-        points = split_points(element["text"])
-        hits = [p for p in points if mentions(p[:160], root)]
-        if hits:
-            return " ".join(hits)[:INSTRUCTION_LIMIT], element["identifier"]
-    for element in citing:  # the whole element if the locator only stands further in
-        if mentions(element["text"], root):
-            return element["text"][:INSTRUCTION_LIMIT], element["identifier"]
+    citing = [e for e in elements if number and number in e["text"]]
+    # Without the act number only an amending annex ("Annex I to Regulation ... is amended as follows" stands in
+    # the article that points to it) and only a point that itself changes something: otherwise the changing act's
+    # own article with the same number would be taken for the change.
+    others = [e for e in elements if e not in citing and e["identifier"].casefold().startswith(("annex", "anhang"))]
+    for group, use_blocks in ((citing, True), (others, False)):
+        for element in group:
+            for block in (act_blocks(element["text"], number) if use_blocks else [element["text"]]):
+                hits = [p for p in split_points(block) if mentions(p[:200], root) and CHANGE_VERB.search(p[:400])]
+                if hits:
+                    return " ".join(hits)[:INSTRUCTION_LIMIT], element["identifier"]
+    for element in citing:  # the whole block if the locator only stands further in
+        for block in act_blocks(element["text"], number):
+            if mentions(block, root):
+                return block[:INSTRUCTION_LIMIT], element["identifier"]
     return "", None
 
 
@@ -129,8 +178,10 @@ def quoted_new_text(instruction: str, operation: str) -> str:
     """The text inside quotes after 'replaced by the following' / 'inserted' / 'added'."""
     if operation not in {"ADD", "INSERT", "REPLACE", "MODIFY"}:
         return ""
-    trigger = re.search(r"(replaced by the following|is replaced by|are replaced by|following [^:]{0,80} (?:is|are) "
-                        r"(?:inserted|added)|(?:is|are) (?:inserted|added)[^:]{0,40}:|shall read)", instruction, re.I)
+    trigger = re.search(r"(replaced by the following|replaced as follows|is replaced by|are replaced by|"
+                        r"shall be replaced by|following [^:]{0,80} (?:is|are) (?:inserted|added)|"
+                        r"(?:is|are) (?:inserted|added)[^:]{0,40}:|shall read|read as follows|amended to read|"
+                        r"erhält folgende Fassung|wird wie folgt gefasst|eingefügt)", instruction, re.I)
     if not trigger:
         return ""
     found = QUOTE.findall(instruction[trigger.end():])
@@ -138,19 +189,57 @@ def quoted_new_text(instruction: str, operation: str) -> str:
 
 
 def corrections_in(text: str) -> list[dict]:
-    found = []
+    """The corrections of a corrigendum: location, wrong wording, correct wording ("" wrong = replaced as a whole)."""
+    found, location = [], ""
     for match in CORRECTION.finditer(text):
-        found.append({"location": clean(match.group("location") or "")[:200],
-                      "wrong": clean(match.group("wrong"))[:1500], "correct": clean(match.group("correct"))[:1500]})
+        location = clean(match.group("location") or "") or location   # several for/read pairs under one page line
+        found.append((match.start(), {"location": location[:200], "wrong": clean(match.group("wrong"))[:1500],
+                                      "correct": clean(match.group("correct"))[:1500]}))
+    for match in WHOLE_CORRECTION.finditer(text):
+        found.append((match.start(), {"location": clean(match.group("location"))[:200], "wrong": "",
+                                      "correct": clean(match.group("correct"))[:3000]}))
+    found = [item for _, item in sorted(found, key=lambda pair: pair[0])]
     return found
+
+
+def is_corrigendum_text(text: str) -> bool:
+    """True for the text of a corrigendum; False for the corrected act's own text stored under the corrigendum."""
+    return bool(corrections_in(text)) or bool(CORRIGENDUM_WORDS.search(text[:600]))
+
+
+def changed_regions(old: str, new: str, limit: int = TEXT_LIMIT) -> tuple[str, str, bool]:
+    """Long texts: keep only the sentences that differ (with one neighbour each), so that a change deep inside a
+    long annex is not cut off. Returns (old, new, trimmed)."""
+    if len(old) <= limit and len(new) <= limit:
+        return old, new, False
+    split = lambda text: [s for s in re.split(r"(?<=[.;:])\s+(?=[A-Z(‘“0-9])", text) if s]
+    a, b = split(old), split(new)
+    matcher = difflib.SequenceMatcher(None, [signature(x) for x in a], [signature(x) for x in b], autojunk=False)
+    keep_a, keep_b = set(), set()
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag != "equal":
+            keep_a.update(range(max(0, i1 - 1), min(len(a), i2 + 1)))
+            keep_b.update(range(max(0, j1 - 1), min(len(b), j2 + 1)))
+
+    def join(sentences, keep):
+        parts, used, gap = [], 0, False
+        for index, sentence in enumerate(sentences):
+            if index in keep and used + len(sentence) <= limit:
+                parts.append(sentence)
+                used += len(sentence)
+                gap = False
+            elif not gap:
+                parts.append("…")
+                gap = True
+        return " ".join(parts)
+    return join(a, keep_a), join(b, keep_b), True
 
 
 def final_articles(elements: list[dict]) -> list[dict]:
     """Articles of the changing act on entry into force, application, transposition and transition."""
     chosen = []
-    for element in elements:
-        if not element["identifier"].casefold().startswith(("article", "artikel")):
-            continue
+    articles = [e for e in elements if e["identifier"].casefold().startswith(("article", "artikel"))]
+    for element in articles[-LAST_ARTICLES:]:
         head = f"{element.get('heading') or ''} {element['text'][:300]}"
         if FINAL_ARTICLE.search(head):
             chosen.append({"locator": element["identifier"], "text": element["text"][:FINAL_ARTICLE_LIMIT]})
@@ -169,14 +258,30 @@ def version_day(version: dict) -> date | None:
         return None
 
 
-def pick_versions(versions: list[dict], day: date | None) -> tuple[dict | None, dict | None]:
-    """(version before the change, version from the change on). Never guesses without dates."""
-    dated = sorted((v for v in versions if version_day(v)), key=version_day)
+def pick_versions(versions: list[dict], day: date | None, act_date: date | None = None,
+                  other_days: set | None = None) -> tuple[dict | None, dict | None]:
+    """(version before the change, version from the change on). Never guesses without dates.
+
+    An original version without date counts from the act's own date. A version is only used when no other
+    change of the same act falls between it and this change: otherwise its text would mix in that change."""
+    dated = []
+    for version in versions:
+        when = version_day(version) or (act_date if version.get("version_kind") == "ORIGINAL" else None)
+        if when:
+            dated.append((when, version))
+    dated.sort(key=lambda pair: pair[0])
     if day is None or not dated:
         return None, None
-    before = [v for v in dated if version_day(v) < day]
-    after = [v for v in dated if version_day(v) >= day]
-    return (before[-1] if before else None), (after[0] if after else None)
+    others = {d for d in (other_days or set()) if d and d != day}
+    before = [(when, v) for when, v in dated if when < day]
+    after = [(when, v) for when, v in dated if when >= day]
+    old = before[-1] if before else None
+    new = after[0] if after else None
+    if old and any(old[0] < d < day for d in others):
+        old = None
+    if new and any(day < d <= new[0] for d in others):
+        new = None
+    return (old[1] if old else None), (new[1] if new else None)
 
 
 def element_text(elements: list[dict], root: tuple[str, str] | None) -> str | None:
@@ -184,11 +289,12 @@ def element_text(elements: list[dict], root: tuple[str, str] | None) -> str | No
     if root is None:
         return None
     matches = [e for e in elements if root_of(e["identifier"]) == root
-               and re.fullmatch(r"\s*(?:Article|Annex|Artikel|Anhang)\s+[0-9IVXLCDMa-z]+\.?\s*", e["identifier"], re.I)]
+               and re.fullmatch(r"\s*(?:Article|Annex|Artikel|Anhang)(?:\s+[0-9IVXLCDMa-z]+)?\.?\s*",
+                                e["identifier"], re.I)]
     if not matches:
         return None
     best = min(matches, key=lambda e: (e["depth"], len(e["path"] or "")))
-    return best["text"][:TEXT_LIMIT] or None
+    return best["text"] or None         # full text: cut later, after the changed parts are found
 
 
 def wording_of(old: str | None, new: str | None, instruction: str) -> str:
@@ -221,6 +327,7 @@ SELECT r.id::text AS id, r.relation_type, r.relation_family, r.status, r.valid_f
        COALESCE(sc.title_en, sc.canonical_title, sc.title_de) AS changing_title,
        COALESCE(tc.title_en, tc.canonical_title, tc.title_de) AS changed_title,
        COALESCE(sc.document_date, sc.publication_date) AS changing_date,
+       COALESCE(tc.document_date, tc.publication_date) AS changed_date,
        sc.date_entry_into_force AS entry_into_force, sc.date_application AS application,
        sc.information_url AS changing_url, tc.information_url AS changed_url
 FROM instrument_relationships r
@@ -245,6 +352,12 @@ SELECT v.id::text AS id, v.version_kind, v.version_date, v.effective_from, v.is_
 FROM instrument_versions v JOIN legal_instruments li ON li.id = v.instrument_id
 WHERE li.source_document_id = %(document)s::uuid AND upper(v.language) = 'EN'
 """
+CHANGE_DAYS_SQL = """
+SELECT DISTINCT COALESCE(c.effective_from, r.valid_from) AS day
+FROM instrument_relationships r LEFT JOIN relationship_provision_changes c ON c.relationship_id = r.id
+WHERE r.target_document_id = %(document)s::uuid AND r.relation_family = 'OPERATIONAL'
+  AND r.relation_type = ANY(%(types)s)
+"""
 ELEMENTS_SQL = """
 SELECT version_id::text AS version_id, element_type, identifier, heading, body_text, path, depth, ordinal
 FROM legal_elements WHERE version_id = ANY(%(ids)s::uuid[]) ORDER BY version_id, ordinal
@@ -254,9 +367,36 @@ FROM legal_elements WHERE version_id = ANY(%(ids)s::uuid[]) ORDER BY version_id,
 class Store:
     """Read-only access with a small cache per document."""
 
-    def __init__(self, connection):
+    def __init__(self, connection, fetch_dir: Path | None = None):
         self.connection = connection
         self.cache: dict[str, tuple[list[dict], dict[str, list[dict]]]] = {}
+        self.days: dict[str, set] = {}
+        self.fetch_dir = fetch_dir          # None: never ask EUR-Lex
+        self.fetched = Counter()
+
+    def change_days(self, document_id: str) -> set:
+        """Days on which any change of the text of this act applies (to keep versions from mixing changes)."""
+        if document_id not in self.days:
+            if len(self.days) > 2000:
+                self.days.clear()
+            types = sorted(TEXT_CHANGES - {"CORRECTS"})
+            self.days[document_id] = {_date(row["day"]) for row in self.rows(CHANGE_DAYS_SQL, document=document_id,
+                                                                            types=types)} - {None}
+        return self.days[document_id]
+
+    def online(self, celex: str, languages=("EN",)) -> tuple[str, str]:
+        """(text, language) from EUR-Lex, or ("", status) with status MISSING (no such language) / ERROR / OFF."""
+        if self.fetch_dir is None or not celex:
+            return "", "OFF"
+        from eurlex_text_fetch import fetch_text
+        statuses = []
+        for language in languages:
+            text, status = fetch_text(celex, language, self.fetch_dir)
+            self.fetched[f"{language}_{status}"] += 1
+            if status == "OK":
+                return text, language
+            statuses.append(status)
+        return "", "ERROR" if "ERROR" in statuses else "MISSING"
 
     def rows(self, sql, **params):
         with self.connection.cursor() as cursor:
@@ -278,17 +418,23 @@ class Store:
             self.cache[document_id] = (versions, elements)
         return self.cache[document_id]
 
-    def main_version(self, document_id: str) -> list[dict]:
-        """Root elements of the version to read a changing act from (preferred, current, original)."""
+    def main_version(self, document_id: str, celex: str | None = None) -> tuple[list[dict], str]:
+        """(root elements, source) of the version to read a changing act from (preferred, current, original).
+        Without stored text and with fetching on, the act is read from EUR-Lex (source EURLEX_EN)."""
         versions, elements = self.document(document_id)
-        if not versions:
-            return []
+        if not versions or not any(elements.get(v["id"]) for v in versions):
+            text, language = self.online(celex or "")
+            if not text:
+                return [], "NONE"
+            from eurlex_text_fetch import split_elements
+            return [{"identifier": e["identifier"], "heading": e["heading"], "text": clean(e["text"]), "path": None,
+                     "depth": 0} for e in split_elements(text)], f"EURLEX_{language}"
         best = max(versions, key=lambda v: (bool(v["is_preferred"]), bool(v["is_current"]),
                                             v["version_kind"] == "ORIGINAL", len(elements.get(v["id"], []))))
         items = elements.get(best["id"], [])
         roots = [e for e in items if root_of(e["identifier"]) and
-                 re.fullmatch(r"\s*(?:Article|Annex|Artikel|Anhang)\s+[0-9IVXLCDMa-z]+\.?\s*", e["identifier"], re.I)]
-        return roots or items
+                 re.fullmatch(r"\s*(?:Article|Annex|Artikel|Anhang)(?:\s+[0-9IVXLCDMa-z]+)?\.?\s*", e["identifier"], re.I)]
+        return (roots or items), "DATABASE"
 
 
 # ------------------------------------------------------------------ building the records
@@ -316,24 +462,36 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
     for number, rel in enumerate(relationships, 1):
         if number % 200 == 0:
             say(f"  {number:,}/{len(relationships):,} relationships")
-        changing_elements = store.main_version(rel["changing_document"])
+        changing_elements, text_source = store.main_version(rel["changing_document"], rel["changing_celex"]) \
+            if rel["relation_type"] != "CORRECTS" else (store.main_version(rel["changing_document"])[0], "DATABASE")
         finals = final_articles(changing_elements)
         base = {"relation": rel["relation_type"], "relationship_id": rel["id"], "status": rel["status"],
                 "changing_document_id": rel["changing_document"], "changed_document_id": rel["changed_document"],
                 "changing": changing_part(rel),
                 "changed": {"celex": rel["changed_celex"], "title": rel["changed_title"] or "", "url": rel["changed_url"]},
-                "final_articles": finals, "valid_from": rel["valid_from"], "valid_to": rel["valid_to"]}
-        if not changing_elements:
+                "final_articles": finals, "valid_from": rel["valid_from"], "valid_to": rel["valid_to"],
+                "changing_text_source": text_source}
+        if not changing_elements and rel["relation_type"] != "CORRECTS":
             gaps["changing_act_without_text"] += 1
+        gaps[f"changing_text_{text_source}"] += rel["relation_type"] != "CORRECTS"
 
         if rel["relation_type"] == "CORRECTS":
-            text = " ".join(e["text"] for e in changing_elements)
-            found = corrections_in(text)
+            # The database often holds the corrected act's own text under the corrigendum: only real corrigendum
+            # text counts. Otherwise the corrigendum is read from EUR-Lex, German first, then English. A corrigendum
+            # that exists in neither language only corrects other language versions.
+            text, source = " ".join(e["text"] for e in changing_elements), "DATABASE"
+            if not is_corrigendum_text(text):
+                text, source = store.online(rel["changing_celex"], ("DE", "EN"))
+                source = {"DE": "EURLEX_DE", "EN": "EURLEX_EN", "MISSING": "OTHER_LANGUAGES_ONLY"}.get(
+                    source, "NOT_FETCHED" if source == "OFF" else "FETCH_ERROR")
+            found = corrections_in(text) if text else []
             gaps["corrigenda"] += 1
+            gaps[f"corrigenda_text_{source}"] += 1
             gaps["corrigenda_without_parsed_corrections"] += not found
-            records.append({**base, "kind": "CORRIGENDUM", "id": record_id("C", rel["id"]),
-                            "corrections": found, "instruction": "" if found else text[:INSTRUCTION_LIMIT],
-                            "languages": "EN" if changing_elements else ""})
+            records.append({**base, "kind": "CORRIGENDUM", "id": record_id("C", rel["id"]), "corrections": found,
+                            "instruction": "" if found or not text else clean(text)[:INSTRUCTION_LIMIT],
+                            "corrigendum_source": source,
+                            "languages": {"EURLEX_DE": "DE", "EURLEX_EN": "EN", "DATABASE": "EN"}.get(source, "")})
             continue
 
         rows = changes.get(rel["id"], [])
@@ -348,6 +506,10 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
             continue
 
         versions, elements = store.document(rel["changed_document"])
+        act_day, other_days = _date(rel["changed_date"]), store.change_days(rel["changed_document"])
+        number_ = act_number(rel["changed_celex"])
+        whole_part = " ".join(block for e in changing_elements if number_ and number_ in e["text"]
+                              for block in act_blocks(e["text"], number_))[:INSTRUCTION_LIMIT]
         for row in rows:
             locator = row["target_provision"] or " ".join(filter(None, [row["target_locator_type"],
                                                                          row["target_locator_number"]]))
@@ -357,7 +519,10 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
                 or rel["entry_into_force"]
             operation = (row["operation"] or "OTHER").upper()
             instruction, instruction_locator = instruction_for(changing_elements, rel["changed_celex"], root)
+            if root is None and whole_part:    # place not readable ("Title", ""): the act's whole amending part
+                instruction, instruction_locator = whole_part, None
             old = new = None
+            trimmed = False
             source = "NONE"
             if row["id"] in reviewed:
                 stored = reviewed[row["id"]]
@@ -365,7 +530,7 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
                 instruction = clean(stored["instruction_text"]) or instruction
                 source = "REVIEWED"
             else:
-                before, after = pick_versions(versions, _date(day))
+                before, after = pick_versions(versions, _date(day), act_day, other_days)
                 if before is not None and operation not in {"ADD", "INSERT"}:
                     old = element_text(elements.get(before["id"], []), root)
                 if after is not None and operation not in {"DELETE", "REPEAL"}:
@@ -373,6 +538,10 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
                 if old and new and signature(old) == signature(new):
                     old = new = None            # same text: the stored versions do not show this change
                     gaps["same_text_in_versions"] += 1
+                if old and new:
+                    old, new, trimmed = changed_regions(old, new)
+                trimmed = trimmed or len(old or "") > TEXT_LIMIT or len(new or "") > TEXT_LIMIT
+                old, new = (old[:TEXT_LIMIT] if old else old), (new[:TEXT_LIMIT] if new else new)
                 if not new and operation not in {"DELETE", "REPEAL"}:
                     new = quoted_new_text(instruction, operation) or None
                     source = "INSTRUCTION_QUOTE" if new else source
@@ -388,7 +557,7 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
                             "resolution_status": row["resolution_status"], "effective_from": day,
                             "effective_to": row["effective_to"], "old_text": old, "new_text": new,
                             "instruction": instruction, "instruction_locator": instruction_locator,
-                            "wording": wording, "wording_source": source})
+                            "wording": wording, "wording_source": source, "trimmed": trimmed})
     return records, gaps
 
 
@@ -424,10 +593,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--env", type=Path, default=ROOT / ".env")
     parser.add_argument("--classification", type=Path, default=ROOT / "runs/eurlex_classification_v5")
-    parser.add_argument("--out", type=Path, default=ROOT / "runs/eurlex_changes_export")
+    parser.add_argument("--out", type=Path, default=ROOT / "runs/eurlex_changes_export_v2")
     parser.add_argument("--since", type=int, default=2015, help="Changing acts from this year on (0 = all).")
     parser.add_argument("--celex", nargs="+", default=[], help="Only relationships of these acts (any year).")
     parser.add_argument("--count-only", action="store_true")
+    parser.add_argument("--fetch-missing", action="store_true",
+                        help="Read corrigenda and changing acts without text in the database from eur-lex.europa.eu.")
+    parser.add_argument("--fetch-cache", type=Path, default=ROOT / "runs/eurlex_fetch_cache",
+                        help="Where fetched EUR-Lex texts are kept (a second run does not fetch them again).")
     args = parser.parse_args(argv)
     try:
         from dotenv import dotenv_values
@@ -455,7 +628,7 @@ def main(argv=None):
         with psycopg.connect(url, row_factory=dict_row, connect_timeout=20) as connection:
             connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
             connection.execute("SET LOCAL statement_timeout = '30min'")
-            store = Store(connection)
+            store = Store(connection, args.fetch_cache if args.fetch_missing else None)
             everything = store.rows(RELATIONSHIPS_SQL)
             chosen = [rel for rel in everything if in_scope(rel, relevant, since, celex)]
             text_changes = [rel for rel in chosen if rel["relation_type"] in TEXT_CHANGES]
@@ -484,9 +657,10 @@ def main(argv=None):
                "records": len(records), "by_kind": dict(Counter(r["kind"] for r in records)),
                "by_relation": dict(Counter(r["relation"] for r in records)),
                "by_operation": dict(Counter(r.get("operation") for r in records if r["kind"] == "PROVISION")),
-               "gaps": dict(gaps), "links_only": len(links)}
+               "gaps": dict(gaps), "links_only": len(links), "fetched_from_eurlex": dict(store.fetched)}
     (out / "export_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({k: summary[k] for k in ("records", "by_kind", "gaps")}, ensure_ascii=False, indent=1))
+    print(json.dumps({k: summary[k] for k in ("records", "by_kind", "gaps", "fetched_from_eurlex")},
+                     ensure_ascii=False, indent=1))
     print(f"Saved: {out}")
     return 0
 

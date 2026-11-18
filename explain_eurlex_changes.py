@@ -48,13 +48,24 @@ PROMPTS = {"change": ROOT / "prompts/eurlex_change_explain.md",
 TASKS = {"change": "TASK: Explain what changed. Return the JSON object described in the instructions.",
          "corrigendum": "TASK: Explain the corrigendum. Return the JSON object described in the instructions.",
          "act": "TASK: Write the paragraph. Return the JSON object described in the instructions."}
-DEFAULT_EXPORT = ROOT / "runs/eurlex_changes_export"
+DEFAULT_EXPORT = ROOT / "runs/eurlex_changes_export_v2"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
-DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v1"
+DEFAULT_OUTPUT = ROOT / "runs/eurlex_changes_v2"
 LANGUAGES = {"de": "German", "en": "English"}
 SIGNIFICANCE = ("SUBSTANTIVE", "EDITORIAL", "UNCLEAR")
 AFFECTS = ("NUMBER", "DATE", "DUTY", "ADDRESSEE", "SCOPE", "WORDING_ONLY")
 LEVELS = {"DIRECT": 2, "INDIRECT": 1}
+REMOVALS = {"DELETE", "REPEAL", "REPEALS", "IMPLICITLY_REPEALS"}
+ADDITIONS = {"ADD", "INSERT"}
+# "the words ‘X’ are replaced by ‘Y’": the instruction itself names the old wording.
+WORD_PAIR = re.compile(r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?:is|are|shall be) (?:replaced by|deleted)|"
+                       r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?:wird|werden) durch\s*[‘“„\"']|"
+                       r"[‘“„\"'][^’”“\"']{1,300}[’”“\"']\s*(?:wird|werden) gestrichen", re.I)
+# Words that compare with the old wording; without the old wording they would be invented.
+COMPARING = re.compile(r"\b(?:früher|bisher|bislang|vorher|zuvor|nicht mehr|nur noch|erweitert|verschärft|gelockert|"
+                       r"verkürzt|verlängert|anstatt|statt|gesenkt|erhöht|previously|no longer|instead of|extended|"
+                       r"tightened|relaxed|reduced|increased)\b", re.I)
+PROLONGING = re.compile(r"prolong|extend|extension|postpon|defer|verlänger|verschieb", re.I)
 TEXT_BUDGET = 6000            # characters per text (old, new, instruction) sent to Qwen
 PASSAGE_CHARS = 450
 LIMITS = {"headline": 140, "text": 800, "what": 80, "value": 300, "date": 60, "sentence": 300}
@@ -135,8 +146,9 @@ def build_items(records: list[dict]) -> list[dict]:
     """One item per changed article (all changes of one changing act to it), per act-level change, per corrigendum."""
     grouped, items = defaultdict(list), []
     for record in records:
-        if record["kind"] == "PROVISION" and record.get("root"):
-            grouped[(record["changing"]["celex"], record["changed"]["celex"], tuple(record["root"]))].append(record)
+        if record["kind"] == "PROVISION":   # places that could not be read (root None) form one item
+            root = tuple(record["root"]) if record.get("root") else None
+            grouped[(record["changing"]["celex"], record["changed"]["celex"], root)].append(record)
         else:
             items.append({"id": record["id"], "kind": record["kind"], "records": [record]})
     for (changing, changed, root), rows in grouped.items():
@@ -162,11 +174,42 @@ def item_facts(item: dict) -> dict:
             "change_ids": [r["change_id"] for r in item["records"] if r.get("change_id")],
             "relationship_id": first.get("relationship_id"),
             "changing_document_id": first.get("changing_document_id"),
-            "changed_document_id": first.get("changed_document_id")}
+            "changed_document_id": first.get("changed_document_id"),
+            "missing": missing_reason(item)}
+
+
+def text_situation(item: dict) -> dict:
+    """Which wordings are there for an item (decides what may be said)."""
+    records = item["records"]
+    instruction = " ".join(r.get("instruction") or "" for r in records)
+    operations = {r.get("operation") or r["relation"] for r in records} | {records[0]["relation"]}
+    return {"old": any(r.get("old_text") for r in records), "new": any(r.get("new_text") for r in records),
+            "instruction": bool(instruction.strip()), "pair": bool(WORD_PAIR.search(instruction)),
+            "finals": bool(records[0].get("final_articles")), "operations": operations,
+            "removal": bool(operations & REMOVALS), "trimmed": any(r.get("trimmed") for r in records)}
+
+
+def missing_reason(item: dict) -> str | None:
+    """Why there is nothing to explain (None: the item goes to Qwen). Shown as a short line built by code."""
+    first, kind = item["records"][0], item["kind"]
+    if kind == "CORRIGENDUM":
+        if first.get("corrigendum_source") == "OTHER_LANGUAGES_ONLY":
+            return "OTHER_LANGUAGES_ONLY"
+        return None if first.get("corrections") or first.get("instruction") else "CORRIGENDUM_TEXT_MISSING"
+    have = text_situation(item)
+    if kind == "ACT":
+        return None if have["instruction"] or have["finals"] else "NO_TEXT"
+    if not (have["old"] or have["new"] or have["instruction"]):
+        return "NO_TEXT"
+    if not (have["new"] or have["instruction"] or have["removal"]):
+        return "NEW_WORDING_MISSING"     # only the old wording: the new content would be invented
+    return None
 
 
 def provision_name(root) -> str:
     kind, number = root
+    if not number:
+        return "Annex"
     return f"{'Article' if kind == 'article' else 'Annex'} {number.upper() if kind == 'annex' else number}"
 
 
@@ -190,9 +233,12 @@ def request_for(item: dict) -> tuple[str, dict, dict]:
         if first.get("corrections"):
             sent["corrections"] = []
             for number, correction in enumerate(first["corrections"][:12], 1):
-                passages[f"W{number}"], passages[f"R{number}"] = correction["wrong"], correction["correct"]
+                if correction["wrong"]:
+                    passages[f"W{number}"] = correction["wrong"]
+                passages[f"R{number}"] = correction["correct"]
                 sent["corrections"].append({"location": correction["location"],
-                                            "wrong": f"[W{number}] {correction['wrong']}",
+                                            "wrong": f"[W{number}] {correction['wrong']}" if correction["wrong"]
+                                            else "(the whole part is replaced; the wrong text is not repeated)",
                                             "correct": f"[R{number}] {correction['correct']}"})
         else:
             sent["text"], passages = passages_of(first.get("instruction"), "T")
@@ -204,40 +250,58 @@ def request_for(item: dict) -> tuple[str, dict, dict]:
     new_part, new_passages = passages_of(new, "N", keep=other_side(old) if old else None)
     instruction_part, instruction_passages = passages_of(instruction, "I")
     facts = item_facts(item)
+    have = text_situation(item)
+    changing = first["changing"]
+    meta = [f"{label}: {value}" for label, value in (
+        ("Date of the changing act", changing.get("date")), ("Entry into force of the changing act",
+                                                             changing.get("entry_into_force")),
+        ("Application of the changing act", changing.get("application")),
+        ("The change applies from", facts["effective_from"])) if value]
+    meta_part, meta_passages = passages_of(". ".join(meta) + "." if meta else "", "M")
     sent = {**acts, "changing_act": {"celex": first["changing"]["celex"], "title": first["changing"]["title"],
                                      "date": first["changing"].get("date")},
-            "provision": facts["provision"] or "the whole act", "operations": facts["operations"],
-            "effective_from": facts["effective_from"]}
+            "provision": facts["provision"] or ("several places, see the instruction" if item["kind"] == "PROVISION"
+                                                else "the whole act"),
+            "operations": facts["operations"], "effective_from": facts["effective_from"]}
     for key, value in (("old_text", old_part), ("new_text", new_part), ("instruction", instruction_part),
-                       ("final_articles", final_part)):
+                       ("final_articles", final_part), ("dates_known", meta_part)):
         if value:
             sent[key] = value
-    return "change", sent, {**old_passages, **new_passages, **instruction_passages, **final_passages}
+    notes = []
+    if not old_part and not have["pair"] and not have["removal"]:
+        notes.append("The old wording is not given: describe only what applies now, compare with nothing.")
+    if have["trimmed"]:
+        notes.append("The provision is long: only the changed parts and their neighbours are given.")
+    if notes:
+        sent["notes"] = notes
+    return "change", sent, {**old_passages, **new_passages, **instruction_passages, **final_passages,
+                            **meta_passages}
 
 
 # ------------------------------------------------------------------ schemas and checks
 
-def facts_schema(passage_ids):
+def facts_schema(passage_ids, before=True):
     """No passages, no facts: an empty list of marks would force Qwen to invent one."""
-    return {"type": "array", "maxItems": 5 if passage_ids else 0, "items": fact_schema(passage_ids)}
+    return {"type": "array", "maxItems": 5 if passage_ids else 0, "items": fact_schema(passage_ids, before)}
 
 
-def fact_schema(passage_ids):
+def fact_schema(passage_ids, before=True):
+    """before=False: no old wording given, so before must stay empty (enforced by the schema)."""
     return {"type": "object", "additionalProperties": False, "required": ["what", "before", "after", "passages"],
             "properties": {"what": {"type": "string", "maxLength": LIMITS["what"]},
-                           "before": {"type": "string", "maxLength": LIMITS["value"]},
+                           "before": {"type": "string", "maxLength": LIMITS["value"] if before else 0},
                            "after": {"type": "string", "maxLength": LIMITS["value"]},
                            "passages": {"type": "array", "minItems": 1, "maxItems": 4,
                                         "items": {"type": "string", "enum": list(passage_ids) or ["NONE"]}}}}
 
 
-def change_schema(passage_ids):
+def change_schema(passage_ids, before=True):
     return {"type": "object", "additionalProperties": False,
             "required": ["headline", "what_changed", "facts", "dates", "significance"],
             "properties": {
                 "headline": {"type": "string", "maxLength": LIMITS["headline"]},
                 "what_changed": {"type": "string", "maxLength": LIMITS["text"]},
-                "facts": facts_schema(passage_ids),
+                "facts": facts_schema(passage_ids, before),
                 "dates": {"type": "array", "maxItems": 4, "items": {
                     "type": "object", "additionalProperties": False, "required": ["what", "date", "passages"],
                     "properties": {"what": {"type": "string", "maxLength": LIMITS["what"]},
@@ -306,7 +370,7 @@ def clean_facts(reply, passages, old_marks, new_marks):
     return facts
 
 
-def validate_change(reply, passages, sent):
+def validate_change(reply, passages, sent, have=None):
     if not isinstance(reply, dict) or set(reply) != {"headline", "what_changed", "facts", "dates", "significance"}:
         raise Unclassified("The reply must hold exactly headline, what_changed, facts, dates and significance.")
     headline = text_field(reply, "headline", LIMITS["headline"])
@@ -315,7 +379,12 @@ def validate_change(reply, passages, sent):
         raise Unclassified(f"significance is one of {', '.join(SIGNIFICANCE)}.")
     every = json.dumps(sent, ensure_ascii=False)
     check([headline, text], every, "headline or what_changed")
-    facts = clean_facts(reply, passages, {"O"}, {"N", "I"})
+    have = have or {}
+    old_marks = {"O"} | ({"I"} if have.get("pair") else set())
+    facts = clean_facts(reply, passages, old_marks, {"N", "I", "F", "M"})
+    if compares_without_old(have, sent) and (word := COMPARING.search(f"{headline} {text}")):
+        raise Unclassified(f"'{word.group(0)}' compares with the old wording, which is not given. "
+                           "Describe only what applies now.")
     if reply["significance"] == "EDITORIAL" and any(
             number_problems([fact["after"]], fact["before"]) for fact in facts if fact["before"] and fact["after"]):
         raise Unclassified("A fact changes a number or date, so the change is not EDITORIAL. Use SUBSTANTIVE.")
@@ -334,6 +403,18 @@ def validate_change(reply, passages, sent):
             "significance": reply["significance"]}
 
 
+def compares_without_old(have: dict, sent: dict) -> bool:
+    """True when a comparison with the old wording cannot be backed by the texts given."""
+    if not have or have.get("old") or have.get("pair") or have.get("removal"):
+        return False
+    operations = set(have.get("operations", set())) - {"AMENDS", "REPLACES", "OTHER"}
+    if operations and operations <= ADDITIONS:
+        return False                       # a new provision only: "neu", "zusätzlich" are fine
+    title = (sent.get("changing_act") or {}).get("title", "")
+    return not (PROLONGING.search(title) or have.get("operations", set()) & {
+        "EXTENDS_APPLICATION", "EXTENDS_VALIDITY", "DEFERS_APPLICATION"})
+
+
 def validate_corrigendum(reply, passages, sent):
     if not isinstance(reply, dict) or set(reply) != {"headline", "what_was_wrong", "facts", "affects"}:
         raise Unclassified("The reply must hold exactly headline, what_was_wrong, facts and affects.")
@@ -343,6 +424,8 @@ def validate_corrigendum(reply, passages, sent):
         raise Unclassified(f"affects is one of {', '.join(AFFECTS)}.")
     check([headline, text], json.dumps(sent, ensure_ascii=False), "headline or what_was_wrong")
     facts = clean_facts(reply, passages, {"W", "T"}, {"R", "T"})
+    if not facts and any(mark.startswith("R") for mark in passages):
+        raise Unclassified("Name at least one correction in facts, with the correct text in after.")
     if reply["affects"] == "WORDING_ONLY" and any(
             number_problems([fact["after"]], fact["before"]) for fact in facts if fact["before"] and fact["after"]):
         raise Unclassified("A correction changes a number or date, so affects is not WORDING_ONLY. Use NUMBER or DATE.")
@@ -364,11 +447,15 @@ def validate_act(reply, source):
 
 def explain(client, systems, item, log):
     name, sent, passages = request_for(item)
-    schema = corrigendum_schema(passages) if name == "corrigendum" else change_schema(passages)
-    validate = validate_corrigendum if name == "corrigendum" else validate_change
+    have = text_situation(item)
+    if name == "corrigendum":
+        schema, check_reply = corrigendum_schema(passages), lambda reply: validate_corrigendum(reply, passages, sent)
+    else:
+        before = any(mark.startswith("O") for mark in passages) or have["pair"]
+        schema = change_schema(passages, before)
+        check_reply = lambda reply: validate_change(reply, passages, sent, have)
     try:
-        answer = ask(client, systems[name], sent, TASKS[name], schema, f"{name}_explanation",
-                     lambda reply: validate(reply, passages, sent), log, 1200)
+        answer = ask(client, systems[name], sent, TASKS[name], schema, f"{name}_explanation", check_reply, log, 1200)
     except OverflowError:
         raise Unclassified("The texts of this change are too long for the model.") from None
     for fact in answer["facts"]:
@@ -429,7 +516,7 @@ def goes_to_inbox(record) -> bool:
     if routing.get("level") not in LEVELS:
         return False
     if record["kind"] == "CORRIGENDUM":
-        return explanation.get("affects") != "WORDING_ONLY"
+        return bool(explanation) and explanation.get("affects") != "WORDING_ONLY"
     if record["kind"] == "ACT" and record["relation"] in {"REPEALS", "IMPLICITLY_REPEALS"}:
         return True
     return explanation.get("significance") != "EDITORIAL"
@@ -437,13 +524,31 @@ def goes_to_inbox(record) -> bool:
 
 # ------------------------------------------------------------------ export
 
+MISSING_NOTE = {"de": {"NEW_WORDING_MISSING": "Der neue Wortlaut liegt nicht vor.",
+                       "NO_TEXT": "Der Wortlaut der Änderung liegt nicht vor.",
+                       "CORRIGENDUM_TEXT_MISSING": "Der Text der Berichtigung liegt nicht vor.",
+                       "OTHER_LANGUAGES_ONLY": "Betrifft nur andere Sprachfassungen (nicht Deutsch oder Englisch)."},
+                "en": {"NEW_WORDING_MISSING": "The new wording is not available.",
+                       "NO_TEXT": "The wording of the change is not available.",
+                       "CORRIGENDUM_TEXT_MISSING": "The text of the corrigendum is not available.",
+                       "OTHER_LANGUAGES_ONLY": "Concerns other language versions only (not German or English)."}}
+
+
 def code_line(facts, language):
-    """A short line built by code for an act-level change without text to explain."""
+    """A short line built by code when there is no text to explain: what, where, by which act, from when."""
     label = KIND_LABEL[language].get(facts["relation"], facts["relation"])
     day = facts["effective_from"] or facts["changing"].get("application") or facts["changing"].get("entry_into_force")
+    operations = ", ".join(OPERATION_LABEL[language].get(o, "") for o in facts["operations"]
+                           if OPERATION_LABEL[language].get(o))
+    place = f"{facts['provision']} " if facts.get("provision") else ""
+    note = MISSING_NOTE[language].get(facts.get("missing") or "", "")
     if language == "de":
-        return f"{label} von {facts['changed']['celex']} durch {facts['changing']['celex']}" + (f", ab {day}." if day else ".")
-    return f"{label} of {facts['changed']['celex']} by {facts['changing']['celex']}" + (f", from {day}." if day else ".")
+        line = f"{label}: {place}{facts['changed']['celex']}" + (f" {operations}" if operations else "") + \
+            f" durch {facts['changing']['celex']}" + (f", ab {day}" if day else "")
+    else:
+        line = f"{label}: {place}{facts['changed']['celex']}" + (f" {operations}" if operations else "") + \
+            f" by {facts['changing']['celex']}" + (f", from {day}" if day else "")
+    return f"{line}. {note}".strip()
 
 
 def entry(record, language):
@@ -668,12 +773,12 @@ def export(out, planned, language, template=""):
         writer.writerows(rows)
     with (out / "missing_text.csv").open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
-        writer.writerow(["changed_act", "provision", "changing_act", "relation", "wording"])
+        writer.writerow(["changed_act", "provision", "changing_act", "relation", "kind", "wording", "reason"])
         for record in done:
-            if record.get("no_text") and record["kind"] == "PROVISION":
+            if record.get("no_text"):
                 writer.writerow([record["facts"]["changed"]["celex"], record["facts"]["provision"] or "",
-                                 record["facts"]["changing"]["celex"], record["facts"]["relation"],
-                                 record["facts"]["wording"]])
+                                 record["facts"]["changing"]["celex"], record["facts"]["relation"], record["kind"],
+                                 record["facts"]["wording"], record["facts"].get("missing") or ""])
     with (out / "to_screen.csv").open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, delimiter=";")
         writer.writerow(["changed_act", "provision", "changing_act", "relation", "significance", "headline"])
@@ -689,7 +794,7 @@ def export(out, planned, language, template=""):
                                             or (r.get("explanation") or {}).get("affects") or "NO_TEXT" for r in done)),
                "wording": dict(Counter(r["facts"]["wording"] for r in done)),
                "route": dict(Counter(r["routing"]["route"] for r in done)),
-               "missing_text": sum(1 for r in done if r.get("no_text") and r["kind"] == "PROVISION"),
+               "missing_text": dict(Counter(r["facts"].get("missing") or "NO_TEXT" for r in done if r.get("no_text"))),
                "in_inbox": sum(goes_to_inbox(r) for r in done), "departments": len(inbox), "cards": cards_total,
                "changing_acts_with_summary": sum(1 for v in acts.values() if v),
                "failures": [{"id": r["facts"]["id"], "changed": r["facts"]["changed"]["celex"],
@@ -759,7 +864,8 @@ def main(argv=None):
     if not items:
         print("Nothing to explain.", file=sys.stderr)
         return 1
-    fingerprint = sha([systems, TASKS, change_schema(["O1"]), corrigendum_schema(["W1"]), ACT_SCHEMA, args.language])
+    fingerprint = sha([systems, TASKS, change_schema(["O1"]), change_schema(["N1"], False), corrigendum_schema(["W1"]),
+                       ACT_SCHEMA, args.language, "v1.2"])
     config = out / "run_config.json"
     if config.is_file() and read_json(config).get("fingerprint") != fingerprint:
         print("The prompts or the language changed since this folder was started. Use a new --output-dir.",
@@ -785,14 +891,12 @@ def main(argv=None):
     def item_worker(progress):
         def work(item):
             facts = item_facts(item)
-            first = item["records"][0]
             record = {"kind": item["kind"], "relation": facts["relation"], "facts": facts,
                       "routing": route(facts, results, index),
                       "texts": {"old": next((r["old_text"] for r in item["records"] if r.get("old_text")), None),
                                 "new": next((r["new_text"] for r in item["records"] if r.get("new_text")), None)}}
             failed = False
-            if (item["kind"] == "ACT" and not first.get("instruction") and not first.get("final_articles")) or \
-                    (item["kind"] == "PROVISION" and facts["wording"] == "NONE"):
+            if facts["missing"]:
                 record["no_text"] = True       # nothing to explain: a line built by code, listed in missing_text.csv
             else:
                 log = []

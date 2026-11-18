@@ -169,6 +169,62 @@ class HelperTests(unittest.TestCase):
             explain.validate_corrigendum(answer, passages, sent)
 
 
+    def test_no_explanation_without_new_wording_or_corrigendum_text(self):
+        only_old = provision("9", "15", "REPLACE", "Levels shall not exceed 100 TJ.", None, "", "OLD_ONLY")
+        deleted = provision("10", "16", "DELETE", "Article 16 Reports.", None, "", "OLD_ONLY")
+        corr = {**RECORDS[4], "corrections": [], "instruction": "", "corrigendum_source": "NOT_FETCHED"}
+        other = {**RECORDS[4], "corrections": [], "instruction": "", "corrigendum_source": "OTHER_LANGUAGES_ONLY"}
+        reasons = [explain.missing_reason({"kind": r["kind"], "records": [r]}) for r in (only_old, deleted, corr, other)]
+        self.assertEqual(reasons, ["NEW_WORDING_MISSING", None, "CORRIGENDUM_TEXT_MISSING", "OTHER_LANGUAGES_ONLY"])
+        facts = explain.item_facts({"id": "x", "kind": "PROVISION", "records": [only_old]})
+        self.assertIn("Article 15 32010L0075 ersetzt durch 32024L1785, ab 2024-08-04. Der neue Wortlaut liegt nicht vor.",
+                      explain.code_line(facts, "de"))
+        self.assertFalse(explain.goes_to_inbox({"kind": "CORRIGENDUM", "relation": "CORRECTS", "no_text": True,
+                                                "routing": {"level": "DIRECT"}}))
+
+    def test_without_old_wording_nothing_is_compared_and_before_stays_empty(self):
+        item = {"id": "x", "kind": "PROVISION", "records": [RECORDS[2]]}
+        RECORDS_REPLACE = provision("11", "14", "REPLACE", None, "Health surveillance applies to cancer cases.",
+                                    "(4) Article 14 is replaced by the following.", "NEW_ONLY")
+        item = {"id": "y", "kind": "PROVISION", "records": [RECORDS_REPLACE]}
+        name, sent, passages = explain.request_for(item)
+        self.assertIn("compare with nothing", sent["notes"][0])
+        self.assertIn("M1", passages)                                  # dates of the changing act are given
+        schema = explain.change_schema(passages, False)
+        self.assertEqual(schema["properties"]["facts"]["items"]["properties"]["before"]["maxLength"], 0)
+        have = explain.text_situation(item)
+        reply = {"headline": "Meldepflicht erweitert", "what_changed": "Früher galt weniger. Nun gilt mehr.",
+                 "facts": [], "dates": [], "significance": "SUBSTANTIVE"}
+        with self.assertRaises(explain.Unclassified):
+            explain.validate_change(reply, passages, sent, have)
+        reply["headline"], reply["what_changed"] = "Gesundheitsüberwachung bei Krebsfällen", "Sie gilt für Krebsfälle."
+        self.assertEqual(explain.validate_change(reply, passages, sent, have)["headline"],
+                         "Gesundheitsüberwachung bei Krebsfällen")
+
+    def test_dates_may_come_from_the_changing_act_and_old_words_from_the_instruction(self):
+        record = provision("12", "4", "REPLACE", None, None,
+                           "(1) In Article 4, the words ‘100 TJ’ are replaced by ‘85 TJ’.", "INSTRUCTION_ONLY")
+        item = {"id": "z", "kind": "PROVISION", "records": [record]}
+        name, sent, passages = explain.request_for(item)
+        have = explain.text_situation(item)
+        self.assertTrue(have["pair"])
+        reply = {"headline": "Schwelle von 100 TJ auf 85 TJ gesenkt",
+                 "what_changed": "Die Schwelle sinkt von 100 TJ auf 85 TJ. Das gilt ab dem 4. August 2024.",
+                 "facts": [{"what": "Schwelle", "before": "100 TJ", "after": "85 TJ", "passages": ["I1"]},
+                           {"what": "Inkrafttreten", "before": "", "after": "4. August 2024", "passages": ["M1"]}],
+                 "dates": [{"what": "gilt ab", "date": "4. August 2024", "passages": ["M1"]}],
+                 "significance": "SUBSTANTIVE"}
+        self.assertEqual(len(explain.validate_change(reply, passages, sent, have)["facts"]), 2)
+
+    def test_places_that_cannot_be_read_form_one_item(self):
+        a = {**provision("20", "1", "REPLACE", None, None, "Directive 2010/75/EU is amended: ...", "INSTRUCTION_ONLY"),
+             "root": None, "provision": "Title"}
+        b = {**a, "id": "p21", "change_id": "21", "provision": ""}
+        items = explain.build_items([a, b])
+        self.assertEqual(len(items), 1)
+        self.assertEqual(explain.request_for(items[0])[1]["provision"], "several places, see the instruction")
+
+
 class RunTests(unittest.TestCase):
     def setUp(self):
         self.directory = TemporaryDirectory()

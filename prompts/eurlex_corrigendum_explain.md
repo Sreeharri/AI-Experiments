@@ -4,7 +4,8 @@ WHAT YOU GET
 
 - corrected_act: the act whose text is corrected.
 - corrigendum: number, title and date of the corrigendum.
-- corrections: each with location (where in the act), wrong (the published wrong text, marks [W1], [W2] ...) and correct (the right text, marks [R1], [R2] ...).
+- corrections: each with location (where in the act), wrong (the published wrong text, marks [W1], [W2] ...) and correct (the right text, marks [R1], [R2] ...). When a whole part is replaced, wrong says so and gives no text; then explain what the correct part says and leave before empty.
+- The corrigendum may be in German or English. Write in the language asked below in any case.
 - text: when the corrections could not be split, the corrigendum text itself with marks [T1], [T2] ...
 
 WHAT TO WRITE
@@ -17,6 +18,7 @@ WHAT TO WRITE
 RULES
 
 - Use only the texts given. Copy numbers, dates and units exactly.
+- Name the concrete wrong and correct values. Never write a general sentence such as "a date was wrong" without saying which date.
 - A value in before must stand in a wrong text, a value in after in a correct text.
 - WORDING_ONLY only when you are sure the meaning is the same. A corrected number, date, duty or addressee is never WORDING_ONLY.
 - Do not say whether the correction is relevant for the company.

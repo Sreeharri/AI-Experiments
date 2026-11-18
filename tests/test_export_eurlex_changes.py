@@ -85,6 +85,76 @@ class HelperTests(unittest.TestCase):
         self.assertIsNone(export.element_text(elements, ("annex", "i")))
         self.assertEqual(export.clean("▼M1 Text  ▼B more"), "Text more")
 
+    def test_corrigenda_in_english_and_german_and_whole_replacements(self):
+        text = ("CORRIGENDUM to Regulation (EU) 2016/185\nOn page 79, Article 1(1):\nfor: ‘the Member State’s body’,\n"
+                "read: ‘the competent body of the Member State’s choice’.\nOn page 80, Annex II is replaced by the "
+                "following:\nANNEX II List 1. a\nSeite 5, Artikel 2 Absatz 1:\nAnstatt:\n„1 200 kg/m3“\n"
+                "muss es heißen:\n„1,2 kg/m3“.")
+        found = export.corrections_in(text)
+        self.assertEqual([c["correct"] for c in found],
+                         ["the competent body of the Member State’s choice", "ANNEX II List 1. a", "1,2 kg/m3"])
+        self.assertEqual(found[1]["wrong"], "")
+        self.assertTrue(export.is_corrigendum_text(text))
+        self.assertFalse(export.is_corrigendum_text("Article 1 Subject matter. This Regulation lays down rules."))
+
+    def test_sole_annex_and_own_article_is_not_an_instruction(self):
+        self.assertEqual(export.root_of("Annex TXT"), ("annex", ""))
+        self.assertEqual(export.root_of("Annex P A TXT"), ("annex", ""))
+        elements = [{"identifier": "Article 51", "text": "Article 51 Hydrogen network development plans. Member "
+                                                          "States shall ensure that operators submit plans."},
+                    {"identifier": "Article 90", "text": "Article 90 Amendments to Regulation (EU) 2018/1999. "
+                                                          "Regulation (EU) 2018/1999 is amended as follows: (1) "
+                                                          "Article 2 is replaced by the following: ‘text’;"}]
+        self.assertEqual(export.instruction_for(elements, "32018R1999", ("article", "51")), ("", None))
+        self.assertEqual(export.instruction_for(elements, "32018R1999", ("article", "2"))[1], "Article 90")
+        several = "Regulation (EU) 2019/1009 is amended as follows: (1) Article 4 is replaced. " \
+                  "Directive 2008/98/EC is amended as follows: (1) Article 4 is deleted."
+        self.assertNotIn("deleted", export.instruction_for([{"identifier": "Article 1", "text": several}],
+                                                             "32019R1009", ("article", "4"))[0])
+
+    def test_versions_are_not_mixed_with_other_changes_and_long_texts_keep_the_change(self):
+        original = {"id": "o", "version_kind": "ORIGINAL", "version_date": None, "effective_from": None}
+        later = {"id": "c", "version_kind": "CONSOLIDATED", "version_date": "2024-08-04", "effective_from": None}
+        act_day = export._date("2010-11-24")
+        self.assertEqual(export.pick_versions([original, later], export._date("2024-08-04"), act_day),
+                         (original, later))
+        other = {export._date("2018-01-01")}
+        self.assertEqual(export.pick_versions([original, later], export._date("2024-08-04"), act_day, other),
+                         (None, later))
+        same = " ".join(f"Sentence number {i} stays the same." for i in range(800))
+        old, new, trimmed = export.changed_regions(same + " The limit is 100 TJ.", same + " The limit is 85 TJ.")
+        self.assertTrue(trimmed)
+        self.assertIn("100 TJ", old)
+        self.assertIn("85 TJ", new)
+        self.assertLess(len(new), 2000)
+
+
+    def test_eurlex_text_is_read_split_and_cached(self):
+        import io
+        from tempfile import TemporaryDirectory
+        import eurlex_text_fetch as fetch
+        page = ("<html><head><title>x</title><script>var a;</script></head><body><p class='oj-ti-art'>Article 1</p>"
+                "<p>Subject matter</p><p>Directive 2010/75/EU is amended as follows: (1) Article 15 is replaced by the "
+                "following: ‘text’;</p><p class='oj-ti-art'>Article 2</p><p>Entry into force</p><p>This Directive shall "
+                "enter into force on the twentieth day.</p><p class='oj-doc-ti'>ANNEX</p><p>List of plants</p></body></html>")
+
+        class Opener:
+            calls = 0
+
+            def open(self, request, timeout):
+                Opener.calls += 1
+                return io.BytesIO(page.encode("utf-8"))
+        fetch.PAUSE_SECONDS = 0
+        with TemporaryDirectory() as folder:
+            text, status = fetch.fetch_text("32024L1785", "EN", Path(folder), Opener())
+            again = fetch.fetch_text("32024L1785", "EN", Path(folder), Opener())
+        self.assertEqual((status, again[1], Opener.calls), ("OK", "OK", 1))
+        elements = fetch.split_elements(text)
+        self.assertEqual([e["identifier"] for e in elements], ["Article 1", "Article 2", "Annex"])
+        self.assertEqual(elements[1]["heading"], "Entry into force")
+        self.assertNotIn("var a", text)
+        self.assertEqual(export.final_articles(elements)[0]["locator"], "Article 2")
+
 
 SCHEMA = """
 CREATE TABLE source_documents (id uuid PRIMARY KEY, external_id text, title_en text, title_de text,
