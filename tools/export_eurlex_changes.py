@@ -22,13 +22,14 @@ record per act-level relationship without provision detail, and one record per c
     corrections  [{location, wrong, correct}] (CORRIGENDUM only)
     wording      FULL | NEW_ONLY | OLD_ONLY | INSTRUCTION_ONLY | NONE
 
+Version 1.7: also the article heading and the current wording of the exact place (to know what a point is about).
 Version 1.4: old/new wording from the backend's own matcher (same as the UI); roles.json from all
 relationships; one date with its source per change. Since 1.2: corrigenda are only taken from real corrigendum text (else read from EUR-Lex, German first, with
 --fetch-missing); old texts come only from versions with no other change in between; long texts keep their
 changed parts; the changing act's own article is never taken for the change; "Annex" without number = sole annex.
 
     python tools/export_eurlex_changes.py --count-only
-    python tools/export_eurlex_changes.py --since 2015 --fetch-missing --out runs/eurlex_changes_export_v4
+    python tools/export_eurlex_changes.py --since 2015 --fetch-missing --out runs/eurlex_changes_export_v5
     python tools/export_eurlex_changes.py --celex 32010L0075 --out runs/eurlex_changes_ied
 """
 
@@ -56,7 +57,8 @@ TEXT_CHANGES = {"AMENDS", "REPLACES", "REPEALS", "IMPLICITLY_REPEALS", "CORRECTS
 LINKS_ONLY = {"COMPLETES", "ADDS_TO", "IMPLEMENTS", "INCORPORATES", "CONFIRMS", "ADOPTS", "PARTIALLY_ADOPTS"}
 
 STOP_FETCH_AFTER = 25       # EUR-Lex not reachable this often in a row (and never reached): stop asking
-TEXT_LIMIT = 12000          # characters of old or new text kept per record
+TEXT_LIMIT = 12000
+CONTEXT_LIMIT = 1500        # current wording of the exact place, to know what a point is about          # characters of old or new text kept per record
 INSTRUCTION_LIMIT = 6000
 FINAL_ARTICLE_LIMIT = 1500
 MAX_FINAL_ARTICLES = 4
@@ -460,6 +462,41 @@ class Store:
         except Exception as exc:  # noqa: BLE001 - one odd change must not stop the export
             return {"comparison_status": f"MATCH_ERROR {type(exc).__name__}"}
 
+    def place_context(self, row: dict, rel: dict) -> tuple[str | None, str | None]:
+        """(heading of the changed article, current wording of the exact place) from the newest stored version of
+        the changed act. Only to understand what a point or paragraph is about (for example "(b) service contracts
+        …"); never used as old or new wording."""
+        if self.wording is None or not row.get("target_provision"):
+            return None, None
+        try:
+            index = self.backend_index(rel["changed_document"], rel["changed_celex"])
+            target = self.wording.module.locator(row["target_provision"])
+        except Exception:  # noqa: BLE001 - context is optional
+            return None, None
+        if target is None:
+            return None, None
+        newest = sorted(index.versions, key=lambda v: (bool(v.get("is_current")), v.get("version_date") or date.min),
+                        reverse=True)[:3]
+        heading = context = None
+        root = (target.kind, target.number)
+        for version in newest:
+            elements = index.elements.get(str(version["id"]), [])
+            if heading is None:
+                heading = next((clean(e.get("heading")) for e in elements if e.get("heading") and
+                                root_of(e.get("identifier")) == root and not re.search(r"\(|paragraph|point",
+                                                                                         e.get("identifier") or "")),
+                               None)
+            if context is None and target.tokens:
+                try:
+                    found = index.selection([version], target)
+                except Exception:  # noqa: BLE001
+                    found = None
+                if found:
+                    context = clean(found[0])[:CONTEXT_LIMIT]
+            if heading and (context or not target.tokens):
+                break
+        return heading or None, context or None
+
     def online(self, celex: str, languages=("EN",)) -> tuple[str, str]:
         """(text, language) from EUR-Lex, or ("", status) with status MISSING (no such language) / ERROR / OFF."""
         if self.fetch_dir is None or not celex:
@@ -632,6 +669,7 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
             else:
                 old = new = None
                 status = "NOT_MAPPED"
+            heading, point_context = store.place_context(row, rel) if both_eurlex else (None, None)
             trimmed = False
             if old and new:
                 old, new, trimmed = changed_regions(old, new)
@@ -649,6 +687,7 @@ def build_records(store: Store, relationships: list[dict], say=print) -> tuple[l
                             "resolution_status": row["resolution_status"], "effective_from": day,
                             "effective_source": day_source, "effective_to": row["effective_to"],
                             "old_text": old, "new_text": new, "comparison_status": status,
+                            "heading": heading, "point_context": point_context,
                             "instruction": instruction, "instruction_locator": instruction_locator,
                             "wording": wording, "wording_source": "BACKEND" if status != "NOT_MAPPED" else "NONE",
                             "trimmed": trimmed})
@@ -722,7 +761,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--env", type=Path, default=ROOT / ".env")
     parser.add_argument("--classification", type=Path, default=ROOT / "runs/eurlex_classification_v5")
-    parser.add_argument("--out", type=Path, default=ROOT / "runs/eurlex_changes_export_v4")
+    parser.add_argument("--out", type=Path, default=ROOT / "runs/eurlex_changes_export_v5")
     parser.add_argument("--since", type=int, default=2015, help="Changing acts from this year on (0 = all).")
     parser.add_argument("--celex", nargs="+", default=[], help="Only relationships of these acts (any year).")
     parser.add_argument("--count-only", action="store_true")

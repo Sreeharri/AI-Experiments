@@ -309,6 +309,7 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(art15["effective_from"], "2024-08-04")
         self.assertEqual((art15["comparison_status"], art15["effective_source"]), ("MATCHED_STORED_EVIDENCE", "CHANGE"))
         self.assertEqual(art15["old_text"], "3. Levels shall not exceed 100 TJ per year.")   # the exact paragraph
+        self.assertEqual(art15["point_context"], "3. Emission levels shall not exceed 85 TJ per year.")  # newest version
         self.assertEqual(by["Article 99"]["comparison_status"], "NEEDS_MATCH_REVIEW")
         roles = json.loads((out / "roles.json").read_text(encoding="utf-8"))
         self.assertEqual(roles["32010L0075"]["labels"], ["Ändert andere Rechtsakte", "Wurde geändert", "Wurde berichtigt"])
