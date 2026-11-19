@@ -1,6 +1,20 @@
 # Legal Radar – Summaries step (guide)
 
-Status 2026-11-17 (v4.3). Step after classification. Script: `summarize_eurlex_provisions.py`.
+Status 2026-11-19 (v4.6). Step after classification. Script: `summarize_eurlex_provisions.py`.
+
+v4.6 (after the review of the full run; the provision prompts are unchanged, so the same folder is continued):
+- **Qwen's answer is taken as it is.** No length limits are sent to Qwen, nothing is cut, shortened or rejected, and there are no correction requests for numbers, language or length. Only an answer that cannot be read at all (not valid JSON, or without its fields) is asked once more. A number, unit or date that is not found in the text is only marked (`number_check` on the point, for review.csv), not rejected.
+- **Only what has an error is asked again; everything else is kept.** Provisions: the 994 failed ones and the 2,473 whose text was stopped at the old length limit (if the new request fails, the earlier summary is kept, `redo_failure`). Act summaries: only the 1,049 with an error (cut-off sentence, wrong type of act, English act names, CELEX number, or tables that are now summarised as a group) and those whose provisions changed in this run (about 1,370 in all); the other 2,300 or so are kept.
+- **New act prompt** (`ACT_VERSION = "act-v2"`): the type of act from the CELEX number (a decision is "Beschluss"/"Entscheidung"), the provisions spread over the whole act instead of the first 12, company duties before rules for authorities, a list of fixed German legal terms.
+- **Tables of one annex section are summarised together** (new step "Tables", prompt `eurlex_table_summary.md`, `TABLE_VERSION = "tables-v1"`). From 3 tables of the same section on, one summary is written from the saved table summaries (481 groups with 4,989 tables in the full run; the largest has 228 tables). The card shows the group once; the single tables stay in the inbox file (`table_group` on each provision, `table_groups` on the card), so the UI and the AI bridge keep working. To check by hand: `review_tables.csv`.
+- **Tidying when the cards are written** (no Qwen request, nothing cut): a WHO point that names no one becomes OTHER; fixed terms and English act names are corrected ("Erklärung der Leistung" -> "Leistungserklärung", "Regulation (EU)" -> "Verordnung (EU)", "/EEC" -> "/EWG"); CELEX numbers and repeated sentences are left out of the act summaries.
+- Language rows ("‘HR ...") are now also left out when the department summaries are planned, so that the cards of the run and of the export are the same.
+- Only the saved provision prompts decide whether a folder can be continued.
+- Not fixed without a new full run (provision prompt): "may" written as "muss", amending provisions summarised as rules, tables summarised row by row.
+
+v4.5 (after the full run: 32,663 of 33,657 summarised, 994 failed): (1) a unit written with the micro sign (µg) no longer crashes the number check (104 failures); (2) after the one correction request, a point whose number, unit or date is still not in the text is left out instead of failing the whole provision (`points_left_out` in the summary); headline and overview must still be right. Prompts unchanged, so the run fingerprint is the same: running the same command again in the same folder retries only the failed provisions and keeps all others.
+
+Also in v4.5, when the cards are written (no Qwen request, applied to every saved summary): in a definitions article a DUTY point that states no duty becomes OTHER ("Hinweis"); a DUTY that only says what the act does ("Die Verordnung legt ... fest") becomes OTHER; a one-sentence point that only says something is not stated is left out; table rows that are one other language version of a phrase ("‘HR ...") are left out of the cards. Counts in summary.json → `tidied`; per provision in `summary.tidied`. On the full run: 1,350 points relabelled, 29 left out, 262 language rows left out. Not fixed by rules: duties written for tables, guessed addressees, "may" turned into "must"; these need a prompt change and a new run.
 
 ## What it does
 
@@ -17,9 +31,9 @@ Code checks (one correction request, otherwise the item is marked failed and ret
 - every key point names the passage it comes from;
 - **numbers:** every number must occur in the text with the same value. Other notation is fine (1.000 / 1,000 / 1 000, 1.5 / 1,5), another value is not (1.5 MW is never 15 MW);
 - **dates:** day, month and year must match a date in the text (31.12.2027 = 31 December 2027; 31.01.2027 is rejected). A date without day (Dezember 2027) must match month and year;
-- **units:** a number with a unit (MW, kWh, TJ, t, kg, %, EUR …) must stand with the same unit in the text;
+- **units:** a number with a unit (MW, kWh, TJ, t, kg, %, EUR …) must stand with the same unit in the text, or the unit must be used in the text (tables often put it in the column header);
 - a number in a key point must stand in the text that was sent. If it is not in the passage the point names, the code adds the passage that holds it. If it stands only outside the passages (act title, opening words of a long annex), the point is marked `number_outside_passages`;
-- numbers that only point to a part of a text or to another act (Artikel 5, Absatz 1, Anhang II, Nr. 451/2008, 2008/98/EG) are references, not facts, and are not checked.
+- numbers that only point to a part of a text or to another act (Artikel 5, Absätze 2 und 4, Nummern 2 bis 4, Anhang II, Nr. 451/2008, 2008/98/EG, section numbers like 1.4.1.4) are references, not facts, and are not checked.
 - **language:** a summary in the wrong language (English instead of German) gets a correction request;
 - **empty statements** ("Eine Frist wird nicht genannt", "no specific deadline") are removed by code.
 - **no text:** a provision whose stored text has almost no words (for example only "(7-146)") is not sent to Qwen; the card says the text is missing (`text_missing`).
@@ -49,7 +63,7 @@ If you already started a summaries folder with an older version, the script refu
 ## Commands (PowerShell, in the project folder)
 
 ```
-# 1. code test, no Qwen needed – must end with OK (25 tests)
+# 1. code test, no Qwen needed – must end with OK (26 tests)
 & .\.venv\Scripts\python.exe -m unittest tests.test_summarize_eurlex_provisions
 
 # 2. count only, nothing is sent

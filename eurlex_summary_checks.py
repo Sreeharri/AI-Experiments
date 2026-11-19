@@ -36,7 +36,7 @@ MONTH_NUMBER = {name: number for number, names in MONTHS.items() for name in nam
 MONTH = "(" + "|".join(sorted((re.escape(name) for name in MONTH_NUMBER), key=len, reverse=True)) + r")\.?"
 
 DATE_PATTERNS = (  # (pattern, order of the groups)
-    (re.compile(rf"\b(\d{{1,2}})\.?\s*(?:of\s+)?{MONTH}\s+(\d{{4}})\b", re.I), "dMy"),
+    (re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?\.?\s*(?:of\s+)?{MONTH}\s+(\d{{4}})\b", re.I), "dMy"),
     (re.compile(rf"\b{MONTH}\s+(\d{{1,2}}),?\s+(\d{{4}})\b", re.I), "Mdy"),
     (re.compile(r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b"), "ymd"),
     (re.compile(r"\b(\d{1,2})\s?[./]\s?(\d{1,2})\s?[./]\s?(\d{4})\b"), "dmy"),
@@ -51,7 +51,7 @@ UNITS = {  # spelling -> canonical unit; longest first when matching
     "pj": "PJ", "tj": "TJ", "gj": "GJ", "mj": "MJ", "terajoule": "TJ", "terajoules": "TJ",
     "kv": "kV", "kilovolt": "kV",
     "t": "t", "tonnen": "t", "tonne": "t", "tonnes": "t", "tons": "t", "kg": "kg", "kilogramm": "kg",
-    "kilograms": "kg", "kilogram": "kg", "mg": "mg", "µg": "µg",
+    "kilograms": "kg", "kilogram": "kg", "mg": "mg", "µg": "µg", "μg": "µg",
     "km": "km", "kilometer": "km", "kilometres": "km", "kilometers": "km",
     "m²": "m2", "m2": "m2", "m³": "m3", "m3": "m3", "quadratmeter": "m2", "kubikmeter": "m3",
     "ppm": "ppm", "db": "dB", "db(a)": "dB",
@@ -63,13 +63,21 @@ NUMBER = re.compile(rf"(?<![\d.,])(?:{SPACED}|\d+(?:[.,]\d+)*)(?![\d])")
 UNIT_AFTER = re.compile(rf"\s?{UNIT}", re.I)
 # A number right after one of these words points to a part of a text (Artikel 5, Absatz 1, Annex II, Nr. 451),
 # it is not a fact such as a threshold or a deadline. Act numbers like 2008/98/EG are references too.
-REFERENCE_BEFORE = re.compile(
-    r"(?:\bArtikels?|\bArticles?|\bArt\.|\bAbsatz|\bAbs\.|\bparagraphs?|\bUnterabsatz|\bsubparagraphs?|"
-    r"\bBuchstaben?|\bNummer|\bNr\.|\bNo\.?|\bAnhang|\bAnnex(?:es)?|\bTeil|\bPart|\bKapitel|\bChapter|"
-    r"\bAbschnitt|\bSection|\bSatz|\bSpalte|\bcolumn|\bZeile|\brow|\bTabelle|\bTable|\bPunkt|\bpoints?|"
-    r"\bZiffer|\bUnterpunkt|\bAnlage|\bRandnummer)\s*(?:\(\w+\)\s*)?$", re.I)
+REFERENCE_WORDS = (
+    r"Artikel|Article|Art\.|Absatz|Absätze|Abs\.|paragraph|Unterabsatz|Unterabsätze|subparagraph|Buchstabe|"
+    r"Nummer|Nr\.|No\.?|Anhang|Anhänge|Annex|Teil|Part|Kapitel|Chapter|Abschnitt|Section|Satz|Sätze|Spalte|column|"
+    r"Zeile|row|Tabelle|Table|Punkt|point|Ziffer|Unterpunkt|Anlage|Randnummer|Position|Kategorie|category|Klasse|class")
+REFERENCE_BEFORE = re.compile(  # "Artikel 5", "Absätze 2 und", "Nummern 2 bis", "points (a) and"
+    rf"(?:\b(?:{REFERENCE_WORDS})\w{{0,3}}\.?)\s*(?:\(\w+\)\s*)?"
+    r"(?:(?:\d+[a-z]?|\(\w+\)|[ivx]+)\s*(?:,|und|and|oder|or|bis|to|sowie|-|–)\s*)*$", re.I)
+SECTION_NUMBER = re.compile(r"^\d{1,2}(?:\.\d{1,2}){2,}$")   # 1.4.1.4 or 4.4.3: a section, not a value
 ACT_NUMBER = re.compile(r"\b\d{1,4}/\d{2,4}(?:/(?:EU|EG|EWG|EC|EEC|Euratom|GASP|CFSP|JI|JHA))?\b", re.I)
 CURRENCY_BEFORE = re.compile(r"(?:\bEUR|€|\bEuro)\s?$", re.I)   # EUR 1 500
+
+
+def unit_of(name: str) -> str | None:
+    """The canonical unit of a spelling. casefold() turns the micro sign µ into the Greek μ, so both are known."""
+    return UNITS.get(name.casefold()) or UNITS.get(name.lower()) or UNITS.get(name)
 
 
 def _decimal(text: str) -> str | None:
@@ -139,11 +147,12 @@ def numbers_with_units(text: str, *, lenient: bool = False, references: bool = T
     if not references:
         text = ACT_NUMBER.sub(" ", text)
     for match in NUMBER.finditer(text):
-        if not references and REFERENCE_BEFORE.search(text[max(0, match.start() - 25):match.start()]):
+        if not references and (SECTION_NUMBER.match(match.group(0))
+                               or REFERENCE_BEFORE.search(text[max(0, match.start() - 40):match.start()])):
             continue
         unit = UNIT_AFTER.match(text, match.end())
         if unit:
-            canonical = UNITS[unit.group(1).casefold()]
+            canonical = unit_of(unit.group(1))
         elif CURRENCY_BEFORE.search(text[max(0, match.start() - 6):match.start()]):
             canonical = "EUR"
         else:
@@ -157,11 +166,14 @@ class Source:
 
     def __init__(self, text: str):
         self.dates, rest = dates(str(text))
-        self.values, self.with_unit = set(), set()
+        self.values, self.with_unit, self.units = set(), set(), set()
         for _, possible, unit in numbers_with_units(rest, lenient=True):
             self.values |= possible
             if unit:
                 self.with_unit |= {(value, unit) for value in possible}
+        lowered = rest.casefold()
+        self.units = {canonical for name, canonical in UNITS.items()
+                      if re.search(rf"(?<![\w]){re.escape(name)}(?![\w²³])", lowered)}
         for year, month, day in self.dates:  # "2027" or "31" alone may be used as well
             self.values |= {str(year), str(month)} | ({str(day)} if day else set())
         self.values |= {_decimal(run) for run in re.findall(r"\d+", rest)} - {None}
@@ -187,7 +199,7 @@ def number_problems(texts, source) -> list[str]:
             if not possible & known.values:
                 problems.append(f"The number {token} does not occur in the text. Keep the decimal point or comma "
                                 "where it is (1.5 is not 15), or leave the number out.")
-            elif unit and not any((value, unit) in known.with_unit for value in possible):
+            elif unit and not any((value, unit) in known.with_unit for value in possible) and unit not in known.units:
                 problems.append(f"'{token} {unit}' does not occur in the text with this unit. Write the number with "
                                 "the unit the text uses.")
     return list(dict.fromkeys(problems))
