@@ -582,7 +582,9 @@ class TidyMoreTests(unittest.TestCase):
         self.assertEqual(fix("Die Verordnung (EU) 2011/305 und die Verordnung (EG) 2006/1907.", "de"),
                          "Die Verordnung (EU) Nr. 305/2011 und die Verordnung (EG) Nr. 1907/2006.")
         for kept in ("Die Verordnung (EU) 2019/1020 gilt.", "Die Richtlinie 2011/65/EU gilt.",
-                     "Die Verordnung (EU) Nr. 305/2011 gilt."):
+                     "Die Verordnung (EU) Nr. 305/2011 gilt.", "Die Verordnung (EG) Nr. 1980/2000 gilt.",
+                     "Die Verordnung (EG) Nr. 2008/97 gilt.", "Die Verordnung (EG) 2008/97 gilt.",
+                     "Die Verordnung (EG) Nr. 2005/2006 gilt."):
             self.assertEqual(fix(kept, "de"), kept)
         self.assertEqual(fix("eine Leistungsdeklaration der nicht-ferroen Metallindustrie", "de"),
                          "eine Leistungserklärung der Nichteisenmetallindustrie")

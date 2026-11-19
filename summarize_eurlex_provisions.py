@@ -755,13 +755,18 @@ TERM_FIXES = [
 ]
 # Until 2014 a regulation is numbered number/year ("Verordnung (EU) Nr. 305/2011"); Qwen sometimes
 # writes it the other way round ("Verordnung (EU) 2011/305"). Directives and decisions stay year/number.
+# With "Nr." the number is already in the right order ("Nr. 1980/2000" is regulation 1980 of 2000) and
+# is never changed; so is a pair whose second part could also be a year ("2008/97").
 REVERSED_REGULATION = re.compile(
-    r"\b(Verordnung)(\s+\((?:EU|EG|EWG|EC|EEC)\))?\s+(?:Nr\.\s*)?((?:19[5-9]\d|200\d|201[0-4]))/(\d{1,4})\b(?!/)")
+    r"\b(Verordnung)(\s+\((?:EU|EG|EWG|EC|EEC)\))?\s+(?!Nr\.)((?:19[5-9]\d|200\d|201[0-4]))/(\d{1,4})\b(?!/)")
 
 
 def unreverse(match):
+    number = match.group(4)
+    if len(number) <= 2 or (len(number) == 4 and 1950 <= int(number) <= 2030):
+        return match.group(0)
     part = (match.group(2) or "").replace("(EC)", "(EG)").replace("(EEC)", "(EWG)")
-    return f"{match.group(1)}{part} Nr. {int(match.group(4))}/{match.group(3)}"
+    return f"{match.group(1)}{part} Nr. {int(number)}/{match.group(3)}"
 
 
 def fix_terms(text, language):
