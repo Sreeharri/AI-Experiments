@@ -577,6 +577,23 @@ class TidyMoreTests(unittest.TestCase):
         self.assertEqual(tidied["tidied"], {"relabelled_to_other": 0, "removed": 0, "who_to_other": 1, "terms_fixed": 3})
         self.assertEqual(summariser.tidy_summary(summary, "Article 4", "en")["headline"], "Erklärung der Leistung")
 
+    def test_reversed_regulation_numbers_terms_and_the_own_type_word_are_corrected(self):
+        fix = summariser.fix_terms
+        self.assertEqual(fix("Die Verordnung (EU) 2011/305 und die Verordnung (EG) 2006/1907.", "de"),
+                         "Die Verordnung (EU) Nr. 305/2011 und die Verordnung (EG) Nr. 1907/2006.")
+        for kept in ("Die Verordnung (EU) 2019/1020 gilt.", "Die Richtlinie 2011/65/EU gilt.",
+                     "Die Verordnung (EU) Nr. 305/2011 gilt."):
+            self.assertEqual(fix(kept, "de"), kept)
+        self.assertEqual(fix("eine Leistungsdeklaration der nicht-ferroen Metallindustrie", "de"),
+                         "eine Leistungserklärung der Nichteisenmetallindustrie")
+        self.assertEqual(fix("BAT-associated emission levels (BAT-AEL) für Staub", "de"),
+                         "BVT-assoziierte Emissionswerte (BVT-AEL) für Staub")
+        kept, _ = summariser.tidy_act_sentences(
+            ["Der Rechtsakt ist Teil der EU-Verordnung (EU) 2022/278.", "Die Verordnung (EU) 2017/1369 gilt."],
+            "de", "32022L0278")
+        self.assertEqual(kept, ["Der Rechtsakt ist Teil der Richtlinie (EU) 2022/278.",
+                                "Die Verordnung (EU) 2017/1369 gilt."])           # another act stays
+
     def test_saved_act_sentences_lose_celex_and_repeats_but_nothing_is_cut(self):
         sentences = ["Die REACH-Verordnung (32006R1907) regelt Chemikalien.", "Hersteller müssen registrieren.",
                      "Hersteller müssen registrieren.", "Die Erstellung muss innerhalb von 6 Monaten fertiggestelltwer"]

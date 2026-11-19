@@ -740,7 +740,28 @@ TERM_FIXES = [
     (re.compile(r"\b(\d{2,4}/\d{1,4})/EEC\b"), r"\1/EWG"),
     (re.compile(r"\b(\d{2,4}/\d{1,4})/EC\b"), r"\1/EG"),
     (re.compile(r"\bMember States\b"), "Mitgliedstaaten"),
+    (re.compile(r"\bLeistungsdeklaration"), "Leistungserklärung"),
+    (re.compile(r"\bnicht-ferro\w*\s+Metall", re.I), "Nichteisenmetall"),
+    (re.compile(r"\b(?:BAT|BVT)-associated emission levels?\b(?:\s*\((?:BAT|BVT)-AELs?\))?", re.I),
+     "BVT-assoziierte Emissionswerte (BVT-AEL)"),
+    (re.compile(r"\bassociated emission levels?\b", re.I), "assoziierte Emissionswerte"),
+    (re.compile(r"\bBest Available Techniques?\b", re.I), "besten verfügbaren Techniken"),
+    (re.compile(r"\bCommunity [Ee]co-[Mm]anagement and [Aa]udit [Ss]cheme\b(?:\s*\(EMAS\))?"),
+     "Gemeinschaftssystem für Umweltmanagement und Umweltbetriebsprüfung (EMAS)"),
+    (re.compile(r"\bCentral Administrator\b"), "Zentralverwalter"),
+    (re.compile(r"\bRecovery and Resilience Facility\b"), "Aufbau- und Resilienzfazilität"),
+    (re.compile(r"\bAgency for the Cooperation of Energy Regulators\b"),
+     "Agentur für die Zusammenarbeit der Energieregulierungsbehörden"),
 ]
+# Until 2014 a regulation is numbered number/year ("Verordnung (EU) Nr. 305/2011"); Qwen sometimes
+# writes it the other way round ("Verordnung (EU) 2011/305"). Directives and decisions stay year/number.
+REVERSED_REGULATION = re.compile(
+    r"\b(Verordnung)(\s+\((?:EU|EG|EWG|EC|EEC)\))?\s+(?:Nr\.\s*)?((?:19[5-9]\d|200\d|201[0-4]))/(\d{1,4})\b(?!/)")
+
+
+def unreverse(match):
+    part = (match.group(2) or "").replace("(EC)", "(EG)").replace("(EEC)", "(EWG)")
+    return f"{match.group(1)}{part} Nr. {int(match.group(4))}/{match.group(3)}"
 
 
 def fix_terms(text, language):
@@ -748,7 +769,21 @@ def fix_terms(text, language):
         return text
     for pattern, replacement in TERM_FIXES:
         text = pattern.sub(replacement, text)
-    return text
+    return REVERSED_REGULATION.sub(unreverse, text)
+
+
+FEMININE_TYPES = ("Verordnung", "Richtlinie", "Entscheidung")
+
+
+def fix_own_type(sentence, celex, language):
+    """The wrong type word before the act's own number ("EU-Verordnung (EU) 2022/278" for a directive)
+    is replaced, when both words take the same article (Verordnung, Richtlinie, Entscheidung)."""
+    expected, numbers = act_type(celex, language), act_numbers(celex)
+    if language != "de" or expected not in FEMININE_TYPES or not numbers:
+        return sentence
+    pattern = re.compile(rf"\b(?:EU-)?({'|'.join(FEMININE_TYPES)})\b(?=(?:\s*\((?:EU|EG|EWG)\))?(?:\s*Nr\.)?\s*"
+                         rf"(?:{'|'.join(map(re.escape, numbers))})(?!\d)(?!/\d))")
+    return pattern.sub(lambda match: expected if match.group(1) != expected else match.group(0), sentence)
 
 
 # A WHO point that names no one: "Die Vorschrift betrifft die Herkunft von Elektroabfällen ...".
@@ -798,12 +833,12 @@ def names_no_one(text):
     return bool(NOT_A_PERSON_START.match(text or "")) and not PERSON.search(text or "")
 
 
-def tidy_act_sentences(sentences, language):
+def tidy_act_sentences(sentences, language, celex=""):
     """The saved act sentences with CELEX numbers, repeats and English act names corrected. Nothing is cut.
     Returns (sentences, number of repeats left out)."""
     kept = []
     for sentence in sentences:
-        sentence = fix_terms(squash(CELEX_IN_TEXT.sub("", sentence)), language)
+        sentence = fix_own_type(fix_terms(squash(CELEX_IN_TEXT.sub("", sentence)), language), celex, language)
         if sentence and sentence not in kept:
             kept.append(sentence)
     return kept, len(sentences) - len(kept)
@@ -1001,7 +1036,7 @@ def export(out, planned, language):
     for celex, records in sorted(by_act.items()):
         act_file = out / "acts" / f"{safe_name(celex)}.json"
         act = read_json(act_file) if act_file.is_file() else {}
-        act_sentences, cut = tidy_act_sentences(act.get("sentences", []), language)
+        act_sentences, cut = tidy_act_sentences(act.get("sentences", []), language, celex)
         tidy_counts["act_sentences_repeated"] += cut
         act_tables = {}
         for key, group in table_groups_of(celex, records).items():
