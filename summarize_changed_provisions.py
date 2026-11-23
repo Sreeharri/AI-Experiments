@@ -47,6 +47,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import unicodedata
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -62,7 +63,7 @@ from lr_ai.qwen_client import QwenClient  # noqa: E402
 CHANGE_PROMPT = ROOT / "prompts/eurlex_change_summary.md"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
 DEFAULT_OUTPUT = ROOT / "runs/eurlex_summaries_v2_changes"
-VERSION = "changes-v3"
+VERSION = "changes-v5"
 CHANGE_TASK = "TASK: Write what changed. Return the JSON object described in the instructions."
 CHANGE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["sentence"],
                  "properties": {"sentence": {"type": "string"}}}
@@ -98,6 +99,7 @@ def german_place(place):
     if not place:
         return ""
     head = re.sub(r"^Article\b", "Artikel", re.sub(r"^Annex\b", "Anhang", place.strip()))
+    head = re.sub(r"^Anhang SOLE\b", "Anhang", head)   # the only annex of an act has no number
     match = TOKEN.search(head)
     start, rest = (head[:match.start()].strip(), head[match.start():]) if match else (head, "")
     words = []
@@ -332,36 +334,76 @@ CONTEXT_WORDS = 15
 MAX_PAIR = 1500             # characters of one side of one differing passage
 
 
-def _changed(old_parts, new_parts, context=0):
-    """[(old, new)]: each differing passage of two lists of parts, before and after, with `context` equal
-    parts around it (the same words on both sides, so that the reader sees where it is)."""
-    pairs = []
+def _words(parts):
+    return " ".join(parts).split()
+
+
+def _changed(old_parts, new_parts, context, join_gap=0):
+    """[{before, old, new, after}]: each differing passage of two lists of parts (sentences or words). old and
+    new hold only what differs; before and after are up to CONTEXT_WORDS unchanged words around it (the same
+    on both sides), so that the reader sees where the passage is, for example the row name of a table.
+    Differences with at most `join_gap` equal parts between them are joined into one passage."""
+    groups = []
     matcher = difflib.SequenceMatcher(None, old_parts, new_parts, autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             continue
-        before = old_parts[max(0, i1 - context):i1]
-        old_after, new_after = old_parts[i2:i2 + context], new_parts[j2:j2 + context]
-        pairs.append((" ".join([*before, *old_parts[i1:i2], *old_after]) if i2 > i1 else "",
-                      " ".join([*before, *new_parts[j1:j2], *new_after]) if j2 > j1 else ""))
+        if groups and i1 - groups[-1][1] <= join_gap:
+            groups[-1] = (groups[-1][0], i2, groups[-1][2], j2)
+        else:
+            groups.append((i1, i2, j1, j2))
+    pairs = []
+    for index, (i1, i2, j1, j2) in enumerate(groups):
+        start = groups[index - 1][1] if index else 0
+        end = groups[index + 1][0] if index + 1 < len(groups) else len(old_parts)
+        before = _words(old_parts[max(start, i1 - context):i1])[-CONTEXT_WORDS:]
+        after = _words(old_parts[i2:min(end, i2 + context)])[:CONTEXT_WORDS]
+        pair = {"before": " ".join(before), "old": " ".join(old_parts[i1:i2]), "new": " ".join(new_parts[j1:j2]),
+                "after": " ".join(after)}
+        pairs.append({key: value for key, value in pair.items() if value})
     return pairs
+
+
+DASHES = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2014": "-",
+                        "\u2212": "-", "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})
+
+
+def plain(text):
+    """The same characters for the same thing (dashes, quotes, a middle dot), so that only real changes differ."""
+    return unicodedata.normalize("NFKC", text or "").translate(DASHES)
 
 
 def differences(old, new):
-    """[(old, new)]: only the passages of two long wordings that differ, in their order. Used when a wording
-    is longer than MAX_WORDING (a replaced annex or table), so that Qwen compares what changed, not the start.
-    Sentence by sentence first; for tables and lists (text without sentence ends) word by word, with some
-    words around each difference."""
+    """[{before, old, new, after}]: only the passages of two long wordings that differ, in their order. Used
+    when a wording is longer than MAX_WORDING (a replaced annex or table), so that Qwen compares what changed,
+    not the start. Sentence by sentence first; for tables and lists (text without sentence ends) word by word.
+    Each passage has some unchanged words around it."""
     def size(pairs):
-        return sum(len(a) + len(b) for a, b in pairs)
+        return sum(len(pair.get("old", "")) + len(pair.get("new", "")) for pair in pairs)
 
+    old, new = plain(old), plain(new)
     pairs = _changed([p for p in SENTENCE_END.split(old or "") if p.strip()],
-                     [p for p in SENTENCE_END.split(new or "") if p.strip()])
+                     [p for p in SENTENCE_END.split(new or "") if p.strip()], 2)
     if size(pairs) > MAX_WORDING // 2:
-        by_word = _changed((old or "").split(), (new or "").split(), CONTEXT_WORDS)
+        by_word = _changed((old or "").split(), (new or "").split(), CONTEXT_WORDS, join_gap=3)
         if size(by_word) < size(pairs):
             pairs = by_word
     return pairs
+
+
+HEADING = r"(?:^|(?<=[.;:)\]] ))Article (\d+[a-z]*) (?=[A-Z])"
+
+
+def own_article(text, name):
+    """The wording of one article when the stored wording holds several inserted articles ("Article 10a ...
+    Article 10b ..."): cut at the heading of the next article. Other text stays as it is."""
+    match = re.fullmatch(r"Article (\d+[a-z]*)", name or "")
+    if not match or not (text or "").startswith(f"Article {match.group(1)} "):
+        return text
+    for heading in re.finditer(HEADING, text):
+        if heading.start() and heading.group(1) != match.group(1):
+            return text[:heading.start()].rstrip()
+    return text
 
 
 def change_input(unit, lines=None, applies_from=None):
@@ -370,6 +412,8 @@ def change_input(unit, lines=None, applies_from=None):
     pairs, more = [], 0
     for line in latest_lines(unit) if lines is None else lines:
         old, new = line.get("old_text"), line.get("new_text")
+        if new and (line.get("place") or "") == unit["root"]["name"]:
+            new = own_article(new, unit["root"]["name"])
         if not (old or new):
             continue
         if len(pairs) >= MAX_PAIRS:
@@ -380,8 +424,8 @@ def change_input(unit, lines=None, applies_from=None):
                          "REPEAL": "deleted"}.get(line["operation"], "changed")}
         if old and new and not line.get("old_is_context") and max(len(old), len(new)) > MAX_WORDING:
             shown, used, left = [], 0, 0
-            for before, after in differences(old, new):
-                pair = {key: value[:MAX_PAIR] for key, value in (("old", before), ("new", after)) if value}
+            for found in differences(old, new):
+                pair = {key: value[:MAX_PAIR] for key, value in found.items()}
                 length = sum(map(len, pair.values()))
                 if shown and used + length > 2 * MAX_WORDING:
                     left += 1
@@ -414,7 +458,9 @@ def change_input(unit, lines=None, applies_from=None):
 PAST = re.compile(r"\b(?:wurden?|wurde|hat sich|haben sich)\b", re.I)
 GERMAN_PLACES = [(re.compile(r"\bAnnexes\b"), "Anhänge"), (re.compile(r"\bAnnex\b"), "Anhang"),
                  (re.compile(r"\bArticles\b"), "Artikel"), (re.compile(r"\bArticle\b"), "Artikel"),
-                 (re.compile(r"\bAppendix\b"), "Anlage"), (re.compile(r"\bAppendices\b"), "Anlagen")]
+                 (re.compile(r"\bAppendix\b"), "Anlage"), (re.compile(r"\bAppendices\b"), "Anlagen"),
+                 (re.compile(r"\b(?:[Pp]oints?|Punkte?)\s+(?=\d)"), "Nummer "),
+                 (re.compile(r"\b[Pp]aragraphs?\s+(?=\d)"), "Absatz ")]
 
 
 def german_places(text):
@@ -426,15 +472,60 @@ def german_places(text):
     return "".join(pieces)
 
 
-def validate_change(reply, source, coming=False, final=False):
+MONTHS_DE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
+             "November", "Dezember"]
+
+
+def names_day(text, day):
+    """True when the text writes the given ISO day (13.07.2027, 13. Juli 2027, 2027-07-13)."""
+    try:
+        value = date.fromisoformat(day or "")
+    except ValueError:
+        return False
+    month = MONTHS_DE[value.month - 1]
+    forms = [f"{value:%d.%m.%Y}", f"{value.day}.{value.month}.{value.year}", value.isoformat(),
+             f"{value.day}. {month} {value.year}", f"{value:%d}. {month} {value.year}"]
+    return any(form in text for form in forms)
+
+
+def changed_only(sent):
+    """The input without the unchanged words around each difference (before, after); None when no
+    differences are sent."""
+    if not any(item.get("differences") for item in sent.get("changes", [])):
+        return None
+    copy = json.loads(json.dumps(sent))
+    for item in copy["changes"]:
+        for pair in item.get("differences", []):
+            pair.pop("before", None)
+            pair.pop("after", None)
+    return json.dumps(copy, ensure_ascii=False)
+
+
+VALUE_IN_MARK = re.compile(r"^(?:The number|The date) (.+?) does not occur")
+
+
+def validate_change(reply, source, coming=False, final=False, day=None, changed=None):
     if not isinstance(reply, dict) or not isinstance(reply.get("sentence"), str) or not squash(reply["sentence"]):
         raise Unclassified("The reply must hold the sentence.")
+    if day and not final and names_day(reply["sentence"], day):
+        raise Unclassified("Do not write the day from applies_from: it is shown next to your sentence. Write only "
+                           "what will be different.")
     if coming and not final and PAST.search(reply["sentence"]):
         raise Unclassified("The change applies only from applies_from on. Write what WILL be different, in the "
                            "present or future tense ('entfällt künftig', 'gilt künftig', 'wird ersetzt'), "
                            "not 'wurde' or 'wurden'.")
     answer = {"sentence": german_places(squash(reply["sentence"]))}
     marks = base.number_marks([answer["sentence"]], source)
+    if changed is not None:
+        # A value that stands only in the unchanged words around a difference (for example the next row of
+        # a table) is described as changed by mistake.
+        values = [match.group(1) for mark in base.number_marks([answer["sentence"]], changed)
+                  if mark not in marks and (match := VALUE_IN_MARK.match(mark))]
+        if values and not final:
+            raise Unclassified(f"These values stand only in before or after, which did not change: "
+                               f"{', '.join(values)}. Describe only what differs between old and new.")
+        marks = [*marks, *(f"The value {value} stands only in the unchanged words around a change."
+                           for value in values)]
     if marks:
         answer["number_check"] = marks
     return answer
@@ -443,10 +534,110 @@ def validate_change(reply, source, coming=False, final=False):
 def change_sentence(client, system, sent):
     log = []
     source = json.dumps(sent, ensure_ascii=False)
+    changed = changed_only(sent)
     coming = bool(sent.get("applies_from"))
     answer = base.ask(client, system, sent, CHANGE_TASK, CHANGE_SCHEMA, "change_summary",
-                      lambda reply, final=False: validate_change(reply, source, coming, final), log, 600)
+                      lambda reply, final=False: validate_change(reply, source, coming, final,
+                                                                 sent.get("applies_from"), changed), log, 600)
     return answer, log
+
+
+# ------------------------------------------------------------------ lists of standards (no AI)
+
+STANDARD = (r"(?:EN|HD|ES|CEN|CLC|ETSI|ISO|IEC)(?: (?:ISO|IEC)(?:/IEC)?)?(?:/TS|/TR)? [0-9][0-9A-Za-z.-]*"
+            r"(?: S\d+)?:\d{4}(?:\+A\d+:\d{4})*")
+NEXT_ENTRY = re.compile(rf"(?<!\S)\d+[a-z]*\.\s+{STANDARD}")
+POINT_NUMBER = re.compile(r"\bpoint (\d+[a-z]*)$")
+MAX_NAMES = 8
+
+
+def standard_entry(line, side):
+    """(reference, [amendments]) of one entry of a list of standards ("155a. EN 14129:2024 LPG equipment ...
+    EN 14129:2024/A1:2025"), cut by its point number from the stored wording; None when the place is not a
+    numbered point or the wording does not hold exactly one such entry."""
+    text = plain(line.get("new_text" if side == "new" else "old_text"))
+    point = POINT_NUMBER.search(line.get("place") or "")
+    if not point or not text:
+        return None
+    found = list(re.finditer(rf"(?<!\S){re.escape(point.group(1))}\.\s+({STANDARD})", text))
+    if len(found) != 1:
+        return None
+    following = NEXT_ENTRY.search(text, found[0].end())
+    piece = text[found[0].start(1):following.start() if following else len(text)]
+    reference = found[0].group(1)
+    amendments = re.findall(re.escape(reference) + r"/((?:A|AC)\d*:\d{4})", piece)
+    return reference, list(dict.fromkeys(amendments))
+
+
+def _names(items, kind):
+    """Up to MAX_NAMES references; amendments are named for standards added or renewed, not for deleted ones."""
+    shown = []
+    for reference, amendments in items[:MAX_NAMES]:
+        joined = ", ".join(amendments)
+        if kind == "renewed" and amendments:
+            shown.append(f"{reference} (jetzt mit {joined})")
+        elif kind == "added" and amendments:
+            shown.append(f"{reference} (mit {joined})")
+        else:
+            shown.append(reference)
+    text = ", ".join(shown)
+    if len(items) > MAX_NAMES:
+        return f"{text} sowie {len(items) - MAX_NAMES} weitere"
+    return text
+
+
+LIST_LABELS = {False: {"removed": "Aus der Liste gestrichen", "added": "Neu in der Liste", "renewed": "Neu gefasst"},
+               True: {"removed": "Künftig entfallen", "added": "Künftig neu in der Liste",
+                      "renewed": "Künftig neu gefasst"}}
+
+
+def standards_sentence(lines, coming=False):
+    """The sentence for a day on which only entries of a list of standards were added or deleted, written
+    without AI from the references in the wording: "Aus der Liste gestrichen: EN 144-3:2003, ... Neu in der
+    Liste: ...". A standard deleted and added again on the same day (a new entry with an amendment) is
+    "neu gefasst". None as soon as one change is anything else or one entry cannot be read: Qwen writes the
+    sentence then."""
+    added, removed = [], []
+    for line in lines:
+        if line["operation"] in ("ADD", "INSERT") and line.get("new_text") and not line.get("old_text"):
+            found, target = standard_entry(line, "new"), added
+        elif line["operation"] in ("DELETE", "REPEAL") and line.get("old_text") and not line.get("new_text"):
+            found, target = standard_entry(line, "old"), removed
+        else:
+            return None
+        if found is None:
+            return None
+        target.append(found)
+    again = {reference for reference, _ in added} & {reference for reference, _ in removed}
+    groups = {"removed": [item for item in removed if item[0] not in again],
+              "added": [item for item in added if item[0] not in again],
+              "renewed": [item for item in added if item[0] in again]}
+    parts = [f"{LIST_LABELS[coming][kind]}: {_names(items, kind)}" for kind, items in groups.items() if items]
+    return ". ".join(parts) + "." if parts else None
+
+
+HEADLINE_SYSTEM = ("You translate the headline of a provision of an EU legal act into German. Keep names, numbers, "
+                   "standards and codes (for example M1, N1, EN 14129:2024) as they are. Use precise legal "
+                   "German terms. Return one JSON object with headline.")
+HEADLINE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["headline"],
+                   "properties": {"headline": {"type": "string"}}}
+
+
+def german_headline(client, headline, audit):
+    """An English headline (Qwen sometimes keeps the language of the text) translated into German. The
+    English one stays when the translation is still English."""
+    def check(reply):
+        if not isinstance(reply, dict) or not squash(reply.get("headline") or ""):
+            raise Unclassified("The reply must hold the headline.")
+        return squash(reply["headline"])
+
+    log = audit.setdefault("headline_requests", [])
+    try:
+        answer = base.ask(client, HEADLINE_SYSTEM, {"headline": headline}, "TASK: Translate the headline.",
+                          HEADLINE_SCHEMA, "headline", check, log, 200)
+    except Unclassified:
+        return headline
+    return headline if foreign(answer) else answer
 
 
 def what_changed(unit):
@@ -484,9 +675,14 @@ def summarise_unit(client, systems, unit):
             client, systems["provision"], saved_pack(unit, text_node(unit)), systems["merge"])
         # Tidied as the version-1 cards are (point kinds, fixed German terms); nothing is cut.
         record["summary"] = base.tidy_summary(summary, root["today"]["text"][:600], base.OUTPUT_LANGUAGE)
+        if base.OUTPUT_LANGUAGE == "de" and foreign(record["summary"].get("headline")):
+            record["summary"]["headline"] = german_headline(client, record["summary"]["headline"], record["audit"])
         if base.OUTPUT_LANGUAGE == "de" and any(foreign(record["summary"].get(key)) for key in ("headline", "overview")):
             record["summary"]["language_check"] = True   # marked for the hand check, as numbers are
-    sent = change_input(unit) if kind != "deleted" else None
+    template = standards_sentence(latest_lines(unit)) if kind != "deleted" and latest_lines(unit) else None
+    sent = change_input(unit) if kind != "deleted" and template is None else None
+    if template:
+        record["what_changed"].update(sentence=template, sentence_by="template")
     if sent is not None:
         answer, log = change_sentence(client, systems["change"], sent)
         if base.OUTPUT_LANGUAGE:
@@ -498,7 +694,10 @@ def summarise_unit(client, systems, unit):
     for day, lines in upcoming_days(unit).items():
         item = {"date": day, "line": upcoming_line(lines[0])
                 + (f" – und {len(lines) - 1} weitere Stellen" if len(lines) > 1 else "")}
-        sent = change_input(unit, lines, day)
+        template = standards_sentence(lines, coming=True)
+        sent = change_input(unit, lines, day) if template is None else None
+        if template:
+            item.update(sentence=template, sentence_by="template")
         if sent is not None:
             answer, log = change_sentence(client, systems["change"], sent)
             if base.OUTPUT_LANGUAGE:

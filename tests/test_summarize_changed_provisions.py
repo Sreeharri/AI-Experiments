@@ -141,10 +141,19 @@ class WordingTests(unittest.TestCase):
         new = old.replace("100. Unchanged rule number 100", "100. Changed rule number 100 with 45 %") + " 200. New rule."
         pairs = changed.differences(old, new)
         self.assertEqual(len(pairs), 2)
-        self.assertIn("Unchanged rule number 100", pairs[0][0])
-        self.assertIn("45 %", pairs[0][1])
-        self.assertEqual(pairs[1], ("", "200. New rule."))
-        self.assertNotIn("rule number 3 ", " ".join(pairs[0]))
+        self.assertIn("Unchanged rule number 100", pairs[0]["old"])
+        self.assertIn("45 %", pairs[0]["new"])
+        self.assertIn("rule number 99", pairs[0]["before"])
+        self.assertEqual(pairs[1], {"before": "199. Unchanged rule number 199 about something.",
+                                    "new": "200. New rule."})
+        self.assertNotIn("rule number 3 ", " ".join(pairs[0].values()))
+
+    def test_the_same_character_in_another_code_is_no_difference(self):
+        old = "Cl\u00b7NO CAS number: 67-48-1 \u2014 \u2014 maximum 30 mg/kg"
+        new = "Cl\u0387NO CAS number: 67-48-1 - - maximum 40 mg/kg"
+        [pair] = changed.differences(old, new)   # only the limit differs, not the dot or the dashes
+        self.assertEqual((pair["old"], pair["new"]), ("67-48-1 - - maximum 30 mg/kg", "67-48-1 - - maximum 40 mg/kg"))
+        self.assertEqual(pair["before"], "Cl·NO CAS number:")
 
     def test_a_long_table_is_sent_as_pairs_of_rows(self):
         row = "09.88{:02d} Country {} 1 000,00 2 000,00"
@@ -156,13 +165,86 @@ class WordingTests(unittest.TestCase):
         item = changed.change_input(unit)["changes"][0]
         self.assertNotIn("old_wording", item)
         [pair] = item["differences"]
-        self.assertIn("Country 150 1 000,00", pair["old"])
-        self.assertIn("Country 150 9 330,47", pair["new"])
-        self.assertLess(len(pair["old"]), 400)
+        self.assertEqual((pair["old"], pair["new"]), ("1 000,00", "9 330,47"))
+        self.assertTrue(pair["before"].endswith("Country 150"))   # the row it belongs to
+        self.assertTrue(pair["after"].startswith("2 000,00 09.88151 Country 151"))
+
+    def test_an_inserted_article_is_sent_without_the_articles_inserted_with_it(self):
+        new = ("Article 10a Battery durability The durability shall be checked under Annex XV. Article 10b Low "
+               "temperature range The range shall be checked as laid down in Article 10b of Regulation 83.")
+        line = {"role": "latest", "date": "2026-07-23", "operation": "INSERT", "place": "Article 10a",
+                "new_text": new, "changing_act": "32026R1764"}
+        unit = {"celex": "32025R1706", "title": "t", "root": {"name": "Article 10a", "changes": [line]}}
+        item = changed.change_input(unit)["changes"][0]
+        self.assertEqual(item["new_wording"],
+                         "Article 10a Battery durability The durability shall be checked under Annex XV.")
+        self.assertEqual(changed.own_article(new, "Article 10b"), new)   # not its own heading at the start
 
     def test_english_part_names_become_german_outside_quotes(self):
         self.assertEqual(changed.german_places("Neu sind Annex XV und Article 6, Titel 'Article 10' bleibt."),
                          "Neu sind Anhang XV und Artikel 6, Titel 'Article 10' bleibt.")
+        self.assertEqual(changed.german_places("Norm (Point 175), Punkt 176, paragraph 3, Zeitpunkt"),
+                         "Norm (Nummer 175), Nummer 176, Absatz 3, Zeitpunkt")
+        self.assertEqual(changed.german_place("Annex SOLE"), "Anhang")
+
+    def test_the_day_of_an_upcoming_change_is_found_in_a_sentence(self):
+        self.assertTrue(changed.names_day("Künftig gilt ab 13. Juli 2027 eine neue Liste.", "2027-07-13"))
+        self.assertTrue(changed.names_day("Ab 02.04.2028 entfällt EN 12392:2016.", "2028-04-02"))
+        self.assertFalse(changed.names_day("Künftig entfällt EN 12392:2016.", "2028-04-02"))
+
+
+def entry(day, point, operation, old=None, new=None, role="latest"):
+    return line(role, day, "x", f"Annex I point {point}", operation, old=old, new=new, by="32026D1971")
+
+
+class StandardsTests(unittest.TestCase):
+    def test_a_day_of_added_and_deleted_standards_is_written_without_ai(self):
+        lines = [entry("2026-09-04", "8", "DELETE", old="8. EN 144-3:2003 Gas cylinder valves EN 144-3:2003/AC:2003"),
+                 entry("2026-09-04", "39a", "ADD", new="39a. EN ISO 374-6:2025 Protective gloves (ISO 374-6:2025)"),
+                 entry("2026-09-04", "175", "DELETE", old="175. EN ISO 16321-3:2022 Mesh protectors"),
+                 entry("2026-09-04", "175a", "ADD",
+                       new="175a. EN ISO 16321-3:2022 Mesh protectors EN ISO 16321-3:2022/A1:2026")]
+        self.assertEqual(changed.standards_sentence(lines),
+                         "Aus der Liste gestrichen: EN 144-3:2003. Neu in der Liste: EN ISO 374-6:2025. "
+                         "Neu gefasst: EN ISO 16321-3:2022 (jetzt mit A1:2026).")
+        coming = [entry("2027-07-13", "83", "DELETE", old="83. EN 12420:2014 Copper and copper alloys – Forgings",
+                        role="upcoming"),
+                  entry("2027-07-13", "167a", "ADD", new="167a. EN 14917:2021+A1:2026 Metal bellows expansion joints",
+                        role="upcoming")]
+        self.assertEqual(changed.standards_sentence(coming, coming=True),
+                         "Künftig entfallen: EN 12420:2014. Künftig neu in der Liste: EN 14917:2021+A1:2026.")
+
+    def test_an_entry_is_cut_out_of_the_whole_list_by_its_number(self):
+        whole = ("ANNEX I No Reference of the standard 1. HD 308 S2:2001 Identification of cores in cables "
+                 "2. EN 50085-1:2005 Cable trunking systems EN 50085-1:2005/A1:2013 3. EN 50106:2008 Routine tests")
+        self.assertEqual(changed.standard_entry(entry("2026-04-30", "2", "DELETE", old=whole), "old"),
+                         ("EN 50085-1:2005", ["A1:2013"]))
+        self.assertEqual(changed.standard_entry(entry("2026-04-30", "1", "DELETE", old=whole), "old"),
+                         ("HD 308 S2:2001", []))
+        self.assertIsNone(changed.standard_entry(entry("2026-04-30", "198", "DELETE", old=whole), "old"))
+
+    def test_anything_else_on_that_day_leaves_the_sentence_to_qwen(self):
+        replaced = entry("2026-09-04", "14", "REPLACE", old="14. EN 12942:1998 Devices 8.10.2026",
+                         new="14. EN 12942:1998 Devices 8.10.2027")
+        added = entry("2026-09-04", "39a", "ADD", new="39a. EN ISO 374-6:2025 Protective gloves")
+        self.assertIsNone(changed.standards_sentence([added, replaced]))
+        self.assertIsNone(changed.standards_sentence([entry("2025-01-01", "3", "ADD", new="3. Regulation C")]))
+        self.assertIsNone(changed.standards_sentence([entry("2025-01-01", "3", "ADD", new="4. EN 1:2020 Other")]))
+
+    def test_a_value_from_the_unchanged_words_around_a_change_is_asked_once_more(self):
+        sent = {"act": {"celex": "32025R2351", "title": "t"}, "provision": "Annex III", "changes": [
+            {"place": "Annex III", "type": "replaced", "differences": [
+                {"before": "09.8818 Malaysia", "old": "6 765,92", "new": "9 330,47",
+                 "after": "09.8819 Korea, Republic of 4 832,82"}]}]}
+        source, only = json.dumps(sent, ensure_ascii=False), changed.changed_only(sent)
+        wrong = {"sentence": "Für Korea gilt 4 832,82; für Malaysia steigt der Wert von 6 765,92 auf 9 330,47."}
+        with self.assertRaises(changed.Unclassified):
+            changed.validate_change(wrong, source, changed=only)
+        kept = changed.validate_change(wrong, source, final=True, changed=only)
+        self.assertTrue(any("unchanged words" in mark for mark in kept["number_check"]))
+        right = {"sentence": "Für Malaysia steigt der Wert von 6 765,92 auf 9 330,47."}
+        self.assertNotIn("number_check", changed.validate_change(right, source, changed=only))
+        self.assertIsNone(changed.changed_only({"changes": [{"place": "Article 6", "new_wording": "x"}]}))
 
 
 class SampleTests(unittest.TestCase):
@@ -252,6 +334,32 @@ class UnitTests(unittest.TestCase):
         record = changed.summarise_unit(client, self.systems, self.units["article/6"])
         self.assertEqual(record["upcoming_explained"][0]["sentence"], "Künftig wird der Bericht veröffentlicht.")
         self.assertEqual(client.chat.call_count, 4)
+
+    def test_an_upcoming_sentence_with_its_day_is_asked_once_more(self):
+        client = client_with(provision(), sentence(), sentence("Ab 1. Januar 2028 wird der Bericht veröffentlicht."),
+                             sentence("Künftig wird der Bericht veröffentlicht."))
+        record = changed.summarise_unit(client, self.systems, self.units["article/6"])
+        self.assertEqual(record["upcoming_explained"][0]["sentence"], "Künftig wird der Bericht veröffentlicht.")
+        self.assertEqual(client.chat.call_count, 4)
+
+    def test_an_english_headline_is_translated(self):
+        client = client_with(provision(headline="Durability of the vehicles and reporting of the results"),
+                             reply({"headline": "Haltbarkeit der Fahrzeuge und Meldung der Ergebnisse"}),
+                             sentence(), sentence("Künftig wird der Bericht veröffentlicht."))
+        record = changed.summarise_unit(client, self.systems, self.units["article/6"])
+        self.assertEqual(record["summary"]["headline"], "Haltbarkeit der Fahrzeuge und Meldung der Ergebnisse")
+        self.assertNotIn("language_check", record["summary"])
+        self.assertEqual(len(record["audit"]["headline_requests"]), 1)
+
+    def test_a_list_of_standards_gets_its_sentence_without_a_request(self):
+        unit = dict(self.units["annex/i"])
+        unit["root"] = dict(unit["root"], changes=[
+            entry("2025-01-01", "3a", "ADD", new="3a. EN 14129:2024 LPG equipment – Pressure relief valves")])
+        client = client_with()
+        record = changed.summarise_unit(client, self.systems, unit)
+        self.assertEqual(record["what_changed"]["sentence"], "Neu in der Liste: EN 14129:2024.")
+        self.assertEqual(record["what_changed"]["sentence_by"], "template")
+        self.assertEqual(client.chat.call_count, 0)
 
     def test_a_number_not_in_the_wording_is_marked(self):
         client = client_with(provision(), sentence("Die Frist beträgt nun 24 Monate."), sentence())
