@@ -174,7 +174,8 @@ class UnitTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_a_changed_article_gets_version_2_what_changed_and_upcoming(self):
-        client = client_with(provision(headline="Haltbarkeit und Meldepflicht"), sentence())
+        client = client_with(provision(headline="Haltbarkeit und Meldepflicht"), sentence(),
+                             sentence("Künftig wird der Bericht veröffentlicht."))
         record = changed.summarise_unit(client, self.systems, self.units["article/6"])
         self.assertEqual(record["summary"]["headline"], "Haltbarkeit und Meldepflicht")
         self.assertEqual(record["what_changed"]["facts"], [
@@ -183,6 +184,12 @@ class UnitTests(unittest.TestCase):
         self.assertTrue(record["what_changed"]["sentence"].startswith("Neu ist die Pflicht"))
         self.assertNotIn("number_check", record["what_changed"])   # 12 is in the new wording
         self.assertEqual(record["upcoming"], ["Ab 01.01.2028: Artikel 6 Absatz 7 wird eingefügt (Verordnung 2026/1)"])
+        self.assertEqual(record["upcoming_explained"], [{
+            "date": "2028-01-01", "line": "Ab 01.01.2028: Artikel 6 Absatz 7 wird eingefügt (Verordnung 2026/1)",
+            "sentence": "Künftig wird der Bericht veröffentlicht."}])
+        coming = json.loads(client.chat.call_args_list[2].args[0][1]["content"].split("\n\nTASK")[0])
+        self.assertEqual(coming["applies_from"], "2028-01-01")
+        self.assertEqual(coming["changes"][0]["new_wording"], "7. From 2028 the report is published.")
         self.assertEqual([card["role"] for card in record["changes"]["history"]], ["history"])
         self.assertNotIn("old_text", record["changes"]["history"][0])
         sent = json.loads(client.chat.call_args_list[1].args[0][1]["content"].split("\n\nTASK")[0])
@@ -190,7 +197,7 @@ class UnitTests(unittest.TestCase):
         self.assertNotIn("old_wording", sent["changes"][0])
 
     def test_a_number_not_in_the_wording_is_marked(self):
-        client = client_with(provision(), sentence("Die Frist beträgt nun 24 Monate."))
+        client = client_with(provision(), sentence("Die Frist beträgt nun 24 Monate."), sentence())
         record = changed.summarise_unit(client, self.systems, self.units["article/6"])
         self.assertTrue(record["what_changed"]["number_check"])
 
@@ -225,7 +232,8 @@ class RunTests(unittest.TestCase):
             export_folder(tmp / "changed")
             (tmp / "classification").mkdir()
             (tmp / "classification" / "results.json").write_text(json.dumps(CLASSIFIED), encoding="utf-8")
-            client = client_with(sentence("Neu aufgenommen wurde Verordnung C."), provision(), sentence())
+            client = client_with(sentence("Neu aufgenommen wurde Verordnung C."), provision(), sentence(),
+                                 sentence("Künftig wird der Bericht veröffentlicht."))
             args = ["--changed-dir", str(tmp / "changed"), "--classification-dir", str(tmp / "classification"),
                     "--output-dir", str(tmp / "out"), "--workers", "1"]
             with patch.object(changed.QwenClient, "from_env", return_value=client):
@@ -240,6 +248,7 @@ class RunTests(unittest.TestCase):
             page = (out / "preview" / f"{CELEX}.html").read_text(encoding="utf-8")
             self.assertIn("Was hat sich geändert", page)
             self.assertIn("Ab 01.01.2028", page)
+            self.assertIn("Künftig wird der Bericht veröffentlicht.", page)
             self.assertIn("Frühere Änderungen (1)", page)
             self.assertEqual(json.loads((out / "summary.json").read_text())["summary"], 1)
 

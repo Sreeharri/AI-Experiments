@@ -14,8 +14,9 @@ For every relevant article or annex that was changed (one unit per article or an
 2. "Was hat sich geändert": fact lines without AI (date, place, what happened, amending act)
    and one or two sentences by Qwen, written only from the stored old and new wording of the
    latest change (no request when there is no wording).
-3. Upcoming changes: one line each ("Ab 01.01.2027: ... wird ersetzt"), not mixed into the
-   summary.
+3. Upcoming changes: one line each ("Ab 01.01.2027: ... wird ersetzt") and, when their wording
+   is stored, one Qwen sentence on what will be different, per day the changes apply; never
+   mixed into the summary.
 
 Not asked again: a deleted article ("Gestrichen am ..."), an article without a newer text
 (today's text is the original act: version 1 stays), and tables: a relevant table of a changed
@@ -278,10 +279,20 @@ def latest_lines(unit):
     return [line for line in unit["root"]["changes"] if line["role"] == "latest"]
 
 
-def change_input(unit):
-    """What Qwen sees for the 'Was hat sich geändert' sentence, or None when there is no wording."""
+def upcoming_days(unit):
+    """{day: [lines]} of the upcoming changes, earliest day first."""
+    days = {}
+    for line in sorted((line for line in unit["root"]["changes"] if line["role"] == "upcoming"),
+                       key=lambda line: line["date"] or ""):
+        days.setdefault(line["date"], []).append(line)
+    return days
+
+
+def change_input(unit, lines=None, applies_from=None):
+    """What Qwen sees for the 'Was hat sich geändert' sentence (the latest change), or for an upcoming
+    day's sentence (lines and applies_from given). None when there is no wording."""
     pairs, more = [], 0
-    for line in latest_lines(unit):
+    for line in latest_lines(unit) if lines is None else lines:
         old, new = line.get("old_text"), line.get("new_text")
         if not (old or new):
             continue
@@ -303,6 +314,8 @@ def change_input(unit):
         return None
     sent = {"act": {"celex": unit["celex"], "title": unit["title"]}, "provision": unit["root"]["name"],
             "changes": pairs}
+    if applies_from:
+        sent["applies_from"] = applies_from
     if more:
         sent["more_changes"] = more
     return sent
@@ -368,6 +381,21 @@ def summarise_unit(client, systems, unit):
             answer["sentence"] = base.fix_terms(answer["sentence"], base.OUTPUT_LANGUAGE)
         record["what_changed"].update(answer)
         record.setdefault("audit", {})["change_requests"] = log
+    # Upcoming changes: one sentence per day on what will be different (not part of the summary).
+    coming = []
+    for day, lines in upcoming_days(unit).items():
+        item = {"date": day, "line": upcoming_line(lines[0])
+                + (f" – und {len(lines) - 1} weitere Stellen" if len(lines) > 1 else "")}
+        sent = change_input(unit, lines, day)
+        if sent is not None:
+            answer, log = change_sentence(client, systems["change"], sent)
+            if base.OUTPUT_LANGUAGE:
+                answer["sentence"] = base.fix_terms(answer["sentence"], base.OUTPUT_LANGUAGE)
+            item.update(answer)
+            record.setdefault("audit", {}).setdefault("upcoming_requests", []).extend(log)
+        coming.append(item)
+    if coming:
+        record["upcoming_explained"] = coming
     return record
 
 
@@ -423,7 +451,10 @@ def export(out, units):
             "headline": summary.get("headline", ""), "overview": summary.get("overview", ""),
             "bullets": " | ".join(f"{b['kind']}: {b['text']}" for b in summary.get("bullets", [])),
             "was_hat_sich_geaendert": " | ".join(changed.get("facts", [])),
-            "sentence": changed.get("sentence", ""), "upcoming": " | ".join(record.get("upcoming", [])),
+            "sentence": changed.get("sentence", ""),
+            "upcoming": " | ".join(f"{item['line']}: {item.get('sentence', '')}".rstrip(": ")
+                                   for item in record.get("upcoming_explained", []))
+                        or " | ".join(record.get("upcoming", [])),
             "number_check": "; ".join(str(m) for m in [*summary.get("number_check", []),
                                                         *changed.get("number_check", [])]),
             "failure": record.get("failure", "")})
@@ -485,7 +516,14 @@ def unit_html(record):
                    + (f"<br><i>{html.escape(changed['sentence'])}</i>" if changed.get("sentence") else "")
                    + (f"<div class='check'>Zahl prüfen: {html.escape(str(changed['number_check']))}</div>"
                       if changed.get("number_check") else "") + "</div>")
-    out += [f"<div class='upcoming'>{html.escape(line)}</div>" for line in record.get("upcoming", [])]
+    explained = record.get("upcoming_explained")
+    if explained:
+        out += [f"<div class='upcoming'><b>{html.escape(item['line'])}</b>"
+                + (f"<br><i>{html.escape(item['sentence'])}</i>" if item.get("sentence") else "")
+                + (f"<div class='check'>Zahl prüfen: {html.escape(str(item['number_check']))}</div>"
+                   if item.get("number_check") else "") + "</div>" for item in explained]
+    else:
+        out += [f"<div class='upcoming'>{html.escape(line)}</div>" for line in record.get("upcoming", [])]
     cards = record.get("changes", {})
     out += [_wording(card) for card in cards.get("upcoming", []) + cards.get("latest", [])]
     earlier = cards.get("history", []) + cards.get("no date", [])
