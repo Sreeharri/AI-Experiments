@@ -10,6 +10,7 @@ WHAT YOU GET
   - old_wording: the wording before the change (missing for an addition).
   - new_wording: the wording after the change (missing for a deletion).
   - old_is_context: true when old_wording is the whole article or annex around the place, not only the place itself.
+  - not_stored: "old_wording" or "new_wording" when the place was replaced but that side of the wording is not available.
   - differences: instead of old_wording and new_wording when the wording is long (for example a replaced annex or table): only the passages that differ. Each has:
     - old: the passage before the change (missing when something was only added).
     - new: the same passage after the change (missing when something was only removed).
@@ -28,6 +29,7 @@ RULES
 - Use only old_wording and new_wording. Compare them and name the real difference. Add no knowledge, advice or assumptions of your own.
 - For an addition, say what was added. For a deletion, say what no longer applies.
 - When old_is_context is true, look in old_wording only for the place itself.
+- When not_stored is given, you cannot know what was different. Describe only what the given wording says (for example "Artikel 5 Absatz 2 regelt jetzt …" for new_wording). Never guess or write the missing wording, and do not claim that something was added, removed or replaced inside it.
 - If the difference is only editorial (a reference, a numbering, a spelling or a renamed body), say that in one sentence.
 - If several places changed, say what they change together, not each place one by one.
 - Copy numbers, dates, units and thresholds exactly as they stand in the wording. Keep decimal points and units.

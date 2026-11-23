@@ -145,11 +145,15 @@ def shall_sides(text):
         before = text[max(0, match.start() - 90):match.start()]
         before = before[SENTENCE_START.match(before).end():]   # only the sentence of this "shall"
         after = text[match.end():match.end() + 200]
-        if AUTHORITY.search(before):
+        # The subject is the actor named last before "shall" ("after consent by the competent authorities,
+        # all undertakings involved shall ..." binds the undertakings).
+        last_authority = max((m.end() for m in AUTHORITY.finditer(before)), default=-1)
+        last_business = max((m.end() for m in BUSINESS.finditer(before)), default=-1)
+        if last_authority > last_business:
             authority += 1
             if ENSURE.search(after[:70]) and BUSINESS.search(after):
                 via += 1
-        elif BUSINESS.search(before):
+        elif last_business >= 0:
             business += 1
     return authority, business, via
 
@@ -245,7 +249,9 @@ def screened(runs, unsure_dirs, notes):
                     level = (resolved.get(item["celex"], {}).get(item["target"]) or {}).get("level", "UNSURE")
                 results[(item["celex"], item["target"])] = {
                     "level": level, "file": folder / item["file"], "kind": item.get("kind", ""),
-                    "first_level": item.get("level")}
+                    "target_id": item.get("target_id"), "first_level": item.get("level"),
+                    "resolved": (resolved.get(item["celex"], {}).get(item["target"])
+                                 if item.get("level") == "UNSURE" else None)}
     return results
 
 
@@ -371,21 +377,34 @@ def check_classification(found, classified):
     found.totals["classified provisions"] = total
 
 
+def point_problems(bullet):
+    """{"may", "authority"}: the problems found in one summary point (a bullet with its quotes)."""
+    point = bullet.get("text") or ""
+    quotes = " ".join(quote for quote in bullet.get("quotes") or [] if isinstance(quote, str))
+    problems = set()
+    if (DUTY_DE.search(point) and not PERMISSION_DE.search(point) and MAY.search(quotes)
+            and not SHALL.search(quotes) and not NOT_MAY.search(quotes)):
+        problems.add("may")
+    if bullet.get("kind") in ("DUTY", "WHO", "DEADLINE") and DUTY_DE.search(point) and quotes:
+        authority, business, via = shall_sides(quotes)
+        if authority and not business and via < authority and not AUTHORITY_DE.search(point):
+            problems.add("authority")
+    return problems
+
+
 def check_summary(found, prefix, celex, target, level, summary, flags, text_start=""):
     """The summary checks for one provision summary (v1 or v2)."""
     headline, overview = summary.get("headline") or "", summary.get("overview") or ""
     for bullet in summary.get("bullets") or []:
         point = bullet.get("text") or ""
         quotes = " ".join(quote for quote in bullet.get("quotes") or [] if isinstance(quote, str))
-        if (DUTY_DE.search(point) and not PERMISSION_DE.search(point) and MAY.search(quotes)
-                and not SHALL.search(quotes) and not NOT_MAY.search(quotes)):
+        problems = point_problems(bullet)
+        if "may" in problems:
             found.add(f"{prefix}SUM_MAY_AS_MUST", celex, target, level, snippet(point, width=200),
                       snippet(quotes, MAY))
-        if bullet.get("kind") in ("DUTY", "WHO", "DEADLINE") and DUTY_DE.search(point) and quotes:
-            authority, business, via = shall_sides(quotes)
-            if authority and not business and via < authority and not AUTHORITY_DE.search(point):
-                found.add(f"{prefix}SUM_AUTHORITY_UNNAMED", celex, target, level, snippet(point, width=200),
-                          snippet(quotes, AUTHORITY))
+        if "authority" in problems:
+            found.add(f"{prefix}SUM_AUTHORITY_UNNAMED", celex, target, level, snippet(point, width=200),
+                      snippet(quotes, AUTHORITY))
     if "amending" in flags and not AMENDED_DE.search(f"{headline} {overview}"):
         found.add(f"{prefix}SUM_AMENDING_AS_RULE", celex, target, level, snippet(headline, width=160),
                   snippet(text_start or overview))

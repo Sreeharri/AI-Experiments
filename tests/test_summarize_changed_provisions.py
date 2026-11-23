@@ -194,6 +194,25 @@ class WordingTests(unittest.TestCase):
                          "Anhänge XIV, XVI werden ersetzt; Anlage 1 zu Anhang XVII.")
         self.assertEqual(changed.annex_or_appendix("Anhang 1 gilt.", source), "Anhang 1 gilt.")   # Annex 1 exists
 
+    def test_a_replaced_place_with_only_one_side_is_marked(self):
+        line = {"role": "latest", "date": "2026-07-23", "operation": "REPLACE", "place": "Article 324 paragraph 1 point e",
+                "new_text": "(e) the delivery of main processed products ...", "changing_act": "32026R1"}
+        unit = {"celex": "32015R2447", "title": "t", "root": {"name": "Article 324", "changes": [line]}}
+        item = changed.change_input(unit)["changes"][0]
+        self.assertEqual(item["not_stored"], "old_wording")
+        added = dict(line, operation="ADD")
+        self.assertNotIn("not_stored", changed.change_input(dict(unit, root={"name": "Article 324",
+                                                                               "changes": [added]}))["changes"][0])
+        self.assertTrue(changed.one_sided(line))
+        self.assertFalse(changed.one_sided(added))
+
+    def test_short_english_headlines_are_found(self):
+        for text in ("Mediation center for dispute resolution", "Expiry reviews of countervailing measures",
+                     "Administrative cooperation between Mitgliedstaaten for checking suppliers' declarations"):
+            self.assertTrue(changed.english_headline(text), text)
+        for text in ("Pflichten der Hersteller für Batterien", "Energieaudits", "Meldung an die Behörde", ""):
+            self.assertFalse(changed.english_headline(text), text)
+
     def test_the_day_of_an_upcoming_change_is_found_in_a_sentence(self):
         self.assertTrue(changed.names_day("Künftig gilt ab 13. Juli 2027 eine neue Liste.", "2027-07-13"))
         self.assertTrue(changed.names_day("Ab 02.04.2028 entfällt EN 12392:2016.", "2028-04-02"))
@@ -380,6 +399,25 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(record["what_changed"]["sentence"], "Neu in der Liste: EN 14129:2024.")
         self.assertEqual(record["what_changed"]["sentence_by"], "template")
         self.assertEqual(client.chat.call_count, 0)
+
+    def test_redo_writes_only_the_sentences_again(self):
+        unit = self.units["article/6"]
+        record = changed.summarise_unit(client_with(provision(), sentence(), sentence("Künftig gilt X.")),
+                                        self.systems, unit)
+        self.assertEqual(changed.redo_reasons(unit, record), set())
+        record["what_changed"]["number_check"] = ["The number 9 does not occur in the text."]
+        record["summary"]["headline"] = "Durability reports for vehicles"
+        self.assertEqual(changed.redo_reasons(unit, record), {"number mark", "headline"})
+        summary_before = dict(record["summary"])
+        client = client_with(sentence("Neu ist der Bericht."), sentence("Künftig wird der Bericht veröffentlicht."),
+                             reply({"headline": "Haltbarkeitsberichte für Fahrzeuge"}))
+        redone = changed.redo_unit(client, self.systems, unit, record)
+        self.assertEqual(redone["what_changed"]["sentence"], "Neu ist der Bericht.")
+        self.assertNotIn("number_check", redone["what_changed"])
+        self.assertEqual(redone["summary"]["headline"], "Haltbarkeitsberichte für Fahrzeuge")
+        self.assertEqual(redone["summary"]["overview"], summary_before["overview"])   # the summary stays
+        self.assertEqual(redone["redo"], {"version": changed.REDO, "reasons": ["headline", "number mark"]})
+        self.assertEqual(client.chat.call_count, 3)
 
     def test_a_number_not_in_the_wording_is_marked(self):
         client = client_with(provision(), sentence("Die Frist beträgt nun 24 Monate."), sentence())

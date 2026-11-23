@@ -456,6 +456,9 @@ def change_input(unit, lines=None, applies_from=None):
                     item["old_is_context"] = True
             if new:
                 item["new_wording"] = new[:MAX_WORDING]
+        if line["operation"] not in ADDING + DELETING and ("old_wording" in item) != ("new_wording" in item):
+            # A replaced place of which only one side is stored: Qwen must not guess the other side.
+            item["not_stored"] = "new_wording" if "old_wording" in item else "old_wording"
         if "old_wording" in item or "new_wording" in item or item.get("differences"):
             pairs.append(item)
         else:
@@ -668,6 +671,17 @@ HEADLINE_SCHEMA = {"type": "object", "additionalProperties": False, "required": 
                    "properties": {"headline": {"type": "string"}}}
 
 
+EN_WORDS = re.compile(r"\b(?:for|of|the|and|between|when|with|on|to|from|by|under|within|after|before|its|their)\b")
+DE_WORDS = re.compile(r"\b(?:der|die|das|den|dem|des|und|für|von|vom|zur|zum|bei|mit|im|über|nach|aus|ein|eine|einer|eines)\b",
+                      re.IGNORECASE)
+
+
+def english_headline(text):
+    """A headline with an English function word and no German one ("Mediation center for dispute
+    resolution"); foreign() needs two English words and misses short headlines."""
+    return bool(text) and (foreign(text) or (bool(EN_WORDS.search(text)) and not DE_WORDS.search(text)))
+
+
 def german_headline(client, headline, audit):
     """An English headline (Qwen sometimes keeps the language of the text) translated into German. The
     English one stays when the translation is still English."""
@@ -682,7 +696,7 @@ def german_headline(client, headline, audit):
                           HEADLINE_SCHEMA, "headline", check, log, 200)
     except Unclassified:
         return headline
-    return headline if foreign(answer) else answer
+    return headline if english_headline(answer) else answer
 
 
 def what_changed(unit):
@@ -720,10 +734,17 @@ def summarise_unit(client, systems, unit):
             client, systems["provision"], saved_pack(unit, text_node(unit)), systems["merge"])
         # Tidied as the version-1 cards are (point kinds, fixed German terms); nothing is cut.
         record["summary"] = base.tidy_summary(summary, root["today"]["text"][:600], base.OUTPUT_LANGUAGE)
-        if base.OUTPUT_LANGUAGE == "de" and foreign(record["summary"].get("headline")):
+        if base.OUTPUT_LANGUAGE == "de" and english_headline(record["summary"].get("headline")):
             record["summary"]["headline"] = german_headline(client, record["summary"]["headline"], record["audit"])
         if base.OUTPUT_LANGUAGE == "de" and any(foreign(record["summary"].get(key)) for key in ("headline", "overview")):
             record["summary"]["language_check"] = True   # marked for the hand check, as numbers are
+    change_sentences(client, systems, unit, record)
+    return record
+
+
+def change_sentences(client, systems, unit, record):
+    """The "Was hat sich geändert" sentence of the latest change and one sentence per upcoming day."""
+    kind = record["kind"]
     template = standards_sentence(latest_lines(unit)) if kind != "deleted" and latest_lines(unit) else None
     sent = change_input(unit) if kind != "deleted" and template is None else None
     if template:
@@ -752,7 +773,6 @@ def summarise_unit(client, systems, unit):
         coming.append(item)
     if coming:
         record["upcoming_explained"] = coming
-    return record
 
 
 def _today_facts(root):
@@ -773,6 +793,50 @@ def _card(line):
 
 def unit_path(out, unit):
     return out / "units" / safe_name(unit["celex"]) / f"{unit['key'].replace('/', '_')}.json"
+
+
+REDO = "sentences-v2"
+
+
+def one_sided(line):
+    """A replaced or changed place of which only the old or only the new wording is stored."""
+    return line["operation"] not in ADDING + DELETING and bool(line.get("old_text")) != bool(line.get("new_text"))
+
+
+def redo_reasons(unit, record):
+    """Why a saved record gets its change sentences (or its headline) once more with --redo-sentences:
+    a number mark, a replaced place with only one side of the wording (the sentence may guess the other
+    side), or an English headline."""
+    reasons = set()
+    changed = record.get("what_changed") or {}
+    coming = record.get("upcoming_explained") or []
+    if changed.get("number_check") or any(item.get("number_check") for item in coming):
+        reasons.add("number mark")
+    if changed.get("sentence") and not changed.get("sentence_by") and any(map(one_sided, latest_lines(unit))):
+        reasons.add("one side")
+    if any(item.get("sentence") and not item.get("sentence_by")
+           and any(map(one_sided, upcoming_days(unit).get(item["date"], []))) for item in coming):
+        reasons.add("one side")
+    if base.OUTPUT_LANGUAGE == "de" and english_headline((record.get("summary") or {}).get("headline")):
+        reasons.add("headline")
+    return reasons
+
+
+def redo_unit(client, systems, unit, record):
+    """The change sentences (and an English headline) of a saved record written again; the summary and
+    everything else stay."""
+    reasons = redo_reasons(unit, record)
+    audit = record.setdefault("audit", {})
+    if reasons & {"number mark", "one side"}:
+        record["what_changed"] = {"facts": record["what_changed"]["facts"]}
+        record.pop("upcoming_explained", None)
+        audit.pop("change_requests", None)
+        audit.pop("upcoming_requests", None)
+        change_sentences(client, systems, unit, record)
+    if "headline" in reasons:
+        record["summary"]["headline"] = german_headline(client, record["summary"]["headline"], audit)
+    record["redo"] = {"version": REDO, "reasons": sorted(reasons)}
+    return record
 
 
 def saved_record(out, unit):
@@ -938,6 +1002,9 @@ def main(argv=None):
                         help="Only articles and annexes whose latest change is from 2015 on (shown with old/new).")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--count-only", action="store_true")
+    parser.add_argument("--redo-sentences", action="store_true",
+                        help="Only the change sentences (and English headlines) of saved records that have a number "
+                             "mark or a replaced place with one side of the wording; the summaries stay.")
     args = parser.parse_args(argv)
     base.OUTPUT_LANGUAGE = args.language
     out = args.output_dir.resolve()
@@ -968,7 +1035,19 @@ def main(argv=None):
     client = QwenClient.from_env(args.env_file, retries=1)
     workers = max(1, min(args.workers, MAX_WORKERS))
 
+    def to_redo(unit):
+        record = saved_record(out, unit)
+        return (record is not None and (record.get("redo") or {}).get("version") != REDO
+                and bool(redo_reasons(unit, record)))
+
+    if args.redo_sentences:
+        chosen = [unit for unit in units if to_redo(unit)]
+        print(f"Change sentences to write again: {len(chosen):,}", flush=True)
+
     def open_units():
+        if args.redo_sentences:
+            todo = [unit for unit in chosen if to_redo(unit)]
+            return todo, len(units) - len(todo)
         todo = [unit for unit in units if saved_record(out, unit) is None]
         return todo, len(units) - len(todo)
 
@@ -976,10 +1055,17 @@ def main(argv=None):
         def work(unit):
             failed = False
             try:
-                record = summarise_unit(client, systems, unit)
+                if args.redo_sentences:
+                    record = redo_unit(client, systems, unit, saved_record(out, unit))
+                else:
+                    record = summarise_unit(client, systems, unit)
             except ConnectionLost:
                 raise
             except Exception as exc:  # noqa: BLE001 - one unreadable article must not stop the run
+                if args.redo_sentences:   # the saved record stays as it is
+                    print(f"Could not write again {unit['celex']} {unit['root']['name']}: {exc}"[:400], flush=True)
+                    progress.step(True)
+                    return
                 record = {key: unit[key] for key in ("celex", "title", "key", "provisions", "tables")}
                 record.update(version=VERSION, name=unit["root"]["name"], kind=unit_kind(unit),
                               failure=f"{type(exc).__name__}: {exc}"[:400])
