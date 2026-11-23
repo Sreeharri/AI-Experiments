@@ -187,6 +187,13 @@ class WordingTests(unittest.TestCase):
                          "Norm (Nummer 175), Nummer 176, Absatz 3, Zeitpunkt")
         self.assertEqual(changed.german_place("Annex SOLE"), "Anhang")
 
+    def test_annex_and_appendix_follow_the_english_wording(self):
+        source = "Annexes III to VIII, X, XI, XIV, XV ... Appendix 1 to Annex XVII ... Annex 1"
+        self.assertEqual(changed.annex_or_appendix("Anlagen XIV, XVI werden ersetzt; Anhang 1 zu Anlage XVII.",
+                                                   "Annexes XIV, XVI ... Appendix 1 to Annex XVII"),
+                         "Anhänge XIV, XVI werden ersetzt; Anlage 1 zu Anhang XVII.")
+        self.assertEqual(changed.annex_or_appendix("Anhang 1 gilt.", source), "Anhang 1 gilt.")   # Annex 1 exists
+
     def test_the_day_of_an_upcoming_change_is_found_in_a_sentence(self):
         self.assertTrue(changed.names_day("Künftig gilt ab 13. Juli 2027 eine neue Liste.", "2027-07-13"))
         self.assertTrue(changed.names_day("Ab 02.04.2028 entfällt EN 12392:2016.", "2028-04-02"))
@@ -222,6 +229,19 @@ class StandardsTests(unittest.TestCase):
         self.assertEqual(changed.standard_entry(entry("2026-04-30", "1", "DELETE", old=whole), "old"),
                          ("HD 308 S2:2001", []))
         self.assertIsNone(changed.standard_entry(entry("2026-04-30", "198", "DELETE", old=whole), "old"))
+
+    def test_entries_whose_reference_cannot_be_read_are_counted(self):
+        whole = "ANNEX I No Reference of the standard 1. HD 308 S2:2001 Identification of cores " + "x " * 2000
+        lines = [entry("2026-04-30", "139", "DELETE", old="139. EN IEC 60238:2018 Edison screw lampholders"),
+                 entry("2026-04-30", "198", "DELETE", old=whole), entry("2026-04-30", "221", "DELETE")]
+        self.assertEqual(changed.standards_sentence(lines), "Aus der Liste gestrichen: EN IEC 60238:2018 sowie 2 weitere.")
+        self.assertIsNone(changed.standards_sentence(lines[1:]))   # no reference read at all: not a list we know
+        # Qwen does not get the whole list as the wording of one deleted entry: it would read it as deleted.
+        unit = {"celex": "32023D2723", "title": "t", "root": {"name": "Annex I", "changes": lines}}
+        sent = changed.change_input(unit)
+        self.assertEqual([item["place"] for item in sent["changes"]], ["Annex I point 139"])
+        self.assertEqual(sent["more_changes"], 2)
+        self.assertIsNone(changed.change_input(dict(unit, root={"name": "Annex I", "changes": lines[1:]})))
 
     def test_anything_else_on_that_day_leaves_the_sentence_to_qwen(self):
         replaced = entry("2026-09-04", "14", "REPLACE", old="14. EN 12942:1998 Devices 8.10.2026",

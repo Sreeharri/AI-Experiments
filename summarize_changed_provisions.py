@@ -63,7 +63,7 @@ from lr_ai.qwen_client import QwenClient  # noqa: E402
 CHANGE_PROMPT = ROOT / "prompts/eurlex_change_summary.md"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
 DEFAULT_OUTPUT = ROOT / "runs/eurlex_summaries_v2_changes"
-VERSION = "changes-v5"
+VERSION = "changes-v6"
 CHANGE_TASK = "TASK: Write what changed. Return the JSON object described in the instructions."
 CHANGE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["sentence"],
                  "properties": {"sentence": {"type": "string"}}}
@@ -406,17 +406,31 @@ def own_article(text, name):
     return text
 
 
+ROOT_HEADING = re.compile(r"\s*(?:ANNEX|Annex|ARTICLE|Article|APPENDIX|Appendix)\b")
+
+
+def whole_root(text, place, root_name):
+    """True when the only wording of a deletion or an addition is the whole article or annex (a long text that
+    starts with its heading) and not the deeper place itself, for example the whole list of standards for
+    "Annex I point 198". Such a text does not show what was deleted or added."""
+    return (bool(text) and (place or "") != root_name and len(text) > MAX_WORDING
+            and bool(ROOT_HEADING.match(text)))
+
+
 def change_input(unit, lines=None, applies_from=None):
     """What Qwen sees for the 'Was hat sich geändert' sentence (the latest change), or for an upcoming
     day's sentence (lines and applies_from given). None when there is no wording."""
     pairs, more = [], 0
     for line in latest_lines(unit) if lines is None else lines:
         old, new = line.get("old_text"), line.get("new_text")
-        if new and (line.get("place") or "") == unit["root"]["name"]:
-            new = own_article(new, unit["root"]["name"])
-        if not (old or new):
-            continue
-        if len(pairs) >= MAX_PAIRS:
+        place, name = line.get("place") or "", unit["root"]["name"]
+        if new and place == name:
+            new = own_article(new, name)
+        if old and not new and whole_root(old, place, name):
+            old = None
+        if new and not old and whole_root(new, place, name):
+            new = None
+        if not (old or new) or len(pairs) >= MAX_PAIRS:   # counted: a place without its own wording, or more
             more += 1
             continue
         item = {"place": line.get("place") or line.get("where"),
@@ -444,6 +458,8 @@ def change_input(unit, lines=None, applies_from=None):
                 item["new_wording"] = new[:MAX_WORDING]
         if "old_wording" in item or "new_wording" in item or item.get("differences"):
             pairs.append(item)
+        else:
+            more += 1
     if not pairs:
         return None
     sent = {"act": {"celex": unit["celex"], "title": unit["title"]}, "provision": unit["root"]["name"],
@@ -470,6 +486,25 @@ def german_places(text):
         for pattern, word in GERMAN_PLACES:
             pieces[index] = pattern.sub(word, pieces[index])
     return "".join(pieces)
+
+
+def annex_or_appendix(text, source):
+    """Anhang (Annex) and Anlage (Appendix) as in the English wording: "Anlagen XIV, XVI" becomes "Anhänge
+    XIV, XVI" when the wording has no Appendix XIV, and "Anhang 1" becomes "Anlage 1" when the wording has
+    Appendix 1 but no Annex 1."""
+    def annex(match):
+        if re.search(rf"\bAppendix {match.group(2)}\b", source):
+            return match.group(0)
+        return f"{'Anhänge' if match.group(1) else 'Anhang'} {match.group(2)}"
+
+    def appendix(match):
+        number = match.group(1)
+        if re.search(rf"\bAppendix {number}\b", source) and not re.search(rf"\bAnnex {number}\b", source):
+            return f"Anlage {number}"
+        return match.group(0)
+
+    text = re.sub(r"\bAnlage(n)? ([IVXLC]+)\b", annex, text)
+    return re.sub(r"\bAnhang (\d+)\b", appendix, text)
 
 
 MONTHS_DE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
@@ -514,7 +549,7 @@ def validate_change(reply, source, coming=False, final=False, day=None, changed=
         raise Unclassified("The change applies only from applies_from on. Write what WILL be different, in the "
                            "present or future tense ('entfällt künftig', 'gilt künftig', 'wird ersetzt'), "
                            "not 'wurde' or 'wurden'.")
-    answer = {"sentence": german_places(squash(reply["sentence"]))}
+    answer = {"sentence": annex_or_appendix(german_places(squash(reply["sentence"])), source)}
     marks = base.number_marks([answer["sentence"]], source)
     if changed is not None:
         # A value that stands only in the unchanged words around a difference (for example the next row of
@@ -569,8 +604,9 @@ def standard_entry(line, side):
     return reference, list(dict.fromkeys(amendments))
 
 
-def _names(items, kind):
-    """Up to MAX_NAMES references; amendments are named for standards added or renewed, not for deleted ones."""
+def _names(items, kind, unread=0):
+    """Up to MAX_NAMES references; amendments are named for standards added or renewed, not for deleted ones.
+    unread: entries of the same kind whose reference could not be read from the stored wording."""
     shown = []
     for reference, amendments in items[:MAX_NAMES]:
         joined = ", ".join(amendments)
@@ -580,40 +616,49 @@ def _names(items, kind):
             shown.append(f"{reference} (mit {joined})")
         else:
             shown.append(reference)
+    others = max(0, len(items) - MAX_NAMES) + unread
+    if not shown:
+        return f"{others} {'Eintrag' if others == 1 else 'Einträge'}"
     text = ", ".join(shown)
-    if len(items) > MAX_NAMES:
-        return f"{text} sowie {len(items) - MAX_NAMES} weitere"
-    return text
+    return f"{text} sowie {others} weitere" if others else text
 
 
 LIST_LABELS = {False: {"removed": "Aus der Liste gestrichen", "added": "Neu in der Liste", "renewed": "Neu gefasst"},
                True: {"removed": "Künftig entfallen", "added": "Künftig neu in der Liste",
                       "renewed": "Künftig neu gefasst"}}
+ADDING, DELETING = ("ADD", "INSERT"), ("DELETE", "REPEAL")
 
 
 def standards_sentence(lines, coming=False):
-    """The sentence for a day on which only entries of a list of standards were added or deleted, written
-    without AI from the references in the wording: "Aus der Liste gestrichen: EN 144-3:2003, ... Neu in der
-    Liste: ...". A standard deleted and added again on the same day (a new entry with an amendment) is
-    "neu gefasst". None as soon as one change is anything else or one entry cannot be read: Qwen writes the
-    sentence then."""
-    added, removed = [], []
+    """The sentence for a day on which only numbered entries of a list of standards were added or deleted,
+    written without AI from the references in the wording: "Aus der Liste gestrichen: EN 144-3:2003, ...
+    Neu in der Liste: ...". A standard deleted and added again on the same day (a new entry with an
+    amendment) is "neu gefasst". An entry whose reference cannot be read (no wording, or a text cut before
+    it) is counted ("sowie 4 weitere"). None when one change is anything else, or no reference at all can be
+    read: Qwen writes the sentence then."""
+    added, removed, unread = [], [], Counter()
     for line in lines:
-        if line["operation"] in ("ADD", "INSERT") and line.get("new_text") and not line.get("old_text"):
-            found, target = standard_entry(line, "new"), added
-        elif line["operation"] in ("DELETE", "REPEAL") and line.get("old_text") and not line.get("new_text"):
-            found, target = standard_entry(line, "old"), removed
+        if line["operation"] in ADDING and not line.get("old_text"):
+            found, target, kind = standard_entry(line, "new"), added, "added"
+        elif line["operation"] in DELETING and not line.get("new_text"):
+            found, target, kind = standard_entry(line, "old"), removed, "removed"
         else:
             return None
-        if found is None:
+        if not POINT_NUMBER.search(line.get("place") or ""):
             return None
-        target.append(found)
+        if found is None:
+            unread[kind] += 1
+        else:
+            target.append(found)
+    if not (added or removed):
+        return None
     again = {reference for reference, _ in added} & {reference for reference, _ in removed}
     groups = {"removed": [item for item in removed if item[0] not in again],
               "added": [item for item in added if item[0] not in again],
               "renewed": [item for item in added if item[0] in again]}
-    parts = [f"{LIST_LABELS[coming][kind]}: {_names(items, kind)}" for kind, items in groups.items() if items]
-    return ". ".join(parts) + "." if parts else None
+    parts = [f"{LIST_LABELS[coming][kind]}: {_names(items, kind, unread[kind])}"
+             for kind, items in groups.items() if items or unread[kind]]
+    return ". ".join(parts) + "."
 
 
 HEADLINE_SYSTEM = ("You translate the headline of a provision of an EU legal act into German. Keep names, numbers, "
