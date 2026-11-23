@@ -87,7 +87,8 @@ class RunTests(unittest.TestCase):
             (root / "doc" / "relevance_export").mkdir(parents=True)
             (root / "doc" / "relevance_export" / "direct.json").write_text(json.dumps(
                 {"32020R0002": {"level": "DIRECT", "title": "Regulation on feed additives"}}), encoding="utf-8")
-            (root / "doc" / "relevance_export" / "indirect.json").write_text("{}", encoding="utf-8")
+            (root / "doc" / "relevance_export" / "indirect.json").write_text(json.dumps(
+                {"32020R0003": {"level": "INDIRECT", "title": None}}), encoding="utf-8")   # empty fields happen
             (root / "class").mkdir()
             (root / "class" / "results.json").write_text(json.dumps({"32020R0001": {
                 "Article 1": {"level": "DIRECT", "primary_domain": "no_fitting_domain", "departments": ["Einkauf"],
@@ -100,6 +101,9 @@ class RunTests(unittest.TestCase):
                 encoding="utf-8")
             (v1 / "article_3.json").write_text(json.dumps({"celex": "32020R0001", "target": "Article 9",
                                                            "failure": "cut off"}), encoding="utf-8")
+            (v1 / "article_4.json").write_text(json.dumps({"celex": "32020R0001", "target": None, "summary": {
+                "headline": None, "overview": None, "bullets": [{"kind": "DUTY", "text": None, "quotes": None}]}}),
+                encoding="utf-8")
             saved = (inspect.DEFAULT_RUNS, inspect.DEFAULT_UNSURE, inspect.NEW_ARTICLES, inspect.CLASSIFICATION,
                      inspect.SUMMARIES_V1, inspect.SUMMARIES_V2, inspect.DOCUMENT_RUN)
             try:

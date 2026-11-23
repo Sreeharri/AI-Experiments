@@ -283,7 +283,7 @@ def document_decisions(run, notes):
 def title_of(celex, files):
     for path in files.get(celex, [])[:1]:
         try:
-            return (read_json(path).get("evidence_pack", {}).get("document") or {}).get("title", "")
+            return (read_json(path).get("evidence_pack", {}).get("document") or {}).get("title") or ""
         except (OSError, ValueError):
             return ""
     return ""
@@ -296,8 +296,9 @@ def check_documents(found, decisions, provisions, titles):
         files[celex].append(item["file"])
     found.totals["relevant acts (document level)"] = len(decisions)
     for celex, decision in sorted(decisions.items()):
-        level = decision.get("level", "")
-        title = decision.get("title") or titles.get(celex) or title_of(celex, files)
+        decision = decision if isinstance(decision, dict) else {}
+        level = decision.get("level") or ""
+        title = str(decision.get("title") or titles.get(celex) or title_of(celex, files) or "")
         counts = by_act.get(celex)
         if counts and not any(counts[k] for k in KEPT):
             found.add("DOC_NO_KEPT_PROVISION", celex, "", level, f"{sum(counts.values())} provisions, all IGNORE",
@@ -324,8 +325,9 @@ def check_provisions(found, provisions, classified):
         provision = evidence.get("provision", {})
         text = " ".join(target_text(provision))
         details = pack.get("details") or {}
-        titles.setdefault(celex, (evidence.get("document") or {}).get("title", ""))
-        actor = details.get("actor", "")
+        if not titles.get(celex):
+            titles[celex] = (evidence.get("document") or {}).get("title") or ""
+        actor = details.get("actor") or ""
         if item["level"] == "DIRECT":
             kind = authority_kind(actor, text)
             if kind == "authority":
@@ -354,24 +356,27 @@ def check_classification(found, classified):
     for celex, targets in sorted(classified.items()):
         for target, result in sorted(targets.items()):
             total += 1
+            if not isinstance(result, dict):
+                continue
             if result.get("primary_domain") in (None, "", "no_fitting_domain"):
-                found.add("CLASS_NO_DOMAIN", celex, target, result.get("level", ""), result.get("subject", ""),
-                          snippet(result.get("primary_reason", "")))
+                found.add("CLASS_NO_DOMAIN", celex, target, result.get("level") or "", result.get("subject") or "",
+                          snippet(result.get("primary_reason")))
             departments = [d for d in result.get("departments") or [] if d and "no_department" not in d.lower()]
             if not departments:
-                found.add("CLASS_NO_DEPARTMENT", celex, target, result.get("level", ""),
-                          result.get("primary_domain", ""), snippet(result.get("subject", "")))
+                found.add("CLASS_NO_DEPARTMENT", celex, target, result.get("level") or "",
+                          result.get("primary_domain") or "", snippet(result.get("subject")))
             for flag in result.get("check") or []:
-                found.add("CLASS_CHECK", celex, target, result.get("level", ""), flag,
-                          f"{result.get('primary_domain')}: {snippet(result.get('primary_reason', ''), width=160)}")
+                found.add("CLASS_CHECK", celex, target, result.get("level") or "", str(flag),
+                          f"{result.get('primary_domain')}: {snippet(result.get('primary_reason'), width=160)}")
     found.totals["classified provisions"] = total
 
 
 def check_summary(found, prefix, celex, target, level, summary, flags, text_start=""):
     """The summary checks for one provision summary (v1 or v2)."""
-    headline, overview = summary.get("headline", ""), summary.get("overview", "")
-    for bullet in summary.get("bullets", []):
-        point, quotes = bullet.get("text", ""), " ".join(bullet.get("quotes") or [])
+    headline, overview = summary.get("headline") or "", summary.get("overview") or ""
+    for bullet in summary.get("bullets") or []:
+        point = bullet.get("text") or ""
+        quotes = " ".join(quote for quote in bullet.get("quotes") or [] if isinstance(quote, str))
         if (DUTY_DE.search(point) and not PERMISSION_DE.search(point) and MAY.search(quotes)
                 and not SHALL.search(quotes) and not NOT_MAY.search(quotes)):
             found.add(f"{prefix}SUM_MAY_AS_MUST", celex, target, level, snippet(point, width=200),
@@ -388,8 +393,8 @@ def check_summary(found, prefix, celex, target, level, summary, flags, text_star
         found.add(f"{prefix}SUM_ANNEX_AS_ACT", celex, target, level, snippet(overview, width=160))
     if english(headline) or english(overview):
         found.add(f"{prefix}SUM_ENGLISH", celex, target, level, snippet(headline, width=160))
-    marks = [*summary.get("number_check", []),
-             *(m for b in summary.get("bullets", []) for m in b.get("number_check", []) or [])]
+    marks = [*(summary.get("number_check") or []),
+             *(m for b in summary.get("bullets") or [] for m in b.get("number_check") or [])]
     if marks:
         found.add(f"{prefix}SUM_NUMBER_MARK", celex, target, level, "; ".join(map(str, marks))[:200],
                   snippet(headline, width=120))
@@ -407,9 +412,9 @@ def check_summaries_v1(found, folder, flags, notes):
             notes.append(f"Could not read: {path}")
             continue
         total += 1
-        celex, target, level = record.get("celex", ""), record.get("target", ""), record.get("level", "")
-        if "summary" not in record:
-            found.add("SUM_MISSING", celex, target, level, record.get("failure", "")[:200])
+        celex, target, level = record.get("celex") or "", record.get("target") or "", record.get("level") or ""
+        if not isinstance(record.get("summary"), dict):
+            found.add("SUM_MISSING", celex, target, level, str(record.get("failure") or "")[:200])
             continue
         check_summary(found, "", celex, target, level, record["summary"], flags.get((celex, target), set()),
                       record.get("text", ""))
@@ -420,7 +425,7 @@ def check_summaries_v1(found, folder, flags, notes):
             record = read_or_none(path) or {"failure": "could not be read"}
             count += 1
             if record.get("failure"):
-                found.add(kind, record.get("celex", path.stem), "", "", record["failure"][:200])
+                found.add(kind, record.get("celex") or path.stem, "", "", str(record["failure"])[:200])
         found.totals[f"{sub} summaries v1"] = count
 
 
@@ -436,12 +441,12 @@ def check_summaries_v2(found, folder, flags, notes):
             notes.append(f"Could not read: {path}")
             continue
         total += 1
-        celex, name = record.get("celex", ""), record.get("name", "")
-        level = ",".join(sorted({p.get("level", "") for p in record.get("provisions", [])}))
+        celex, name = record.get("celex") or "", record.get("name") or ""
+        level = ",".join(sorted({p.get("level") or "" for p in record.get("provisions") or []}))
         if record.get("failure"):
-            found.add("V2_SUM_MISSING", celex, name, level, record["failure"][:200])
+            found.add("V2_SUM_MISSING", celex, name, level, str(record["failure"])[:200])
             continue
-        if record.get("summary"):
+        if isinstance(record.get("summary"), dict):
             unit_flags = set().union(*[flags.get((celex, p.get("locator", "")), set())
                                        for p in record.get("provisions", [])])
             check_summary(found, "V2_", celex, name, level, record["summary"], unit_flags)
