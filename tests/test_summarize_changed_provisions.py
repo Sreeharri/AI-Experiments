@@ -135,6 +135,21 @@ class WordsTests(unittest.TestCase):
         self.assertIsNone(changed.root_of_locator("Annex B-03 Chapter I"))
 
 
+class WordingTests(unittest.TestCase):
+    def test_a_long_wording_is_sent_as_its_differences(self):
+        old = " ".join(f"{n}. Unchanged rule number {n} about something." for n in range(1, 200))
+        new = old.replace("100. Unchanged rule number 100", "100. Changed rule number 100 with 45 %") + " 200. New rule."
+        removed, added = changed.differences(old, new)
+        self.assertIn("Unchanged rule number 100", removed)
+        self.assertIn("45 %", added)
+        self.assertIn("200. New rule.", added)
+        self.assertNotIn("rule number 3 ", added)
+
+    def test_english_part_names_become_german_outside_quotes(self):
+        self.assertEqual(changed.german_places("Neu sind Annex XV und Article 6, Titel 'Article 10' bleibt."),
+                         "Neu sind Anhang XV und Artikel 6, Titel 'Article 10' bleibt.")
+
+
 class SampleTests(unittest.TestCase):
     def test_a_test_run_takes_a_mix_and_newest_acts_first(self):
         def unit(celex, key, roles=(), inserted=False, kind="CONSOLIDATED"):
@@ -215,6 +230,13 @@ class UnitTests(unittest.TestCase):
         sent = json.loads(client.chat.call_args_list[1].args[0][1]["content"].split("\n\nTASK")[0])
         self.assertEqual([item["type"] for item in sent["changes"]], ["added", "replaced"])
         self.assertNotIn("old_wording", sent["changes"][0])
+
+    def test_an_upcoming_sentence_in_the_past_is_asked_once_more(self):
+        client = client_with(provision(), sentence(), sentence("Der Bericht wurde veröffentlicht."),
+                             sentence("Künftig wird der Bericht veröffentlicht."))
+        record = changed.summarise_unit(client, self.systems, self.units["article/6"])
+        self.assertEqual(record["upcoming_explained"][0]["sentence"], "Künftig wird der Bericht veröffentlicht.")
+        self.assertEqual(client.chat.call_count, 4)
 
     def test_a_number_not_in_the_wording_is_marked(self):
         client = client_with(provision(), sentence("Die Frist beträgt nun 24 Monate."), sentence())

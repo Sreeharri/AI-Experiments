@@ -40,6 +40,7 @@ steps do.
 import argparse
 from collections import Counter, defaultdict
 import csv
+import difflib
 from datetime import date
 import html
 import json
@@ -61,7 +62,7 @@ from lr_ai.qwen_client import QwenClient  # noqa: E402
 CHANGE_PROMPT = ROOT / "prompts/eurlex_change_summary.md"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
 DEFAULT_OUTPUT = ROOT / "runs/eurlex_summaries_v2_changes"
-VERSION = "changes-v1"
+VERSION = "changes-v2"
 CHANGE_TASK = "TASK: Write what changed. Return the JSON object described in the instructions."
 CHANGE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["sentence"],
                  "properties": {"sentence": {"type": "string"}}}
@@ -324,6 +325,42 @@ def upcoming_days(unit):
     return days
 
 
+SENTENCE_END = re.compile(r"(?<=[.;:])\s+|\s*\n+\s*")
+
+
+CONTEXT_WORDS = 8
+
+
+def _changed(old_parts, new_parts, context=0):
+    """(removed, added) passages between two lists of parts, with `context` equal parts around each."""
+    removed, added = [], []
+    matcher = difflib.SequenceMatcher(None, old_parts, new_parts, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        before = old_parts[max(0, i1 - context):i1]
+        after_old, after_new = old_parts[i2:i2 + context], new_parts[j2:j2 + context]
+        if i2 > i1:
+            removed.append(" ".join([*before, *old_parts[i1:i2], *after_old]))
+        if j2 > j1:
+            added.append(" ".join([*before, *new_parts[j1:j2], *after_new]))
+    return " […] ".join(removed), " […] ".join(added)
+
+
+def differences(old, new):
+    """(removed, added): only the passages of two long wordings that differ, in their order. Used when a
+    wording is longer than MAX_WORDING (a replaced annex), so that Qwen sees what changed, not the start.
+    Sentence by sentence first; for tables and lists (text without sentence ends) word by word, with a few
+    words around each difference."""
+    removed, added = _changed([p for p in SENTENCE_END.split(old or "") if p.strip()],
+                              [p for p in SENTENCE_END.split(new or "") if p.strip()])
+    if max(len(removed), len(added)) > MAX_WORDING // 3:
+        by_word = _changed((old or "").split(), (new or "").split(), CONTEXT_WORDS)
+        if max(map(len, by_word)) < max(len(removed), len(added)):
+            removed, added = by_word
+    return removed, added
+
+
 def change_input(unit, lines=None, applies_from=None):
     """What Qwen sees for the 'Was hat sich geändert' sentence (the latest change), or for an upcoming
     day's sentence (lines and applies_from given). None when there is no wording."""
@@ -338,12 +375,20 @@ def change_input(unit, lines=None, applies_from=None):
         item = {"place": line.get("place") or line.get("where"),
                 "type": {"REPLACE": "replaced", "ADD": "added", "INSERT": "added", "DELETE": "deleted",
                          "REPEAL": "deleted"}.get(line["operation"], "changed")}
-        if old and not (line.get("old_is_context") and len(old) > MAX_WORDING):
-            item["old_wording"] = old[:MAX_WORDING]
-            if line.get("old_is_context"):
-                item["old_is_context"] = True
-        if new:
-            item["new_wording"] = new[:MAX_WORDING]
+        if old and new and not line.get("old_is_context") and max(len(old), len(new)) > MAX_WORDING:
+            removed, added = differences(old, new)
+            item["only_differences"] = True
+            if removed:
+                item["old_wording"] = removed[:MAX_WORDING]
+            if added:
+                item["new_wording"] = added[:MAX_WORDING]
+        else:
+            if old and not (line.get("old_is_context") and len(old) > MAX_WORDING):
+                item["old_wording"] = old[:MAX_WORDING]
+                if line.get("old_is_context"):
+                    item["old_is_context"] = True
+            if new:
+                item["new_wording"] = new[:MAX_WORDING]
         if "old_wording" in item or "new_wording" in item:
             pairs.append(item)
     if not pairs:
@@ -357,10 +402,29 @@ def change_input(unit, lines=None, applies_from=None):
     return sent
 
 
-def validate_change(reply, source):
+PAST = re.compile(r"\b(?:wurden?|wurde|hat sich|haben sich)\b", re.I)
+GERMAN_PLACES = [(re.compile(r"\bAnnexes\b"), "Anhänge"), (re.compile(r"\bAnnex\b"), "Anhang"),
+                 (re.compile(r"\bArticles\b"), "Artikel"), (re.compile(r"\bArticle\b"), "Artikel"),
+                 (re.compile(r"\bAppendix\b"), "Anlage"), (re.compile(r"\bAppendices\b"), "Anlagen")]
+
+
+def german_places(text):
+    """English words for parts of an act ("Annex XV", "Article 6") in German; quoted text stays as it is."""
+    pieces = re.split(r"([‘'„\"“][^‘'„\"“”’]*[’'“\"”])", text)
+    for index in range(0, len(pieces), 2):
+        for pattern, word in GERMAN_PLACES:
+            pieces[index] = pattern.sub(word, pieces[index])
+    return "".join(pieces)
+
+
+def validate_change(reply, source, coming=False, final=False):
     if not isinstance(reply, dict) or not isinstance(reply.get("sentence"), str) or not squash(reply["sentence"]):
         raise Unclassified("The reply must hold the sentence.")
-    answer = {"sentence": squash(reply["sentence"])}
+    if coming and not final and PAST.search(reply["sentence"]):
+        raise Unclassified("The change applies only from applies_from on. Write what WILL be different, in the "
+                           "present or future tense ('entfällt künftig', 'gilt künftig', 'wird ersetzt'), "
+                           "not 'wurde' or 'wurden'.")
+    answer = {"sentence": german_places(squash(reply["sentence"]))}
     marks = base.number_marks([answer["sentence"]], source)
     if marks:
         answer["number_check"] = marks
@@ -370,8 +434,9 @@ def validate_change(reply, source):
 def change_sentence(client, system, sent):
     log = []
     source = json.dumps(sent, ensure_ascii=False)
+    coming = bool(sent.get("applies_from"))
     answer = base.ask(client, system, sent, CHANGE_TASK, CHANGE_SCHEMA, "change_summary",
-                      lambda reply: validate_change(reply, source), log, 600)
+                      lambda reply, final=False: validate_change(reply, source, coming, final), log, 600)
     return answer, log
 
 
