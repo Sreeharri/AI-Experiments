@@ -139,11 +139,26 @@ class WordingTests(unittest.TestCase):
     def test_a_long_wording_is_sent_as_its_differences(self):
         old = " ".join(f"{n}. Unchanged rule number {n} about something." for n in range(1, 200))
         new = old.replace("100. Unchanged rule number 100", "100. Changed rule number 100 with 45 %") + " 200. New rule."
-        removed, added = changed.differences(old, new)
-        self.assertIn("Unchanged rule number 100", removed)
-        self.assertIn("45 %", added)
-        self.assertIn("200. New rule.", added)
-        self.assertNotIn("rule number 3 ", added)
+        pairs = changed.differences(old, new)
+        self.assertEqual(len(pairs), 2)
+        self.assertIn("Unchanged rule number 100", pairs[0][0])
+        self.assertIn("45 %", pairs[0][1])
+        self.assertEqual(pairs[1], ("", "200. New rule."))
+        self.assertNotIn("rule number 3 ", " ".join(pairs[0]))
+
+    def test_a_long_table_is_sent_as_pairs_of_rows(self):
+        row = "09.88{:02d} Country {} 1 000,00 2 000,00"
+        old = " ".join(row.format(n, n) for n in range(300))
+        new = old.replace("Country 150 1 000,00", "Country 150 9 330,47")
+        line = {"role": "latest", "date": "2025-11-18", "operation": "REPLACE", "place": "Annex III",
+                "old_text": old, "new_text": new, "changing_act": "32026R2270"}
+        unit = {"celex": "32025R2351", "title": "t", "root": {"name": "Annex III", "changes": [line]}}
+        item = changed.change_input(unit)["changes"][0]
+        self.assertNotIn("old_wording", item)
+        [pair] = item["differences"]
+        self.assertIn("Country 150 1 000,00", pair["old"])
+        self.assertIn("Country 150 9 330,47", pair["new"])
+        self.assertLess(len(pair["old"]), 400)
 
     def test_english_part_names_become_german_outside_quotes(self):
         self.assertEqual(changed.german_places("Neu sind Annex XV und Article 6, Titel 'Article 10' bleibt."),

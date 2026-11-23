@@ -62,7 +62,7 @@ from lr_ai.qwen_client import QwenClient  # noqa: E402
 CHANGE_PROMPT = ROOT / "prompts/eurlex_change_summary.md"
 DEFAULT_CLASSIFICATION = ROOT / "runs/eurlex_classification_v5"
 DEFAULT_OUTPUT = ROOT / "runs/eurlex_summaries_v2_changes"
-VERSION = "changes-v2"
+VERSION = "changes-v3"
 CHANGE_TASK = "TASK: Write what changed. Return the JSON object described in the instructions."
 CHANGE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["sentence"],
                  "properties": {"sentence": {"type": "string"}}}
@@ -328,37 +328,40 @@ def upcoming_days(unit):
 SENTENCE_END = re.compile(r"(?<=[.;:])\s+|\s*\n+\s*")
 
 
-CONTEXT_WORDS = 8
+CONTEXT_WORDS = 15
+MAX_PAIR = 1500             # characters of one side of one differing passage
 
 
 def _changed(old_parts, new_parts, context=0):
-    """(removed, added) passages between two lists of parts, with `context` equal parts around each."""
-    removed, added = [], []
+    """[(old, new)]: each differing passage of two lists of parts, before and after, with `context` equal
+    parts around it (the same words on both sides, so that the reader sees where it is)."""
+    pairs = []
     matcher = difflib.SequenceMatcher(None, old_parts, new_parts, autojunk=False)
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             continue
         before = old_parts[max(0, i1 - context):i1]
-        after_old, after_new = old_parts[i2:i2 + context], new_parts[j2:j2 + context]
-        if i2 > i1:
-            removed.append(" ".join([*before, *old_parts[i1:i2], *after_old]))
-        if j2 > j1:
-            added.append(" ".join([*before, *new_parts[j1:j2], *after_new]))
-    return " […] ".join(removed), " […] ".join(added)
+        old_after, new_after = old_parts[i2:i2 + context], new_parts[j2:j2 + context]
+        pairs.append((" ".join([*before, *old_parts[i1:i2], *old_after]) if i2 > i1 else "",
+                      " ".join([*before, *new_parts[j1:j2], *new_after]) if j2 > j1 else ""))
+    return pairs
 
 
 def differences(old, new):
-    """(removed, added): only the passages of two long wordings that differ, in their order. Used when a
-    wording is longer than MAX_WORDING (a replaced annex), so that Qwen sees what changed, not the start.
-    Sentence by sentence first; for tables and lists (text without sentence ends) word by word, with a few
+    """[(old, new)]: only the passages of two long wordings that differ, in their order. Used when a wording
+    is longer than MAX_WORDING (a replaced annex or table), so that Qwen compares what changed, not the start.
+    Sentence by sentence first; for tables and lists (text without sentence ends) word by word, with some
     words around each difference."""
-    removed, added = _changed([p for p in SENTENCE_END.split(old or "") if p.strip()],
-                              [p for p in SENTENCE_END.split(new or "") if p.strip()])
-    if max(len(removed), len(added)) > MAX_WORDING // 3:
+    def size(pairs):
+        return sum(len(a) + len(b) for a, b in pairs)
+
+    pairs = _changed([p for p in SENTENCE_END.split(old or "") if p.strip()],
+                     [p for p in SENTENCE_END.split(new or "") if p.strip()])
+    if size(pairs) > MAX_WORDING // 2:
         by_word = _changed((old or "").split(), (new or "").split(), CONTEXT_WORDS)
-        if max(map(len, by_word)) < max(len(removed), len(added)):
-            removed, added = by_word
-    return removed, added
+        if size(by_word) < size(pairs):
+            pairs = by_word
+    return pairs
 
 
 def change_input(unit, lines=None, applies_from=None):
@@ -376,12 +379,18 @@ def change_input(unit, lines=None, applies_from=None):
                 "type": {"REPLACE": "replaced", "ADD": "added", "INSERT": "added", "DELETE": "deleted",
                          "REPEAL": "deleted"}.get(line["operation"], "changed")}
         if old and new and not line.get("old_is_context") and max(len(old), len(new)) > MAX_WORDING:
-            removed, added = differences(old, new)
-            item["only_differences"] = True
-            if removed:
-                item["old_wording"] = removed[:MAX_WORDING]
-            if added:
-                item["new_wording"] = added[:MAX_WORDING]
+            shown, used, left = [], 0, 0
+            for before, after in differences(old, new):
+                pair = {key: value[:MAX_PAIR] for key, value in (("old", before), ("new", after)) if value}
+                length = sum(map(len, pair.values()))
+                if shown and used + length > 2 * MAX_WORDING:
+                    left += 1
+                    continue
+                shown.append(pair)
+                used += length
+            item["differences"] = shown
+            if left:
+                item["more_differences"] = left
         else:
             if old and not (line.get("old_is_context") and len(old) > MAX_WORDING):
                 item["old_wording"] = old[:MAX_WORDING]
@@ -389,7 +398,7 @@ def change_input(unit, lines=None, applies_from=None):
                     item["old_is_context"] = True
             if new:
                 item["new_wording"] = new[:MAX_WORDING]
-        if "old_wording" in item or "new_wording" in item:
+        if "old_wording" in item or "new_wording" in item or item.get("differences"):
             pairs.append(item)
     if not pairs:
         return None
