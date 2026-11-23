@@ -32,7 +32,7 @@ class RunTests(unittest.TestCase):
                 return 0
 
             with patch.object(run, "NEW", tmp / "new"), patch.object(run, "call", call):
-                self.assertEqual(run.main(["--changed-dir", str(changed), "--sample", "20"]), 0)
+                self.assertEqual(run.main(["--changed-dir", str(changed), "--sample", "20", "--only-latest"]), 0)
         names = [name for name, _ in calls]
         self.assertEqual(names, ["screen_new_articles.py", "resolve_unsure_provisions.py",
                                  "classify_eurlex_provisions.py", "summarize_changed_provisions.py"])
@@ -40,7 +40,7 @@ class RunTests(unittest.TestCase):
         self.assertIn("--extra-classification-dir", summary)
         self.assertTrue(summary[summary.index("--extra-classification-dir") + 1].endswith(
             str(Path("20261123T190000Z") / "classification")))
-        self.assertEqual(summary[-2:], ["--sample", "20"])
+        self.assertEqual(summary[-3:], ["--sample", "20", "--only-latest"])
 
     def test_nothing_inserted_goes_straight_to_the_summaries(self):
         with TemporaryDirectory() as tmp:

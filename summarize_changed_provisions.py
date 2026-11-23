@@ -55,6 +55,7 @@ from classify_eurlex_provisions import (  # noqa: E402
     KEPT, MAX_WORKERS, ConnectionLost, Unclassified, reachable, read_json, run_until_done, safe_name,
     squash, wait_until_reachable, write_json)
 from eurlex_provision.simple import TARGET_CHARS, split_target, target_text  # noqa: E402
+from eurlex_summary_checks import FUNCTION_WORDS  # noqa: E402
 from lr_ai.qwen_client import QwenClient  # noqa: E402
 
 CHANGE_PROMPT = ROOT / "prompts/eurlex_change_summary.md"
@@ -197,6 +198,7 @@ def merged(folders):
             continue  # an extra classification that was not written (nothing relevant was found)
         for celex, provisions in read_json(path).items():
             for locator, value in provisions.items():
+                value = dict(value, inserted_later=True) if folder != folders[0] else value
                 result.setdefault(celex, {}).setdefault(locator, value)
     return result
 
@@ -221,6 +223,7 @@ def plan(changed_dir, classified, levels, celexes=()):
                 continue
             group = "tables" if base.TABLE_PIECE.match(base.plain_locator(locator)) else "provisions"
             matched[key][group].append({"locator": locator, "level": result.get("level"),
+                                        "inserted_later": bool(result.get("inserted_later")),
                                         "departments": result.get("departments", []),
                                         "domain": result.get("primary_domain")})
             facts[f"relevant {group} changed"] += 1
@@ -231,6 +234,39 @@ def plan(changed_dir, classified, levels, celexes=()):
                           "today_version_celex": record.get("today_version_celex"), "key": key,
                           "root": root, **found})
     return units, facts
+
+
+def pick_sample(units, count):
+    """A fixed mix for a test run, newest acts first: articles with old/new wording of the latest change,
+    with upcoming changes, articles inserted later, and the others."""
+    def has(unit, role):
+        return any(line["role"] == role and (line.get("old_text") or line.get("new_text"))
+                   for line in unit["root"]["changes"])
+
+    groups = [
+        [u for u in units if any(p.get("inserted_later") for p in u["provisions"])],
+        [u for u in units if has(u, "upcoming")],
+        [u for u in units if has(u, "latest")],
+        [u for u in units if unit_kind(u) == "summary"],
+        list(units),
+    ]
+    chosen, seen = [], set()
+    queues = [sorted(group, key=lambda u: (u["celex"][1:5], u["celex"]), reverse=True) for group in groups]
+    while len(chosen) < count and any(queues):
+        for queue in queues:
+            while queue and id(queue[0]) in seen:
+                queue.pop(0)
+            if queue and len(chosen) < count:
+                unit = queue.pop(0)
+                seen.add(id(unit))
+                chosen.append(unit)
+    return chosen
+
+
+def foreign(text):
+    """True when a German text is clearly English (English function words, no German ones)."""
+    return (len(FUNCTION_WORDS["en"].findall(text or "")) >= 2
+            and not FUNCTION_WORDS["de"].findall(text or ""))
 
 
 def unit_kind(unit):
@@ -374,6 +410,8 @@ def summarise_unit(client, systems, unit):
             client, systems["provision"], saved_pack(unit, text_node(unit)), systems["merge"])
         # Tidied as the version-1 cards are (point kinds, fixed German terms); nothing is cut.
         record["summary"] = base.tidy_summary(summary, root["today"]["text"][:600], base.OUTPUT_LANGUAGE)
+        if base.OUTPUT_LANGUAGE == "de" and any(foreign(record["summary"].get(key)) for key in ("headline", "overview")):
+            record["summary"]["language_check"] = True   # marked for the hand check, as numbers are
     sent = change_input(unit) if kind != "deleted" else None
     if sent is not None:
         answer, log = change_sentence(client, systems["change"], sent)
@@ -457,7 +495,8 @@ def export(out, units):
                         or " | ".join(record.get("upcoming", [])),
             "number_check": "; ".join(str(m) for m in [*summary.get("number_check", []),
                                                         *changed.get("number_check", [])]),
-            "failure": record.get("failure", "")})
+            "failure": record.get("failure", "")
+            + ("language: English text" if summary.get("language_check") else "")})
     write_json(out / "changed_provisions.json", records)
     with (out / "review.csv").open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.DictWriter(handle, fieldnames=REVIEW_FIELDS, delimiter=";")
@@ -577,6 +616,8 @@ def main(argv=None):
     parser.add_argument("--language", choices=tuple(base.LANGUAGES), default="de")
     parser.add_argument("--sample", type=int, help="Only this many articles or annexes (the first ones).")
     parser.add_argument("--celex", nargs="+", default=[], help="Only these acts.")
+    parser.add_argument("--only-latest", action="store_true",
+                        help="Only articles and annexes whose latest change is from 2015 on (shown with old/new).")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--count-only", action="store_true")
     args = parser.parse_args(argv)
@@ -591,8 +632,10 @@ def main(argv=None):
     except (OSError, ValueError, KeyError) as exc:
         print(f"Stopped: {exc}", file=sys.stderr)
         return 1
+    if args.only_latest:
+        units = [unit for unit in units if latest_lines(unit)]
     if args.sample:
-        units = units[:args.sample]
+        units = pick_sample(units, args.sample)
     kinds = Counter(unit_kind(unit) for unit in units)
     print(f"Changed articles and annexes with a relevant provision: {len(units):,} in "
           f"{len({u['celex'] for u in units}):,} acts.", flush=True)

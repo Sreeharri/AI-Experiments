@@ -46,6 +46,8 @@ def main(argv=None):
     parser.add_argument("--changed-dir", type=Path, required=True)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--sample", type=int, help="Step 4 only: summarise only this many articles or annexes.")
+    parser.add_argument("--only-latest", action="store_true",
+                        help="Step 4 only: articles whose latest change is from 2015 on.")
     parser.add_argument("--only-relevance", action="store_true",
                         help="Steps 1-3 only (screening, UNSURE, classification of the inserted articles).")
     args = parser.parse_args(argv)
@@ -85,7 +87,7 @@ def main(argv=None):
     # 4. Summary version 2.
     code = 0
     if not args.only_relevance:
-        sample = ["--sample", args.sample] if args.sample else []
+        sample = (["--sample", args.sample] if args.sample else []) + (["--only-latest"] if args.only_latest else [])
         code = call("summarize_changed_provisions.py", "--changed-dir", changed_dir, *extra, *workers, *sample)
 
     lines = ["", "=== Done ==="]

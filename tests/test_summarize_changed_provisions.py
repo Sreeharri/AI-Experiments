@@ -135,6 +135,25 @@ class WordsTests(unittest.TestCase):
         self.assertIsNone(changed.root_of_locator("Annex B-03 Chapter I"))
 
 
+class SampleTests(unittest.TestCase):
+    def test_a_test_run_takes_a_mix_and_newest_acts_first(self):
+        def unit(celex, key, roles=(), inserted=False, kind="CONSOLIDATED"):
+            changes = [{"role": role, "new_text": "x"} for role in roles]
+            return {"celex": celex, "key": key, "provisions": [{"inserted_later": inserted}],
+                    "root": {"today": {"text": "t", "version_kind": kind}, "deleted": None, "changes": changes}}
+        units = [unit("31953D0030", "article/2"), unit("31953D0030", "article/3"),
+                 unit("32018L2001", "article/3", ("latest",)), unit("32018L2001", "article/15a", ("latest",), True),
+                 unit("32018R0858", "annex/ii", ("upcoming",)), unit("31970L0157", "article/1", ("latest",))]
+        chosen = [(u["celex"], u["key"]) for u in changed.pick_sample(units, 4)]
+        self.assertEqual(chosen, [("32018L2001", "article/15a"), ("32018R0858", "annex/ii"),
+                                  ("32018L2001", "article/3"), ("31970L0157", "article/1")])
+        self.assertEqual(len(changed.pick_sample(units, 10)), 6)
+
+    def test_an_english_headline_is_marked(self):
+        self.assertTrue(changed.foreign("Duty-free admission of fuel in standard fuel tanks of commercial vehicles"))
+        self.assertFalse(changed.foreign("EU-Ziel: mindestens 42,5 % erneuerbare Energien im Jahr 2030"))
+
+
 class MergeTests(unittest.TestCase):
     def test_articles_inserted_later_are_added_from_their_own_classification(self):
         with TemporaryDirectory() as tmp:
@@ -145,7 +164,8 @@ class MergeTests(unittest.TestCase):
             (extra / "results.json").write_text(json.dumps(
                 {CELEX: {"Article 6": {"level": "IGNORE"}, "Article 15a": {"level": "INDIRECT"}}}))
             result = changed.merged([first, extra, missing])
-        self.assertEqual(result, {CELEX: {"Article 6": {"level": "DIRECT"}, "Article 15a": {"level": "INDIRECT"}}})
+        self.assertEqual(result, {CELEX: {"Article 6": {"level": "DIRECT"},
+                                          "Article 15a": {"level": "INDIRECT", "inserted_later": True}}})
 
 
 class PlanTests(unittest.TestCase):
@@ -251,6 +271,11 @@ class RunTests(unittest.TestCase):
             self.assertIn("Künftig wird der Bericht veröffentlicht.", page)
             self.assertIn("Frühere Änderungen (1)", page)
             self.assertEqual(json.loads((out / "summary.json").read_text())["summary"], 1)
+            with patch.object(changed.QwenClient, "from_env", return_value=client_with()):
+                self.assertEqual(changed.main(args + ["--only-latest", "--count-only"]), 0)
+            only, _ = changed.plan(tmp / "changed", CLASSIFIED, {"DIRECT", "INDIRECT"})
+            self.assertEqual(sorted(u["key"] for u in only if changed.latest_lines(u)),
+                             ["annex/i", "article/6", "article/9"])   # not Article 7 (last changed 2012)
 
 
 if __name__ == "__main__":
