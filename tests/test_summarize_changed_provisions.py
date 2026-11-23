@@ -4,14 +4,38 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "tests"))
+from lr_ai.qwen_client import ChatResult  # noqa: E402
 import summarize_changed_provisions as changed  # noqa: E402
-from test_classify_eurlex_provisions import client_with  # noqa: E402
-from test_summarize_eurlex_provisions import provision, reply  # noqa: E402
+
+
+def client_with(*replies):
+    """A stand-in for the Qwen client: answers with the given replies in order."""
+    client = Mock()
+    client.clean = lambda text: text
+    queue = list(replies)
+
+    def chat(messages, **options):
+        if not queue:
+            raise AssertionError("More requests than expected.")
+        return queue.pop(0)
+
+    client.chat.side_effect = chat
+    client.discover.return_value = {"ok": True}
+    return client
+
+
+def reply(value):
+    return ChatResult(ok=True, finish_reason="stop", content=json.dumps(value))
+
+
+def provision(headline="Energy audits"):
+    return reply({"headline": headline, "overview": "Large energy users must have their energy use audited.",
+                  "bullets": [{"kind": "DUTY", "text": "Enterprises above 85 TJ must carry out an energy audit.",
+                               "passages": ["P1"]}]})
 
 CELEX = "32018R0858"
 ARTICLE_6_TODAY = ("Article 6 Durability 1. Manufacturers shall ensure durability. 5. Limits are adjusted by the "
