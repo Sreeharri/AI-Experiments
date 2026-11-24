@@ -11,6 +11,11 @@ Steps (each item is asked once; the same command continues after Ctrl+C):
 2. point     summary points (v1 and v2) that say "muss" where the text says "may", or that state an
              authority's duty without naming the authority: Qwen checks the point against its source
              sentences and corrects only that.
+   verify    every correction of step 2 is checked once more: Qwen copies the sentence of the legal text the
+             point describes and chooses the original or the correction. A correction is used only when it
+             is chosen and the copied sentence is in the text and supports it ("may" for a permission, an
+             authority for a named actor). Acts whose summaries were written with a correction that is not
+             used are written again.
 3. language  summaries (v1 and v2) whose headline or overview is English: translated into German.
 Without Qwen:
              an amending article gets the note "Ändert <act>"; an annex summary that starts with "Die
@@ -20,6 +25,8 @@ Without Qwen:
              replace version 1, deleted articles leave, articles inserted later join) and every act whose
              department summary failed.
 5. departments  the department summaries of those acts written again in the same way.
+6. wording   points of department summaries (version 1 and new) that are English (mostly the open questions
+             "Does Max Bögl ...?"): translated into German.
 
 A correction that brings in a number, date or unit that is not in the source is not used. Nothing in
 the run folders is changed: all corrections go to one file that the database import applies on top.
@@ -46,8 +53,8 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from classify_eurlex_provisions import (  # noqa: E402
-    MAX_WORKERS, ConnectionLost, Unclassified, reachable, read_json, run_until_done, sha, squash, target_text,
-    wait_until_reachable, write_json)
+    MAX_WORKERS, ConnectionLost, Unclassified, reachable, read_json, run_until_done, safe_name, sha, squash,
+    target_text, wait_until_reachable, write_json)
 from classify_eurlex_provisions import NO_DEPARTMENT  # noqa: E402
 import inspect_ai_results as check  # noqa: E402
 from lr_ai.qwen_client import QwenClient  # noqa: E402
@@ -58,10 +65,13 @@ VERSION = "fixes-v1"
 OUTPUT = ROOT / "runs/eurlex_fixes_v1"
 PROMPTS = {"recheck": ROOT / "prompts/eurlex_provision_recheck.md",
            "point": ROOT / "prompts/eurlex_point_check.md",
+           "verify": ROOT / "prompts/eurlex_point_verify.md",
            "language": ROOT / "prompts/eurlex_summary_translate.md"}
 TASKS = {"recheck": "TASK: Answer who must or may act under this provision. Return the JSON object described in "
                     "the instructions.",
          "point": "TASK: Check the point against the source. Return the JSON object described in the instructions.",
+         "verify": "TASK: Copy the sentence the point describes and choose A, B or NEITHER. Return the JSON object "
+                   "described in the instructions.",
          "language": "TASK: Translate the headline and the overview into German. Return the JSON object described "
                      "in the instructions."}
 WHO = ("BUSINESS", "AUTHORITY_ONLY", "DATES_ONLY", "FORMAL_ONLY")
@@ -72,15 +82,24 @@ SCHEMAS = {
                                "reason": {"type": "string"}}},
     "point": {"type": "object", "additionalProperties": False, "required": ["problem", "point"],
               "properties": {"problem": {"type": "string", "enum": list(PROBLEMS)}, "point": {"type": "string"}}},
+    "verify": {"type": "object", "additionalProperties": False, "required": ["evidence", "choice"],
+               "properties": {"evidence": {"type": "string"},
+                              "choice": {"type": "string", "enum": ["A", "B", "NEITHER"]}}},
     "language": {"type": "object", "additionalProperties": False, "required": ["headline", "overview"],
                  "properties": {"headline": {"type": "string"}, "overview": {"type": "string"}}},
 }
-MAX_TOKENS = {"recheck": 500, "point": 700, "language": 1200}
+MAX_TOKENS = {"recheck": 500, "point": 700, "verify": 700, "language": 1200}
 MAX_TEXT = 6000
 MAX_SOURCE = 2500
-STEPS = ("changes", "recheck", "point", "language", "acts", "departments")
-QWEN_STEPS = ("recheck", "point", "language")
+STEPS = ("changes", "recheck", "point", "verify", "language", "acts", "departments", "wording")
+QWEN_STEPS = ("recheck", "point", "verify", "language")
 ACT_FIX = "act-fix-v1"
+WORDING_SYSTEM = ("You translate one point of a German department summary of an EU legal act into German. Keep "
+                  "names, numbers, standards, codes, references and the names of parts (for example 'Annex I, "
+                  "1.1. Requirements ...') exactly as they are. A question stays a question. Use precise German "
+                  "legal terms. Return one JSON object with text.")
+WORDING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["text"],
+                  "properties": {"text": {"type": "string"}}}
 
 AMENDED_ACT = re.compile(
     r"((?:Implementing |Delegated )?(?:Regulation|Directive|Decision)(?: \((?:EU|EC|EEC|EU, Euratom|Euratom)\))?"
@@ -93,10 +112,21 @@ ACT_WORDS = [("Implementing Regulation", "Durchführungsverordnung"), ("Delegate
 
 # ------------------------------------------------------------------ without Qwen
 
-def amended_act(text):
-    """'Ändert Verordnung (EU) 2017/1151' for an amending article or annex, else ''."""
+def own_numbers(celex):
+    """'2017/2400' and '2400/2017' for 32017R2400: how an act names itself."""
+    match = re.match(r"\d(\d{4})[A-Z]{1,2}0*(\d+)", celex or "")
+    return {f"{match.group(1)}/{match.group(2)}", f"{match.group(2)}/{match.group(1)}"} if match else set()
+
+
+def amended_act(text, celex=""):
+    """'Ändert Verordnung (EU) 2017/1151' for an amending article or annex, else ''. Never the act itself."""
     start = (text or "")[:400]
-    if not check.AMENDING.search(start) or not (match := AMENDED_ACT.search(start)):
+    if not check.AMENDING.search(start):
+        return ""
+    own = own_numbers(celex)
+    match = next((m for m in AMENDED_ACT.finditer(start)
+                  if not any(number in m.group(1) for number in own)), None)
+    if match is None:
         return ""
     name = match.group(1)
     for english, german in ACT_WORDS:
@@ -104,9 +134,20 @@ def amended_act(text):
     return f"Ändert {name}"
 
 
+ACT_NUMBER_AFTER = re.compile(r"\s*(?:\((?:EU|EG|EWG|EU, Euratom|Euratom)\)\s*)?(?:Nr\.\s*)?\d{1,4}/\d{2,4}"
+                              r"(?:/(?:EU|EG|EWG|EGKS|Euratom))?")
+
+
 def annex_subject(overview):
-    """'Der Anhang regelt ...' instead of 'Die Verordnung regelt ...' at the start of an annex summary."""
-    return check.ANNEX_AS_ACT.sub("Der Anhang", overview or "", count=1)
+    """'Der Anhang regelt ...' instead of 'Die Verordnung regelt ...' (also 'Die Verordnung (EG) Nr. 595/2009
+    regelt ...') at the start of an annex summary."""
+    overview = overview or ""
+    match = check.ANNEX_AS_ACT.search(overview)
+    if not match:
+        return overview
+    rest = overview[match.end():]
+    number = ACT_NUMBER_AFTER.match(rest)
+    return "Der Anhang" + (rest[number.end():] if number else rest)
 
 
 def source_sentences(quotes, text):
@@ -168,6 +209,22 @@ def recheck_items(provisions):
     return items
 
 
+FORMAL_REASON = re.compile(r"addressed to|repeal|correlation|committee|delegat", re.IGNORECASE)
+
+
+def second_round(out, items):
+    """Recheck answers AUTHORITY_ONLY whose reason shows a formal clause (addressees, repeal, committee or
+    delegation procedure) are asked once more with the sharpened instructions, under a new id."""
+    for item in items:
+        if item["step"] != "recheck" or item.get("round") == 2:
+            continue
+        saved = saved_answer(out, item)
+        answer = (saved or {}).get("answer") or {}
+        if answer.get("who_must_act") == "AUTHORITY_ONLY" and FORMAL_REASON.search(answer.get("reason", "")):
+            item["id"], item["round"] = f"{item['id']}-2", 2
+    return items
+
+
 def summary_items(version, celex, target, summary, start, full_text, items, fixes, name=None):
     """Point and language items of one summary, and the fixes that need no Qwen. target: the key of the
     summary (v1: the provision, v2: the article/annex key); name: its name ("Annex I"); start: the beginning
@@ -187,7 +244,7 @@ def summary_items(version, celex, target, summary, start, full_text, items, fixe
     if check.english(headline) or check.english(overview):
         items.append({"step": "language", "id": sha([version, celex, target, "language"])[:24], "version": version,
                       "celex": celex, "target": target, "name": name, "headline": headline, "overview": overview})
-    note = amended_act(start) if not check.AMENDED_DE.search(f"{headline} {overview}") else ""
+    note = amended_act(start, celex) if not check.AMENDED_DE.search(f"{headline} {overview}") else ""
     if note:
         fixes[(version, celex, target)]["amends"] = note
     if name.startswith("Annex") and check.ANNEX_AS_ACT.search(overview.strip()):
@@ -265,6 +322,69 @@ def ask_point(client, system, item, log):
                     MAX_TOKENS["point"])
 
 
+PERMISSION_EN = re.compile(r"\b(?:may|can|is allowed to|are allowed to|is permitted to|are permitted to|"
+                           r"at (?:its|their) discretion|optional(?:ly)?)\b", re.IGNORECASE)
+DUTY_EN = re.compile(r"\b(?:shall|must|is required to|are required to|is obliged to|are obliged to)\b",
+                     re.IGNORECASE)
+
+
+def plain_words(text):
+    return re.sub(r"[^\w%]+", " ", (text or "").casefold()).strip()
+
+
+def supports(evidence, problem, source):
+    """Whether the copied sentence is in the source and supports the correction: a permission for
+    PERMISSION_AS_DUTY ("may" before any "shall"), an authority for ACTOR_MISSING, both for BOTH."""
+    words = plain_words(evidence)
+    if len(words) < 20 or words[:120] not in plain_words(" ".join(source)):
+        return False, "the copied sentence is not in the legal text"
+    permission = PERMISSION_EN.search(evidence)
+    duty = DUTY_EN.search(evidence)
+    may_ok = bool(permission) and (not duty or permission.start() < duty.start())
+    actor_ok = bool(check.AUTHORITY.search(evidence))
+    needed = {"PERMISSION_AS_DUTY": may_ok, "ACTOR_MISSING": actor_ok, "BOTH": may_ok and actor_ok}
+    if not needed.get(problem, False):
+        return False, ("the sentence states a duty" if problem != "ACTOR_MISSING" and duty and not may_ok
+                       else "the sentence does not support the correction")
+    return True, ""
+
+
+def ask_verify(client, system, item, log):
+    sent = {"provision": item.get("name") or item["target"], "problem": item["problem"], "source": item["source"],
+            "point_a": item["point"], "point_b": item["proposed"]}
+
+    def validate(reply):
+        if not isinstance(reply, dict) or reply.get("choice") not in ("A", "B", "NEITHER"):
+            raise Unclassified("choice must be A, B or NEITHER.")
+        evidence = squash(reply.get("evidence") or "")
+        answer = {"choice": reply["choice"], "evidence": evidence}
+        if reply["choice"] == "B":
+            ok, why = supports(evidence, item["problem"], item["source"])
+            answer["used"] = ok
+            if not ok:
+                answer["why_not"] = why
+        else:
+            answer["used"] = False
+        return answer
+
+    return base.ask(client, system, sent, TASKS["verify"], SCHEMAS["verify"], "point_verify", validate, log,
+                    MAX_TOKENS["verify"])
+
+
+def verify_items(out, items):
+    """One item per correction of step 2 (a point that Qwen changed)."""
+    result = []
+    for item in items:
+        if item["step"] != "point":
+            continue
+        saved = saved_answer(out, item)
+        answer = (saved or {}).get("answer") or {}
+        if answer.get("problem") in (None, "NONE") or answer.get("not_used") or answer.get("point") == item["point"]:
+            continue
+        result.append({**item, "step": "verify", "problem": answer["problem"], "proposed": answer["point"]})
+    return result
+
+
 def ask_language(client, system, item, log):
     name = item.get("name") or item["target"]
     sent = {"provision": name, "headline": item["headline"], "overview": item["overview"]}
@@ -289,7 +409,56 @@ def ask_language(client, system, item, log):
                     MAX_TOKENS["language"])
 
 
-ASK = {"recheck": ask_recheck, "point": ask_point, "language": ask_language}
+def ask_wording(client, system, item, log):
+    def validate(reply, final=False):
+        text = squash((reply or {}).get("text") if isinstance(reply, dict) else "")
+        if not text:
+            raise Unclassified("Return the text.")
+        problem = base.number_marks([text], item["text"])
+        if english_point(text):
+            problem.append("The text is still English. Write it in German.")
+        if problem and not final:
+            raise Unclassified(" ".join(problem))
+        return {"text": item["text"], "not_used": "; ".join(problem)} if problem else {"text": text}
+
+    return base.ask(client, WORDING_SYSTEM, {"text": item["text"]}, "TASK: Translate the point into German.",
+                    WORDING_SCHEMA, "wording", validate, log, 600)
+
+
+def wording_items(out, v1_folder, redone):
+    """English points of the department summaries in use: the new ones, and version 1 of acts not redone."""
+    items = []
+    folders = [("fix", out / "departments"), ("v1", v1_folder / "departments")]
+    for origin, folder in folders:
+        for path in sorted(folder.glob("*.json")) if folder.is_dir() else []:
+            record = check.read_or_none(path) or {}
+            celex = record.get("celex") or ""
+            key = path.stem[len(safe_name(celex)) + 1:] if celex else ""
+            in_use = key in redone.get(celex, ()) if origin == "fix" else celex not in redone
+            if not celex or not in_use:
+                continue
+            items += english_points(origin, path, record)
+    return items
+
+
+ENGLISH_QUESTION = re.compile(r"^(?:Does|Do|Is|Are|Has|Have|Can|Will|Should|What|Which|Who|How)\s")
+
+
+def english_point(text):
+    """English text, also a short English question ("Does Max Bögl operate heat pumps?")."""
+    return bool(text) and (check.english(text) or bool(ENGLISH_QUESTION.match(text)))
+
+
+def english_points(origin, path, record):
+    """One item per English point of one department summary."""
+    return [{"step": "wording", "id": sha([origin, path.stem, index, bullet["text"]])[:24], "celex": record["celex"],
+             "target": path.stem, "origin": origin, "file": path.stem, "index": index, "text": bullet["text"]}
+            for index, bullet in enumerate(record.get("bullets") or [])
+            if isinstance(bullet, dict) and english_point(bullet.get("text"))]
+
+
+ASK = {"recheck": ask_recheck, "point": ask_point, "verify": ask_verify, "language": ask_language,
+       "wording": ask_wording}
 
 
 # ------------------------------------------------------------------ corrections
@@ -307,17 +476,29 @@ def saved_answer(out, item):
     return record if record and record.get("version") == VERSION and "answer" in record else None
 
 
-def corrections(out, items, fixes):
+def corrections(out, items, fixes, legacy=None):
     """corrections.json and review.csv from the saved answers, the fixes without Qwen and the act and
     department summaries written again."""
     result = {"version": VERSION, "made": f"{datetime.now():%Y-%m-%d %H:%M}", "provision_levels": {},
               "v1": {}, "v2": {}}
-    rows, counts = [], Counter()
+    rows, counts, rejected = [], Counter(), set()
+    legacy = legacy if legacy is not None else legacy_bases(out)
 
     def entry(version, celex, target):
         return result[version].setdefault(celex, {}).setdefault(target, {})
 
     for item in items:
+        if item["step"] == "verify":
+            continue
+        if item["step"] == "wording":
+            saved = saved_answer(out, item)
+            if saved and saved["answer"]["text"] != item["text"]:
+                result.setdefault("department_points", {}).setdefault(f"{item['origin']}/{item['file']}", {})[
+                    str(item["index"])] = saved["answer"]["text"]
+                counts["department points translated"] += 1
+                rows.append(["wording", item["celex"], item["file"], f"point {item['index'] + 1}", item["text"],
+                             saved["answer"]["text"], item["origin"]])
+            continue
         saved = saved_answer(out, item)
         if saved is None:
             counts[f"{item['step']}: not done"] += 1
@@ -335,7 +516,18 @@ def corrections(out, items, fixes):
                              f"{answer['who_must_act']}: {answer['reason']}"])
         elif item["step"] == "point":
             counts[f"point: {answer['problem']}" + (" (not used)" if answer.get("not_used") else "")] += 1
+            verified = saved_answer(out, {**item, "step": "verify"})
             if answer["point"] != item["point"]:
+                used = bool(verified and verified["answer"].get("used"))
+                counts[f"point correction {'used' if used else 'not used'} after the check"] += 1
+                if not used:
+                    rejected.add(item["celex"])
+                    why = (verified["answer"].get("why_not") or f"check chose {verified['answer']['choice']}"
+                           if verified else "not checked")
+                    rows.append([f"point {item['version']} (not used)", item["celex"], item["target"],
+                                 f"point {item['index'] + 1}", item["point"], answer["point"],
+                                 f"{answer['problem']}: {why}"])
+                    continue
                 entry(item["version"], item["celex"], item["target"]).setdefault("bullets", {})[str(item["index"])] = {
                     "before": item["point"], "after": answer["point"], "problem": answer["problem"]}
                 rows.append([f"point {item['version']}", item["celex"], item["target"], f"point {item['index'] + 1}",
@@ -361,13 +553,20 @@ def corrections(out, items, fixes):
                          "without Qwen"])
     for version in ("v1", "v2"):
         result[version] = {celex: targets for celex, targets in result[version].items() if targets}
+    result["rejected_acts"] = sorted(rejected)
     redone = {}
     for path in sorted((out / "acts").glob("*.json")) if (out / "acts").is_dir() else []:
         record = check.read_or_none(path)
-        if not record or record.get("version") != ACT_FIX or "sentences" not in record:
+        if not record or record.get("version") != ACT_FIX or "sentences" not in record \
+                or path.name != act_file(out, record.get("celex", "")).name:   # an older file name
+            continue
+        basis = act_basis(result, record["celex"])
+        legacy_ok = legacy.get(record["celex"]) == basis
+        if not current(record, basis, legacy_ok):
+            counts["acts to write again (their corrections changed)"] += 1
             continue
         keys = record.get("department_keys", [])
-        done = [key for key in keys if saved_department(out, record["celex"], key)]
+        done = [key for key in keys if saved_department(out, record["celex"], key, basis, legacy_ok)]
         redone[record["celex"]] = {"provisions": record.get("provisions", 0), "departments": done,
                                    "departments_open": len(keys) - len(done), "facts": record.get("facts", {})}
         counts["acts written again"] += 1
@@ -412,7 +611,7 @@ def act_records(celex, corrections, v1_folder, v2_folder, extra):
     levels = corrections["provision_levels"].get(celex, {})
     fixes1, fixes2 = corrections["v1"].get(celex, {}), corrections["v2"].get(celex, {})
     today, deleted, inserted = {}, set(), {}
-    for path in sorted((v2_folder / "units" / celex).glob("*.json")):
+    for path in sorted((v2_folder / "units" / safe_name(celex)).glob("*.json")):
         unit = check.read_or_none(path)
         if not unit or unit.get("failure"):
             continue
@@ -473,30 +672,70 @@ def affected_acts(corrections, v1_folder, v2_folder):
     acts |= {celex for celex, targets in corrections["v1"].items()
              if any(set(fix) & {"headline", "overview", "bullets"} for fix in targets.values())}
     if (v2_folder / "units").is_dir():
-        acts |= {path.name for path in (v2_folder / "units").iterdir() if path.is_dir()}
+        for folder in (v2_folder / "units").iterdir():
+            unit = next((check.read_or_none(path) for path in sorted(folder.glob("*.json"))), None) \
+                if folder.is_dir() else None
+            if unit and unit.get("celex"):   # the folder name is the CELEX number made safe, "(01)" -> "_01"
+                acts.add(unit["celex"])
     for path in (v1_folder / "departments").glob("*.json") if (v1_folder / "departments").is_dir() else []:
         record = check.read_or_none(path) or {}
-        if record.get("failure"):
-            acts.add(record.get("celex") or path.stem.split("_")[0])
+        if record.get("failure") and record.get("celex"):
+            acts.add(record["celex"])
     return sorted(acts)
 
 
+def act_basis(corrections, celex):
+    """A fingerprint of the corrections an act summary was written from."""
+    return sha([corrections["provision_levels"].get(celex, {}), corrections["v1"].get(celex, {}),
+                corrections["v2"].get(celex, {})])[:16]
+
+
+def current(record, basis, legacy_ok):
+    """A saved act or department summary is still right when it was written from the same corrections. A
+    summary saved before the fingerprint existed is right when the corrections of its act are the same as
+    then (legacy_ok)."""
+    return record.get("basis") == basis if "basis" in record else legacy_ok
+
+
+BEFORE = "corrections_first_run.json"
+
+
+def legacy_bases(out):
+    """{celex: basis} of the corrections the first act and department summaries were written from (saved
+    once, before the first run that knows fingerprints rewrites corrections.json)."""
+    first = out / BEFORE
+    if not first.is_file() and (out / "corrections.json").is_file():
+        first.write_bytes((out / "corrections.json").read_bytes())
+    old = check.read_or_none(first) or {}
+    if not old:
+        return {}
+    old.setdefault("provision_levels", {})
+    old.setdefault("v1", {})
+    old.setdefault("v2", {})
+    return {celex: act_basis(old, celex) for celex in set(old["provision_levels"]) | set(old["v1"]) | set(old["v2"])
+            | set(old.get("acts_redone", {}))}
+
+
 def act_file(out, celex):
-    return out / "acts" / f"{celex}.json"
+    return out / "acts" / f"{safe_name(celex)}.json"
 
 
-def saved_act(out, celex):
+def saved_act(out, celex, basis=None, legacy_ok=True):
     record = check.read_or_none(act_file(out, celex))
-    return record if record and record.get("version") == ACT_FIX and "sentences" in record else None
+    if not record or record.get("version") != ACT_FIX or "sentences" not in record or record.get("celex") != celex:
+        return None
+    return record if basis is None or current(record, basis, legacy_ok) else None
 
 
 def department_file(out, celex, key):
-    return out / "departments" / f"{celex}_{key}.json"
+    return out / "departments" / f"{safe_name(celex)}_{key}.json"
 
 
-def saved_department(out, celex, key):
+def saved_department(out, celex, key, basis=None, legacy_ok=True):
     record = check.read_or_none(department_file(out, celex, key))
-    return record if record and record.get("version") == ACT_FIX and "bullets" in record else None
+    if not record or record.get("version") != ACT_FIX or "bullets" not in record or record.get("celex") != celex:
+        return None
+    return record if basis is None or current(record, basis, legacy_ok) else None
 
 
 # ------------------------------------------------------------------ run
@@ -528,12 +767,13 @@ def main(argv=None):
             print("Step 0 stopped; the other steps go on with the change sentences as they are.", flush=True)
 
     notes = []
+    legacy = legacy_bases(out)
     print("Reading the results (this takes a few minutes) ...", flush=True)
     provisions = check.screened([*check.DEFAULT_RUNS], [check.DEFAULT_UNSURE], notes)
     for run, unsure_dir in zip(screening, unsure):
         provisions.update(check.screened([run], [unsure_dir], notes))
     files = {key: found["file"] for key, found in provisions.items()}
-    items = recheck_items(provisions) if "recheck" in args.steps else []
+    items = second_round(out, recheck_items(provisions)) if "recheck" in args.steps else []
     first, fixes = v1_items(check.SUMMARIES_V1, files)
     second, more = v2_items(check.SUMMARIES_V2)
     fixes.update(more)
@@ -544,13 +784,14 @@ def main(argv=None):
     print("To ask Qwen: " + ", ".join(f"{step} {by_step[step]:,}" for step in QWEN_STEPS if step in args.steps)
           + f". Without Qwen: {len(fixes):,} summaries (amends note, annex start).", flush=True)
     if args.count_only:
-        corrections(out, items, fixes)
+        corrections(out, items, fixes, legacy)
         acts = affected_acts(read_json(out / "corrections.json"), check.SUMMARIES_V1, check.SUMMARIES_V2)
         flagged = {item["celex"] for item in items}
         print(f"Act and department summaries to write again: at least {len(acts):,} acts, at most "
               f"{len(set(acts) | flagged):,} (depends on the answers).", flush=True)
         return 0
     systems = {step: PROMPTS[step].read_text(encoding="utf-8").strip() + "\n" for step in QWEN_STEPS}
+    systems["wording"] = WORDING_SYSTEM
     systems["act"], systems["department"] = base.system_prompt("act", "de"), base.system_prompt("department", "de")
     client = QwenClient.from_env(args.env_file, retries=1)
     workers = max(1, min(args.workers, MAX_WORKERS))
@@ -566,7 +807,7 @@ def main(argv=None):
         return records_of[celex]
 
     def ask_item(item, log):
-        if item["step"] in QWEN_STEPS:
+        if item["step"] in ASK:
             return ASK[item["step"]](client, systems[item["step"]], item, log)
         rows, facts = records(item["celex"], item["corrections"])
         if item["step"] == "acts":
@@ -602,12 +843,14 @@ def main(argv=None):
 
     def worker(progress):
         def work(item):
-            log, record, failed = [], {"version": VERSION if item["step"] in QWEN_STEPS else ACT_FIX,
+            log, record, failed = [], {"version": VERSION if item["step"] in ASK else ACT_FIX,
                                        "step": item["step"], "celex": item["celex"],
                                        "target": item.get("target", "")}, False
+            if item["step"] in ("acts", "departments"):
+                record["basis"] = act_basis(item["corrections"], item["celex"])
             try:
                 answer = ask_item(item, log)
-                if item["step"] in QWEN_STEPS:
+                if item["step"] in ASK:
                     record["answer"] = answer
                 else:
                     record.update(answer)
@@ -636,29 +879,50 @@ def main(argv=None):
         if not ok:
             wait_until_reachable(client, error)
         for step in QWEN_STEPS:
-            run_step(step.capitalize(), [item for item in items if item["step"] == step],
-                     lambda item: saved_answer(out, item))
-        corrections(out, items, fixes)
+            todo = verify_items(out, items) if step == "verify" and "verify" in args.steps else [
+                item for item in items if item["step"] == step]
+            if step == "verify":
+                items += todo
+            run_step(step.capitalize(), todo, lambda item: saved_answer(out, item))
+        corrections(out, items, fixes, legacy)
         result = read_json(out / "corrections.json")
+
+        def legacy_ok(celex):
+            return legacy.get(celex) == act_basis(result, celex)
+
+        def act_saved(item):
+            return saved_act(out, item["celex"], act_basis(result, item["celex"]), legacy_ok(item["celex"]))
+
         if "acts" in args.steps:
             acts = [{"step": "acts", "celex": celex, "corrections": result}
                     for celex in affected_acts(result, check.SUMMARIES_V1, check.SUMMARIES_V2)]
-            print(f"Act summaries to write again: {len(acts):,}", flush=True)
-            run_step("Acts", acts, lambda item: saved_act(out, item["celex"]))
+            print(f"Act summaries: {len(acts):,}, to write: {sum(act_saved(a) is None for a in acts):,}", flush=True)
+            run_step("Acts", acts, act_saved)
         if "departments" in args.steps:
             cards = []
             for path in sorted((out / "acts").glob("*.json")) if (out / "acts").is_dir() else []:
-                act = saved_act(out, path.stem)
+                act = act_saved({"celex": (check.read_or_none(path) or {}).get("celex", path.stem)})
                 for key in (act or {}).get("department_keys", []):
                     cards.append({"step": "departments", "celex": act["celex"], "key": key, "target": key,
                                   "sentences": act["sentences"], "corrections": result})
-            print(f"Department summaries to write again: {len(cards):,}", flush=True)
-            run_step("Departments", cards, lambda item: saved_department(out, item["celex"], item["key"]))
+            todo = [card for card in cards if saved_department(
+                out, card["celex"], card["key"], act_basis(result, card["celex"]), legacy_ok(card["celex"])) is None]
+            print(f"Department summaries: {len(cards):,}, to write: {len(todo):,}", flush=True)
+            run_step("Departments", cards, lambda item: saved_department(
+                out, item["celex"], item["key"], act_basis(result, item["celex"]), legacy_ok(item["celex"])))
+        if "wording" in args.steps:
+            corrections(out, items, fixes, legacy)
+            redone = {celex: set(entry["departments"]) for celex, entry in
+                      read_json(out / "corrections.json").get("acts_redone", {}).items()}
+            wording = wording_items(out, check.SUMMARIES_V1, redone)
+            items += wording
+            print(f"English points of department summaries: {len(wording):,}", flush=True)
+            run_step("Wording", wording, lambda item: saved_answer(out, item))
     except KeyboardInterrupt:
-        corrections(out, items, fixes)
+        corrections(out, items, fixes, legacy)
         print("\nStopped by Ctrl+C. Run the same command to continue.", flush=True)
         return 130
-    summary = corrections(out, items, fixes)
+    summary = corrections(out, items, fixes, legacy)
     print("\nFinished:")
     for key, value in summary.items():
         print(f"  {key:45} {value:,}")

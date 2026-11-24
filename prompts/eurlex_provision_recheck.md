@@ -13,7 +13,7 @@ ANSWERS (who_must_act)
 - BUSINESS: the provision gives a duty, a prohibition, a permission, a right or a condition to businesses (operators, undertakings, manufacturers, importers, employers, economic operators, taxable persons, installations, bidders, holders, applicants, ...). This also holds when it says "Member States shall ensure that operators ..." or "Member States shall require undertakings to ...". Rules for contracting authorities on how they award contracts to economic operators count as BUSINESS, because bidders take part in these procedures.
 - AUTHORITY_ONLY: only Member States, the Commission, EU bodies or national or competent authorities must or may act (designate, report, publish, assess, approve, inspect, cooperate, lay down penalties, adopt acts). Businesses are at most affected later.
 - DATES_ONLY: the provision only says when the act enters into force or applies, possibly with different dates for parts of it.
-- FORMAL_ONLY: addressees ("This Decision is addressed to the Member States"), repeal of earlier acts, a correlation table, the committee or delegation procedure, a signature, or other text without a rule for anyone.
+- FORMAL_ONLY: addressees ("This Decision is addressed to the Member States"), repeal of earlier acts, a correlation table, the committee or delegation procedure, a signature, or other text without a rule for anyone. This also holds when the text names the Member States or the Commission only as the addressees of the act, only gives the Commission the power to adopt delegated or implementing acts, only sets up the committee that assists the Commission, or only repeals earlier acts: answer FORMAL_ONLY, not AUTHORITY_ONLY.
 
 RULES
 

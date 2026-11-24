@@ -85,6 +85,103 @@ class AskTests(unittest.TestCase):
                          "Bewertung der Cybersicherheitsrisiken für das Netz")
 
 
+class VerifyTests(unittest.TestCase):
+    source = ["Article 33 1. The customs authorities shall inform the importer of the reporting obligation."]
+
+    def item(self, problem="PERMISSION_AS_DUTY"):
+        return {"target": "Article 33", "problem": problem, "source": self.source,
+                "point": "Die Information über die Meldepflicht muss bei der Freigabe erfolgen.",
+                "proposed": "Die Information über die Meldepflicht kann bei der Freigabe erfolgen."}
+
+    def test_a_permission_correction_is_not_used_when_the_sentence_says_shall(self):
+        answer = fix.ask_verify(client_with(reply({"evidence": self.source[0], "choice": "B"})), "s", self.item(), [])
+        self.assertFalse(answer["used"])
+        self.assertEqual(answer["why_not"], "the sentence states a duty")
+
+    def test_a_copied_sentence_that_is_not_in_the_text_is_not_used(self):
+        answer = fix.ask_verify(client_with(reply({"evidence": "The importer may inform the authorities later on.",
+                                                   "choice": "B"})), "s", self.item(), [])
+        self.assertFalse(answer["used"])
+
+    def test_supported_corrections_are_used(self):
+        self.assertEqual(fix.supports("Member States may require that taxable persons submit statements.",
+                                      "PERMISSION_AS_DUTY",
+                                      ["2. Member States may require that taxable persons submit statements."]),
+                         (True, ""))
+        answer = fix.ask_verify(client_with(reply({"evidence": self.source[0], "choice": "B"})), "s",
+                                self.item("ACTOR_MISSING"), [])
+        self.assertTrue(answer["used"])
+        self.assertFalse(fix.ask_verify(client_with(reply({"evidence": self.source[0], "choice": "A"})), "s",
+                                        self.item("ACTOR_MISSING"), [])["used"])
+
+
+class SavedSummaryTests(unittest.TestCase):
+    def test_a_saved_act_summary_is_written_again_only_when_its_corrections_changed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            corrections = {"provision_levels": {}, "v1": {"32020R0001": {"Article 1": {"headline": "Neu"}}}, "v2": {}}
+            basis = fix.act_basis(corrections, "32020R0001")
+            write(fix.act_file(out, "32020R0001"), {"version": fix.ACT_FIX, "celex": "32020R0001", "sentences": ["x"]})
+            # Saved before the fingerprint existed: right unless a correction of the act is no longer used.
+            self.assertIsNotNone(fix.saved_act(out, "32020R0001", basis, legacy_ok=True))
+            self.assertIsNone(fix.saved_act(out, "32020R0001", basis, legacy_ok=False))
+            write(fix.act_file(out, "32020R0001"), {"version": fix.ACT_FIX, "celex": "32020R0001", "sentences": ["x"],
+                                                    "basis": basis})
+            self.assertIsNotNone(fix.saved_act(out, "32020R0001", basis, legacy_ok=False))
+            other = fix.act_basis({**corrections, "v1": {}}, "32020R0001")
+            self.assertIsNone(fix.saved_act(out, "32020R0001", other))
+
+
+class SecondRunTests(unittest.TestCase):
+    def test_helpers_found_in_the_first_run(self):
+        self.assertEqual(fix.annex_subject("Die Verordnung (EG) Nr. 595/2009 legt Grenzwerte fest."),
+                         "Der Anhang legt Grenzwerte fest.")
+        self.assertEqual(fix.annex_subject("Die Richtlinie 2014/25/EU enthält eine Tabelle."),
+                         "Der Anhang enthält eine Tabelle.")
+        self.assertEqual(fix.amended_act("ANNEX XI Annex II to Regulation (EU) 2017/2400 is amended as follows",
+                                         "32017R2400"), "")
+        self.assertEqual(fix.act_file(Path("o"), "32008D0070(01)"), Path("o") / "acts" / "32008D0070_01.json")
+
+    def test_formal_clauses_answered_as_authority_rules_are_asked_once_more(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            items = [{"step": "recheck", "id": "a1", "celex": "32011D0014", "target": "Article 2"},
+                     {"step": "recheck", "id": "b2", "celex": "32012R1025", "target": "Article 19"}]
+            write(out / "answers" / "recheck" / "a1.json", {"version": fix.VERSION, "answer": {
+                "who_must_act": "AUTHORITY_ONLY", "reason": "The Decision is addressed to the Member States."}})
+            write(out / "answers" / "recheck" / "b2.json", {"version": fix.VERSION, "answer": {
+                "who_must_act": "AUTHORITY_ONLY", "reason": "The Commission must protect financial interests."}})
+            fix.second_round(out, items)
+            self.assertEqual([item["id"] for item in items], ["a1-2", "b2"])
+
+    def test_first_run_summaries_stay_unless_the_corrections_of_their_act_changed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            first = {"provision_levels": {}, "v1": {"32020R0001": {"Article 1": {"headline": "Neu"}}}, "v2": {},
+                     "acts_redone": {"32020R0002": {}}}
+            write(out / "corrections.json", first)
+            legacy = fix.legacy_bases(out)
+            self.assertTrue((out / fix.BEFORE).is_file())
+            later = {**first, "provision_levels": {"32020R0002": {"Article 4": {"before": "INDIRECT",
+                                                                                "after": "IGNORE"}}}}
+            self.assertEqual(legacy["32020R0001"], fix.act_basis(later, "32020R0001"))   # unchanged: stays
+            self.assertNotEqual(legacy["32020R0002"], fix.act_basis(later, "32020R0002"))   # changed: again
+
+    def test_english_points_of_department_summaries_in_use_are_found(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write(root / "v1" / "departments" / "32022L1999_k1.json", {"celex": "32022L1999", "bullets": [
+                {"kind": "TO_CONFIRM", "text": "Does Max Bögl transport dangerous goods by road?"},
+                {"kind": "WHY_DEPARTMENT", "text": "Die Richtlinie betrifft Gefahrguttransporte."}]})
+            write(root / "v1" / "departments" / "32018L2001_k2.json", {"celex": "32018L2001", "bullets": [
+                {"kind": "TO_CONFIRM", "text": "Does Max Bögl produce biogas for the grid?"}]})
+            write(root / "out" / "departments" / "32018L2001_k3.json", {"celex": "32018L2001", "bullets": [
+                {"kind": "TO_CONFIRM", "text": "Does Max Bögl operate heat pumps in its buildings?"}]})
+            items = fix.wording_items(root / "out", root / "v1", {"32018L2001": {"k3"}})
+            self.assertEqual([(i["origin"], i["file"]) for i in items],
+                             [("fix", "32018L2001_k3"), ("v1", "32022L1999_k1")])
+
+
 class RunTests(unittest.TestCase):
     def test_the_run_asks_only_the_flagged_items_and_writes_the_corrections(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -112,6 +209,8 @@ class RunTests(unittest.TestCase):
                        reply({"who_must_act": "AUTHORITY_ONLY", "reason": "Member States lay down penalties."}),
                        reply({"problem": "ACTOR_MISSING", "point": "Die Mitgliedstaaten müssen bis 24. November 2026 "
                               "Regeln für Sanktionen erlassen."}),
+                       reply({"evidence": "By 24 November 2026, Member States shall lay down rules on penalties.",
+                              "choice": "B"}),
                        reply({"headline": "Liste der Rohstoffe", "overview": "Die Verordnung listet Rohstoffe."})]
             client = client_with(*replies)
             saved = (check.DEFAULT_RUNS, check.DEFAULT_UNSURE, check.NEW_ARTICLES, check.SUMMARIES_V1,
@@ -121,14 +220,14 @@ class RunTests(unittest.TestCase):
                 check.NEW_ARTICLES, check.SUMMARIES_V1, check.SUMMARIES_V2 = root / "none", root / "v1", root / "none"
                 with patch.object(fix.QwenClient, "from_env", return_value=client), \
                         patch.object(fix, "reachable", return_value=(True, None)):
-                    steps = ["--steps", "recheck", "point", "language"]
+                    steps = ["--steps", "recheck", "point", "verify", "language"]
                     self.assertEqual(fix.main(["--output-dir", str(out), "--workers", "1", *steps]), 0)
                     # Everything is saved: the same command asks nothing again.
                     self.assertEqual(fix.main(["--output-dir", str(out), "--workers", "1", *steps]), 0)
             finally:
                 (check.DEFAULT_RUNS, check.DEFAULT_UNSURE, check.NEW_ARTICLES, check.SUMMARIES_V1,
                  check.SUMMARIES_V2) = saved
-            self.assertEqual(client.chat.call_count, 4)
+            self.assertEqual(client.chat.call_count, 5)
             result = json.loads((out / "corrections.json").read_text(encoding="utf-8"))
             self.assertEqual(result["provision_levels"]["32024R1252"]["Article 47"]["after"], "INDIRECT")
             self.assertEqual(result["provision_levels"]["32024R1252"]["Article 4"]["after"], "IGNORE")
