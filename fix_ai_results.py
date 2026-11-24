@@ -13,9 +13,10 @@ Steps (each item is asked once; the same command continues after Ctrl+C):
              sentences and corrects only that.
    verify    every correction of step 2 is checked once more: Qwen copies the sentence of the legal text the
              point describes and chooses the original or the correction. A correction is used only when it
-             is chosen and the copied sentence is in the text and supports it ("may" for a permission, an
-             authority for a named actor). Acts whose summaries were written with a correction that is not
-             used are written again.
+             is chosen and the copied sentence is in the text and supports it ("may" for a permission).
+             Corrections that only name who must act are not used: in the hand check about half of them named
+             the wrong actor or broke the sentence, while the original point (passive) is not wrong. Acts whose
+             summaries were written with a correction that is not used are written again.
 3. language  summaries (v1 and v2) whose headline or overview is English: translated into German.
 Without Qwen:
              an amending article gets the note "Ändert <act>"; an annex summary that starts with "Die
@@ -94,6 +95,7 @@ MAX_SOURCE = 2500
 STEPS = ("changes", "recheck", "point", "verify", "language", "acts", "departments", "wording")
 QWEN_STEPS = ("recheck", "point", "verify", "language")
 ACT_FIX = "act-fix-v1"
+ACTOR_FIXES_USED = False   # see "verify" above
 WORDING_SYSTEM = ("You translate one point of a German department summary of an EU legal act into German. Keep "
                   "names, numbers, standards, codes, references and the names of parts (for example 'Annex I, "
                   "1.1. Requirements ...') exactly as they are. A question stays a question. Use precise German "
@@ -493,6 +495,7 @@ def corrections(out, items, fixes, legacy=None):
         if item["step"] == "wording":
             saved = saved_answer(out, item)
             if saved and saved["answer"]["text"] != item["text"]:
+                saved["answer"]["text"] = changes.annex_or_appendix(saved["answer"]["text"], item["text"])
                 result.setdefault("department_points", {}).setdefault(f"{item['origin']}/{item['file']}", {})[
                     str(item["index"])] = saved["answer"]["text"]
                 counts["department points translated"] += 1
@@ -519,10 +522,14 @@ def corrections(out, items, fixes, legacy=None):
             verified = saved_answer(out, {**item, "step": "verify"})
             if answer["point"] != item["point"]:
                 used = bool(verified and verified["answer"].get("used"))
+                actor_only = answer["problem"] in ("ACTOR_MISSING", "BOTH") and not ACTOR_FIXES_USED
+                if actor_only:
+                    used = False
                 counts[f"point correction {'used' if used else 'not used'} after the check"] += 1
                 if not used:
                     rejected.add(item["celex"])
-                    why = (verified["answer"].get("why_not") or f"check chose {verified['answer']['choice']}"
+                    why = ("corrections that only name who acts are not used" if actor_only else
+                           verified["answer"].get("why_not") or f"check chose {verified['answer']['choice']}"
                            if verified else "not checked")
                     rows.append([f"point {item['version']} (not used)", item["celex"], item["target"],
                                  f"point {item['index'] + 1}", item["point"], answer["point"],
@@ -563,7 +570,7 @@ def corrections(out, items, fixes, legacy=None):
         basis = act_basis(result, record["celex"])
         legacy_ok = legacy.get(record["celex"]) == basis
         if not current(record, basis, legacy_ok):
-            counts["acts to write again (their corrections changed)"] += 1
+            counts["older act summaries not used (their corrections changed)"] += 1
             continue
         keys = record.get("department_keys", [])
         done = [key for key in keys if saved_department(out, record["celex"], key, basis, legacy_ok)]

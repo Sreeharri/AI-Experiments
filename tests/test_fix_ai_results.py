@@ -232,8 +232,10 @@ class RunTests(unittest.TestCase):
             self.assertEqual(result["provision_levels"]["32024R1252"]["Article 47"]["after"], "INDIRECT")
             self.assertEqual(result["provision_levels"]["32024R1252"]["Article 4"]["after"], "IGNORE")
             self.assertNotIn("Article 5", result["provision_levels"]["32024R1252"])
-            self.assertTrue(result["v1"]["32024R1252"]["Article 47"]["bullets"]["0"]["after"].startswith(
-                "Die Mitgliedstaaten müssen"))
+            # A correction that only names who acts is not used (the original passive point is not wrong).
+            self.assertNotIn("bullets", result["v1"].get("32024R1252", {}).get("Article 47", {}))
+            self.assertIn("corrections that only name who acts are not used",
+                          (out / "review.csv").read_text(encoding="utf-8-sig"))
             annex = result["v1"]["32024R1252"]["Annex I"]
             self.assertEqual(annex["headline"], "Liste der Rohstoffe")
             self.assertTrue(annex["overview_starts_with_annex"])
